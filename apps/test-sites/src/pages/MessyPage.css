@@ -1,0 +1,43 @@
+/* Messy page styles - intentionally problematic */
+
+/* Messy: Removed focus indicator */
+.messy-page .no-focus:focus {
+  outline: none !important;
+}
+
+.messy-page .no-focus:focus-visible {
+  outline: none !important;
+}
+
+/* Messy: Fake button has no focus indicator */
+.messy-page .fake-button:focus {
+  outline: none;
+}
+
+.messy-page .fake-button:focus-visible {
+  outline: none;
+}
+
+/* Messy: Icon button no focus indicator */
+.messy-page .icon-button:focus {
+  outline: none;
+}
+
+.messy-page .icon-button:focus-visible {
+  outline: none;
+}
+
+/* Messy: Low contrast text on image */
+.image-hero {
+  color: #e0e0e0; /* Low contrast - should be white or darker background */
+}
+
+.image-hero h1 {
+  color: #d0d0d0; /* Even lower contrast */
+}
+
+/* Messy: Form inputs without proper focus */
+.messy-page input:focus {
+  outline: 1px solid #ccc; /* Too subtle */
+}
+

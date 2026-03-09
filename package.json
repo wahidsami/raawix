@@ -1,0 +1,55 @@
+{
+  "name": "raawi-x",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Raawi X - Compliance audit scanner + assistive experience layer",
+  "scripts": {
+    "dev": "pnpm --filter report-ui dev",
+    "scanner:dev": "pnpm --filter scanner dev",
+    "test-sites:dev": "pnpm --filter @raawi-x/test-sites dev",
+    "portal-good:dev": "pnpm --filter @raawi-x/test-portal-good dev",
+    "gov-sim:dev": "pnpm --filter @raawi-x/test-gov-sim dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r --filter=!@raawi-x/scanner lint",
+    "lint:full": "pnpm -r lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "type-check": "pnpm -r type-check",
+    "infra:up": "docker compose -f infra/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infra/docker-compose.yml down",
+    "infra:reset": "docker compose -f infra/docker-compose.yml down -v && docker compose -f infra/docker-compose.yml up -d",
+    "infra:logs": "docker compose -f infra/docker-compose.yml logs -f",
+    "start": "powershell -ExecutionPolicy Bypass -File ./start-all.ps1",
+    "start:parallel": "powershell -ExecutionPolicy Bypass -File ./start-all-parallel.ps1",
+    "stop": "powershell -ExecutionPolicy Bypass -File ./stop-all.ps1",
+    "test:widget:e2e": "playwright test tests/widget-e2e/smoke.spec.ts",
+    "test:widget:e2e:full": "playwright test",
+    "test:widget:e2e:ui": "playwright test --ui",
+    "test:widget:e2e:summary": "tsx tests/widget-e2e/generate-summary.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "prettier": "^3.1.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "minimatch@<3.1.4": "3.1.4",
+      "minimatch@>=5.0.0 <5.1.8": "5.1.8",
+      "lodash@<4.17.23": "4.17.23",
+      "qs@<=6.14.1": "6.14.2"
+    }
+  },
+  "packageManager": "pnpm@10.29.3+sha512.498e1fb4cca5aa06c1dcf2611e6fafc50972ffe7189998c409e90de74566444298ffe43e6cd2acdc775ba1aa7cc5e092a8b7054c811ba8c5770f84693d33d2dc"
+}

@@ -1,0 +1,4 @@
+src/db/scan-repository.ts(280,13): error TS2322: Type '"A" | "AA" | "AAA" | null | undefined' is not assignable to type '"A" | "AA" | "AAA" | undefined'.
+  Type 'null' is not assignable to type '"A" | "AA" | "AAA" | undefined'.
+src/job-queue.ts(534,50): error TS2345: Argument of type '{ type: "layer_status"; scanId: string; layer: "L1"; status: "running"; timestamp: string; }' is not assignable to parameter of type 'ScanEvent'.
+  Type '{ type: "layer_status"; scanId: string; layer: "L1"; status: "running"; timestamp: string; }' is missing the following properties from type 'LayerStatusEvent': url, pageNumber

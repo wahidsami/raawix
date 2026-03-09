@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raawi X Accessibility Widget - Example</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    nav {
+      background: #f0f0f0;
+      padding: 10px;
+      margin-bottom: 20px;
+    }
+    aside {
+      background: #e8e8e8;
+      padding: 10px;
+      margin: 20px 0;
+    }
+    footer {
+      background: #d0d0d0;
+      padding: 10px;
+      margin-top: 40px;
+    }
+    .ad {
+      background: #ffcccc;
+      padding: 20px;
+      margin: 20px 0;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="#">Home</a> | <a href="#">About</a> | <a href="#">Contact</a>
+  </nav>
+
+  <header>
+    <h1>Example Page with Accessibility Widget</h1>
+  </header>
+
+  <main>
+    <article>
+      <h2>Main Content</h2>
+      <p>This is the main content area. The accessibility widget should appear as a floating button in the bottom right corner.</p>
+      <p>Click the "A" button to open the accessibility panel and try the features:</p>
+      <ul>
+        <li>Text size increase/decrease</li>
+        <li>Line spacing adjustment</li>
+        <li>High contrast mode</li>
+        <li>Focus highlight</li>
+        <li>Reading mode (hides navigation, ads, etc.)</li>
+      </ul>
+
+      <form>
+        <h3>Test Form (should remain visible in reading mode)</h3>
+        <label>
+          Name:
+          <input type="text" name="name">
+        </label>
+        <br><br>
+        <label>
+          Email:
+          <input type="email" name="email">
+        </label>
+        <br><br>
+        <button type="submit">Submit</button>
+      </form>
+    </article>
+
+    <aside>
+      <h3>Sidebar</h3>
+      <p>This sidebar should be hidden in reading mode.</p>
+    </aside>
+
+    <div class="ad">
+      Advertisement - This should be hidden in reading mode
+    </div>
+  </main>
+
+  <footer>
+    <p>Footer content - This should be hidden in reading mode</p>
+  </footer>
+
+  <!-- Load the accessibility widget -->
+  <script src="./dist/widget.iife.js"></script>
+  <!-- Widget auto-initializes when script loads -->
+</body>
+</html>
+

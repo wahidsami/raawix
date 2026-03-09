@@ -1,0 +1,371 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+  schemas           = ["public"]
+}
+
+model Entity {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code      String   @unique // Immutable identifier for widget integration (e.g., GOV-000123, RAAWI-6CHAR)
+  nameEn    String
+  nameAr    String?
+  type      String   // "government" | "private"
+  sector    String?
+  status    String   @default("active") // "active" | "onboarding" | "paused"
+  notes     String?
+  logoPath  String?  // Path to entity logo for PDF reports
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contacts  EntityContact[]
+  properties Property[]
+  scans     Scan[]
+
+  @@index([status])
+  @@index([type])
+  @@index([code])
+  @@schema("public")
+}
+
+model EntityContact {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entityId  String   @db.Uuid
+  entity    Entity   @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  name      String
+  email     String
+  phone     String?
+  role      String?
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([entityId])
+  @@index([email])
+  @@schema("public")
+}
+
+model Property {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entityId      String   @db.Uuid
+  entity        Entity   @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  domain        String
+  displayNameEn String?
+  displayNameAr String?
+  isPrimary     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sites         Site[]
+  scans         Scan[]
+  authProfile   ScanAuthProfile?
+  journeys      Journey[]
+
+  @@unique([entityId, domain])
+  @@index([entityId])
+  @@index([domain])
+  @@schema("public")
+}
+
+enum JourneyWhen {
+  before_crawl
+  after_crawl
+
+  @@schema("public")
+}
+
+/// Phase 4: Deterministic journeys per Property (stepsJson = steps only; no LLM). Execution in Phase 4.1.
+/// Credentials must be referenced via env placeholders (e.g. ${env:VAR}); do not store raw secrets.
+model Journey {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId String     @db.Uuid
+  property   Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name       String
+  when       JourneyWhen
+  stepsJson  Json       // Deterministic steps: goto, click, press, type, waitFor, assertVisible, assertUrl, saveStorageState, runAgentCapture
+  enabled    Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([propertyId])
+  @@schema("public")
+}
+
+model ScanAuthProfile {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  propertyId        String   @unique @db.Uuid
+  property           Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  authType          String   @default("none") // "none" | "cookie" | "scripted_login"
+  loginUrl          String?
+  successUrlPrefix  String?  // URL prefix to check for successful login
+  successSelector   String?  // CSS selector to check for successful login (alternative to successUrlPrefix)
+  usernameSelector  String?
+  passwordSelector  String?
+  submitSelector    String?
+  usernameValue     String?  // Stored encrypted or in env (not plain text in DB)
+  passwordValue     String?  // Stored encrypted or in env (not plain text in DB)
+  postLoginSeedPaths Json?   // string[] - paths to seed after login (e.g., ["/dashboard", "/services"])
+  extraHeaders      Json?    // Record<string, string> - additional headers
+  isActive          Boolean  @default(true)
+  lastTestedAt      DateTime?
+  lastTestResult    String?  // "success" | "failed" | null
+  lastTestError     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([propertyId])
+  @@index([authType])
+  @@schema("public")
+}
+
+model Scan {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scanId     String   @unique // Our custom scan ID format (scan_1234567890_abc123)
+  seedUrl    String
+  status     String   // queued, running, completed, failed, canceled
+  startedAt  DateTime
+  completedAt DateTime?
+  maxPages   Int
+  maxDepth   Int
+  hostname   String
+  summaryJson Json?   // ScanRunSummary as JSON
+  // WCAG Compliance Scores (calculated from findings)
+  scoreA     Float?   // WCAG Level A compliance score (0-100)
+  scoreAA    Float?   // WCAG Level AA compliance score (0-100)
+  scoreAAA   Float?   // WCAG Level AAA compliance score (0-100)
+  needsReviewRate Float? // Percentage of rules needing manual review (0-100)
+  entityId   String?  @db.Uuid
+  entity     Entity?  @relation(fields: [entityId], references: [id], onDelete: SetNull)
+  propertyId String?  @db.Uuid
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  reportSentAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  pages      Page[]
+  findings   Finding[]
+  visionFindings VisionFinding[]
+  agentFindings AgentFinding[]
+
+  @@index([scanId])
+  @@index([hostname, completedAt])
+  @@index([status])
+  @@index([entityId])
+  @@index([propertyId])
+  @@schema("public")
+}
+
+model Page {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scanId       String   @db.Uuid
+  scan         Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  pageNumber   Int
+  url          String
+  title        String?
+  finalUrl     String?
+  canonicalUrl String?  // Normalized URL for matching
+  pageFingerprintJson Json? // PageFingerprint as JSON
+  screenshotPath String?
+  htmlPath     String?
+  a11yPath     String?
+  visionPath  String?
+  agentPath   String?
+  error        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  findings     Finding[]
+  visionFindings VisionFinding[]
+  agentFindings AgentFinding[]
+
+  @@unique([scanId, pageNumber])
+  @@index([scanId])
+  @@index([url])
+  @@index([canonicalUrl])
+  @@schema("public")
+}
+
+model Finding {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scanId       String   @db.Uuid
+  scan         Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  pageId       String?  @db.Uuid
+  page         Page?    @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  ruleId       String
+  wcagId       String?
+  level        String?  // A, AA, AAA, vision
+  status       String   // pass, fail, needs_review, na
+  confidence   String   // high, medium, low
+  message      String?
+  evidenceJson Json     // EvidenceItem[] as JSON
+  howToVerify  String
+  createdAt    DateTime @default(now())
+
+  @@index([scanId])
+  @@index([pageId])
+  @@index([ruleId])
+  @@index([wcagId])
+  @@index([status])
+  @@schema("public")
+}
+
+model VisionFinding {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scanId            String   @db.Uuid
+  scan              Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  pageId            String?  @db.Uuid
+  page              Page?    @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  kind              String   // clickable_unlabeled, icon_button_unlabeled, etc.
+  bboxJson          Json     // {x, y, width, height}
+  detectedText      String?
+  confidence        String   // high, medium, low
+  correlatedSelector String?
+  evidenceJson      Json     // EvidenceItem[] as JSON
+  suggestedWcagIdsJson Json  // string[] as JSON
+  createdAt         DateTime @default(now())
+
+  @@index([scanId])
+  @@index([pageId])
+  @@index([kind])
+  @@schema("public")
+}
+
+model AgentFinding {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scanId               String   @db.Uuid
+  scan                 Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  pageId               String?  @db.Uuid
+  page                 Page?    @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  kind                 String
+  message              String?
+  confidence           Float    // 0..1 numeric; display level (high/medium/low) in UI
+  evidenceJson         Json
+  howToVerify          String?
+  suggestedWcagIdsJson Json?    // string[] as JSON
+  source               String   @default("agent")   // "agent" | "openai" for filtering
+  createdAt            DateTime @default(now())
+
+  @@index([scanId])
+  @@index([pageId])
+  @@index([kind])
+  @@index([source])
+  @@schema("public")
+}
+
+model Site {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  domain    String   @unique // e.g., "example.com"
+  propertyId String? @db.Uuid
+  property  Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  entityId  String?  @db.Uuid // Denormalized for quick lookups
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pageVersions        PageVersion[]
+  widgetEvents        WidgetEvent[]
+  widgetDailyAggregates WidgetDailyAggregate[]
+
+  @@index([domain])
+  @@index([propertyId])
+  @@index([entityId])
+  @@schema("public")
+}
+
+model PageVersion {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  siteId          String   @db.Uuid
+  site            Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  canonicalUrl    String   // Normalized URL for matching
+  finalUrl        String?  // Final URL after redirects
+  fingerprintHash String   // Hash of page fingerprint for versioning
+  scanId          String?  // Scan that generated this version
+  generatedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  assistiveMap AssistiveMap?
+
+  @@unique([siteId, canonicalUrl, fingerprintHash])
+  @@index([siteId, canonicalUrl])
+  @@index([canonicalUrl])
+  @@index([fingerprintHash])
+  @@schema("public")
+}
+
+model AssistiveMap {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pageVersionId     String       @unique @db.Uuid
+  pageVersion       PageVersion  @relation(fields: [pageVersionId], references: [id], onDelete: Cascade)
+  json              Json         // { labelOverrides, imageDescriptions, actionIntents, forms }
+  confidenceSummary Json?        // Summary of confidence levels (includes form counts)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([pageVersionId])
+  @@schema("public")
+}
+
+model AdminUser {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                   String    @unique
+  passwordHash            String
+  role                    String    @default("admin") // admin, viewer, etc.
+  passwordResetToken      String?
+  passwordResetExpiresAt  DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([email])
+  @@schema("public")
+}
+
+model WidgetEvent {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  siteId      String   @db.Uuid
+  site        Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  eventType   String   // page_view, widget_open, voice_enabled, command_used
+  pageUrl     String
+  metadata    Json?    // Additional event data (command name, etc.)
+  createdAt   DateTime @default(now())
+  
+  @@index([siteId, createdAt])
+  @@index([eventType])
+  @@index([createdAt])
+  @@schema("public")
+}
+
+model WidgetDailyAggregate {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  siteId          String   @db.Uuid
+  site            Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  date            DateTime @db.Date
+  uniqueSessions  Int      @default(0)
+  widgetOpens     Int      @default(0)
+  voiceEnabled    Int      @default(0)
+  commandUsed     Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([siteId, date])
+  @@index([siteId, date])
+  @@index([date])
+  @@schema("public")
+}
+
+model ScannerSettings {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  maxPages    Int      @default(200)
+  maxDepth    Int      @default(10)
+  maxRuntimeMs Int     @default(600000) // 10 minutes
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("scanner_settings")
+  @@schema("public")
+}

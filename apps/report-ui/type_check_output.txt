@@ -1,0 +1,7 @@
+
+> @raawi-x/report-ui@0.1.0 type-check D:\Waheed\RaawiX\apps\report-ui
+> tsc --noEmit
+
+src/pages/SitesPage.tsx(6,17): error TS6133: 'Calendar' is declared but its value is never read.
+src/pages/SitesPage.tsx(29,9): error TS6133: 'isRTL' is declared but its value is never read.
+ΓÇëELIFECYCLEΓÇë Command failed with exit code 2.

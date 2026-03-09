@@ -1,0 +1,259 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    /* Green primary color */
+    --primary: 142 71% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 142 71% 45%;
+    --radius: 0.5rem;
+    /* Header height constant */
+    --app-header-h: 64px;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* RTL Support with Cairo font for Arabic */
+  [dir="rtl"],
+  [dir="rtl"] *,
+  html[lang="ar"],
+  html[lang="ar"] * {
+    font-family: 'Cairo', 'Segoe UI', 'Tahoma', 'Arial', sans-serif !important;
+  }
+
+  /* Hide scrollbar for tab container */
+  .scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
+
+  /* Ensure body also gets Cairo in Arabic mode */
+  html[lang="ar"] body,
+  [dir="rtl"] body {
+    font-family: 'Cairo', 'Segoe UI', 'Tahoma', 'Arial', sans-serif !important;
+  }
+
+  /* Logical properties for RTL */
+  [dir="rtl"] .ml-auto {
+    margin-inline-start: auto;
+    margin-inline-end: 0;
+  }
+
+  [dir="rtl"] .mr-auto {
+    margin-inline-start: 0;
+    margin-inline-end: auto;
+  }
+
+  code {
+    font-family: 'Courier New', monospace;
+  }
+
+  /* Header height utility */
+  .app-header-h {
+    height: var(--app-header-h);
+  }
+
+  /* ============================================
+     TABLE RTL ALIGNMENT FIXES
+     ============================================ */
+
+  /* Table direction - inherit from document */
+  table {
+    direction: inherit;
+  }
+
+  /* Table header and cell alignment - RTL */
+  [dir="rtl"] table th,
+  [dir="rtl"] table td {
+    text-align: right;
+  }
+
+  /* Table header and cell alignment - LTR (default) */
+  [dir="ltr"] table th,
+  [dir="ltr"] table td,
+  table th,
+  table td {
+    text-align: left;
+  }
+
+  /* Center-aligned cells (for numeric values, status badges, etc.) */
+  [dir="rtl"] table th.text-center,
+  [dir="rtl"] table td.text-center,
+  [dir="ltr"] table th.text-center,
+  [dir="ltr"] table td.text-center,
+  table th.text-center,
+  table td.text-center {
+    text-align: center;
+  }
+
+  /* Table cell padding using logical properties */
+  /* Override Tailwind px-* classes to use logical properties for RTL support */
+  table th,
+  table td {
+    /* Use logical properties that automatically flip in RTL */
+    padding-inline-start: 1.5rem;
+    padding-inline-end: 1.5rem;
+  }
+
+  /* Ensure logical properties override physical properties in RTL */
+  [dir="rtl"] table th,
+  [dir="rtl"] table td {
+    padding-inline-start: 1.5rem !important;
+    padding-inline-end: 1.5rem !important;
+    /* Reset physical properties to avoid conflicts */
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  /* Action column - fixed width and centered */
+  /* Target last column (typically actions) */
+  table th:last-child,
+  table td:last-child {
+    width: 150px;
+    min-width: 150px;
+    max-width: 150px;
+  }
+
+  /* Also support explicit action column class */
+  table th.actions-column,
+  table td.actions-column {
+    width: 150px;
+    min-width: 150px;
+    max-width: 150px;
+  }
+
+  /* Action column alignment - center for icons */
+  [dir="rtl"] table th:last-child,
+  [dir="rtl"] table td:last-child,
+  [dir="rtl"] table th.actions-column,
+  [dir="rtl"] table td.actions-column,
+  [dir="ltr"] table th:last-child,
+  [dir="ltr"] table td:last-child,
+  [dir="ltr"] table th.actions-column,
+  [dir="ltr"] table td.actions-column {
+    text-align: center;
+  }
+
+  /* Flex layouts inside table cells - RTL support */
+  [dir="rtl"] table td .flex {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+
+  [dir="ltr"] table td .flex {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+
+  /* Icon spacing in flex cells - use gap (logical) */
+  table td .flex {
+    gap: 0.5rem;
+  }
+
+  /* Action buttons in cells - maintain logical order */
+  [dir="rtl"] table td .flex button,
+  [dir="rtl"] table td .flex a {
+    margin-inline-start: 0;
+    margin-inline-end: 0;
+  }
+
+  [dir="ltr"] table td .flex button,
+  [dir="ltr"] table td .flex a {
+    margin-inline-start: 0;
+    margin-inline-end: 0;
+  }
+
+  /* Override text-left/text-right utilities in RTL tables */
+  [dir="rtl"] table th.text-left,
+  [dir="rtl"] table td.text-left {
+    text-align: right !important;
+  }
+
+  [dir="rtl"] table th.text-right,
+  [dir="rtl"] table td.text-right {
+    text-align: left !important;
+  }
+
+  /* Ensure icons in table cells align properly */
+  [dir="rtl"] table td .flex svg,
+  [dir="rtl"] table th .flex svg {
+    flex-shrink: 0;
+  }
+
+  [dir="ltr"] table td .flex svg,
+  [dir="ltr"] table th .flex svg {
+    flex-shrink: 0;
+  }
+
+  /* Fix margin-left/right in flex cells - use logical properties */
+  [dir="rtl"] table td .flex .ml-1,
+  [dir="rtl"] table td .flex .ml-2,
+  [dir="rtl"] table td .flex .ml-3,
+  [dir="rtl"] table td .flex .ml-4 {
+    margin-inline-start: 0.25rem;
+    margin-inline-end: 0;
+  }
+
+  [dir="rtl"] table td .flex .mr-1,
+  [dir="rtl"] table td .flex .mr-2,
+  [dir="rtl"] table td .flex .mr-3,
+  [dir="rtl"] table td .flex .mr-4 {
+    margin-inline-start: 0;
+    margin-inline-end: 0.25rem;
+  }
+
+  /* Action column flex containers - center content */
+  table td.actions-column .flex,
+  table td:last-child .flex {
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* Ensure action buttons are properly spaced */
+  table td.actions-column .flex button + button,
+  table td:last-child .flex button + button {
+    margin-inline-start: 0.5rem;
+  }
+}
+

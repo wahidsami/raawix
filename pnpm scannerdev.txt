@@ -1,0 +1,23 @@
+   pnpm scanner:dev
+   pnpm dev
+.\apps\test-sites\run-full-test.ps1
+API URL: http://localhost:3001
+API Key: dev-api-key-change-in-production
+Click "Connect"
+
+
+Start everything (recommended):
+pnpm start:parallel
+.\start-all-parallel.ps1
+.\start-all.ps1
+Start everything (one window):
+pnpm start
+Stop everything:
+pnpm stop
+
+test  websites:
+   cd test-sites/portal-good && pnpm install
+   cd ../gov-sim && pnpm install
+
+http://localhost:4175/accessibility-test
+apps/scanner/src/config/scanner-settings.ts

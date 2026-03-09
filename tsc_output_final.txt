@@ -1,0 +1,24 @@
+src/config.ts(28,32): error TS2551: Property 'maxRuntimeMinutes' does not exist on type 'ScannerSettingsConfig'. Did you mean 'maxRuntimeMs'?
+src/crawler/page-capture.ts(106,11): error TS2367: This comparison appears to be unintentional because the types 'StabilizationConfig | undefined' and 'boolean' have no overlap.
+src/db/scan-repository.ts(237,9): error TS2588: Cannot assign to 'scan' because it is a constant.
+src/db/scan-repository.ts(281,13): error TS2322: Type '"A" | "AA" | "AAA" | null' is not assignable to type '"A" | "AA" | "AAA" | undefined'.
+  Type 'null' is not assignable to type '"A" | "AA" | "AAA" | undefined'.
+src/db/scan-repository.ts(413,53): error TS2551: Property 'evidenceJson' does not exist on type '{ kind: "focus_trap" | "unnamed_control" | "duplicate_control_name" | "focus_not_visible" | "silent_update" | "modal_focus_not_moved" | "focus_not_restored" | "expanded_state_not_updated" | "validation_error_not_focused"; ... 4 more ...; howToVerify?: string | undefined; }'. Did you mean 'evidence'?
+src/db/scan-repository.ts(477,15): error TS2322: Type '{ message: string; confidence: number; source: "openai"; kind: string; evidence?: unknown; suggestedWcagIds?: string[] | undefined; howToVerify?: string | undefined; }[]' is not assignable to type '{ kind: string; message: string; confidence: number; evidence: unknown; suggestedWcagIds?: string[] | undefined; howToVerify?: string | undefined; source: "openai"; }[]'.
+  Type '{ message: string; confidence: number; source: "openai"; kind: string; evidence?: unknown; suggestedWcagIds?: string[] | undefined; howToVerify?: string | undefined; }' is not assignable to type '{ kind: string; message: string; confidence: number; evidence: unknown; suggestedWcagIds?: string[] | undefined; howToVerify?: string | undefined; source: "openai"; }'.
+    Property 'evidence' is optional in type '{ message: string; confidence: number; source: "openai"; kind: string; evidence?: unknown; suggestedWcagIds?: string[] | undefined; howToVerify?: string | undefined; }' but required in type '{ kind: string; message: string; confidence: number; evidence: unknown; suggestedWcagIds?: string[] | undefined; howToVerify?: string | undefined; source: "openai"; }'.
+src/db/scan-repository.ts(478,42): error TS2345: Argument of type '{ kind: string; message: string; confidence: number; evidence: unknown; suggestedWcagIds?: string[] | undefined; howToVerify?: string | undefined; source: "openai"; }[] | null' is not assignable to parameter of type '{ kind: string; message: string; confidence: number; evidence: unknown; suggestedWcagIds?: string[] | undefined; howToVerify?: string | undefined; source: "openai"; }[]'.
+  Type 'null' is not assignable to type '{ kind: string; message: string; confidence: number; evidence: unknown; suggestedWcagIds?: string[] | undefined; howToVerify?: string | undefined; source: "openai"; }[]'.
+src/db/scan-repository.ts(480,29): error TS18047: 'enriched' is possibly 'null'.
+src/db/scan-repository.ts(558,28): error TS2551: Property 'scoreAAA' does not exist on type 'ComplianceScores'. Did you mean 'scoreAA'?
+src/db/scan-repository.ts(565,84): error TS2551: Property 'scoreAAA' does not exist on type 'ComplianceScores'. Did you mean 'scoreAA'?
+src/job-queue.ts(130,7): error TS2345: Argument of type 'number | undefined' is not assignable to parameter of type 'number'.
+  Type 'undefined' is not assignable to type 'number'.
+src/job-queue.ts(539,17): error TS2353: Object literal may only specify known properties, and 'message' does not exist in type 'LayerStatusEvent'.
+src/job-queue.ts(595,22): error TS2304: Cannot find name 'PageScanResult'.
+src/runner/report-generator.ts(81,9): error TS2353: Object literal may only specify known properties, and 'accessibilityBarriers' does not exist in type 'PageArtifact'.
+src/runner/report-generator.ts(491,28): error TS2339: Property 'data' does not exist on type 'AssistiveMap'.
+src/runner/report-generator.ts(492,28): error TS2339: Property 'data' does not exist on type 'AssistiveMap'.
+src/runner/report-generator.ts(493,29): error TS2339: Property 'data' does not exist on type 'AssistiveMap'.
+src/vision/analyzer.ts(503,17): error TS2393: Duplicate function implementation.
+src/vision/analyzer.ts(684,17): error TS2393: Duplicate function implementation.

@@ -1,0 +1,2 @@
+-- No-op: schema was already created by 20260108020255_init.
+-- This migration is left empty so Prisma shadow DB replay does not fail with "relation Scan already exists".

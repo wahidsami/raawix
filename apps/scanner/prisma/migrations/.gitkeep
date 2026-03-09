@@ -1,0 +1,3 @@
+# Prisma migrations will be created here
+# Run: pnpm --filter scanner db:migrate
+

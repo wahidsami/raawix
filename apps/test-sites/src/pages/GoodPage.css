@@ -1,0 +1,16 @@
+/* Additional styles for good page if needed */
+.good-page .button:focus-visible {
+  outline: 3px solid #0066cc;
+  outline-offset: 2px;
+}
+
+.good-page a:focus-visible {
+  outline: 3px solid #0066cc;
+  outline-offset: 2px;
+}
+
+.good-page input:focus-visible {
+  outline: 3px solid #0066cc;
+  outline-offset: 2px;
+}
+

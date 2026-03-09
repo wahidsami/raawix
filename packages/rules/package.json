@@ -1,0 +1,20 @@
+{
+  "name": "@raawi-x/rules",
+  "version": "0.1.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@raawi-x/core": "workspace:*",
+    "jsdom": "^23.0.1"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^21.1.6",
+    "typescript": "^5.3.2"
+  }
+}
+

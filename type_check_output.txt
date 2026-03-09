@@ -1,0 +1,86 @@
+Scope: 9 of 10 workspace projects
+apps/widget type-check$ tsc --noEmit
+packages/core type-check$ tsc --noEmit
+packages/core type-check: Done
+apps/widget type-check: Done
+apps/report-ui type-check$ tsc --noEmit
+packages/report type-check$ tsc --noEmit
+packages/rules type-check$ tsc --noEmit
+packages/report type-check: Done
+packages/rules type-check: Done
+apps/report-ui type-check: src/components/LanguageSwitcher.tsx(4,37): error TS6133: 'isRTL' is declared but its value is never read.
+apps/report-ui type-check: src/components/layout/AdminLayout.tsx(11,9): error TS6133: 'isRTL' is declared but its value is never read.
+apps/report-ui type-check: src/components/layout/Header.tsx(11,14): error TS6133: 'i18n' is declared but its value is never read.
+apps/report-ui type-check: src/components/ScanMonitorModal.tsx(3,45): error TS6133: 'FileText' is declared but its value is never read.
+apps/report-ui type-check: src/components/ScanMonitorModal.tsx(3,55): error TS6133: 'Eye' is declared but its value is never read.
+apps/report-ui type-check: src/components/ScanMonitorModal.tsx(3,67): error TS6133: 'MapIcon' is declared but its value is never read.
+apps/report-ui type-check: src/components/ScanMonitorModal.tsx(75,10): error TS6133: 'currentStep' is declared but its value is never read.
+apps/report-ui type-check: src/components/ScanMonitorModal.tsx(193,28): error TS6133: 'error' is declared but its value is never read.
+apps/report-ui type-check: src/components/ScanMonitorModal.tsx(1682,18): error TS2367: This comparison appears to be unintentional because the types '"discovery" | "scanning"' and '"selection"' have no overlap.
+apps/report-ui type-check: src/hooks/useAuth.ts(39,58): error TS2339: Property 'createdAt' does not exist on type '{ id: string; email: string; role: string; }'.
+apps/report-ui type-check: src/pages/AssistiveMapsPage.tsx(5,22): error TS6133: 'Calendar' is declared but its value is never read.
+apps/report-ui type-check: src/pages/AssistiveMapsPage.tsx(5,46): error TS6133: 'AlertCircle' is declared but its value is never read.
+apps/report-ui type-check: src/pages/AssistiveMapsPage.tsx(23,9): error TS6133: 'isRTL' is declared but its value is never read.
+apps/report-ui type-check: src/pages/EntitiesPage.tsx(6,46): error TS6133: 'Users' is declared but its value is never read.
+apps/report-ui type-check: src/pages/EntitiesPage.tsx(35,9): error TS6133: 'isRTL' is declared but its value is never read.
+apps/report-ui type-check: src/pages/EntityDetailPage.tsx(7,10): error TS6133: 'formatWCAGId' is declared but its value is never read.
+apps/report-ui type-check: src/pages/EntityDetailPage.tsx(7,24): error TS6133: 'getWCAGRule' is declared but its value is never read.
+apps/report-ui type-check: src/pages/EntityDetailPage.tsx(277,15): error TS6133: 'propertyId' is declared but its value is never read.
+apps/report-ui type-check: src/pages/EntityDetailPage.tsx(277,56): error TS6133: 'scanMode' is declared but its value is never read.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(4,18): error TS6133: 'CheckCircle' is declared but its value is never read.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(4,31): error TS6133: 'XCircle' is declared but its value is never read.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(4,40): error TS6133: 'AlertCircle' is declared but its value is never read.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(4,67): error TS6133: 'ShieldCheck' is declared but its value is never read.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(4,80): error TS6133: 'Download' is declared but its value is never read.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(4,90): error TS6133: 'ChevronDown' is declared but its value is never read.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(4,103): error TS6133: 'Check' is declared but its value is never read.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(234,30): error TS2345: Argument of type '[string | number | symbol]' is not assignable to parameter of type '[key: string | string[], options: TOptionsBase & $Dictionary & { defaultValue: string; }] | [key: string | string[], defaultValue: string, options?: (TOptionsBase & $Dictionary) | undefined] | [key: ...]'.
+apps/report-ui type-check:   Type '[string | number | symbol]' is not assignable to type '[key: string | TemplateStringsArray | (string | TemplateStringsArray)[], options?: (TOptionsBase & $Dictionary) | undefined]'.
+apps/report-ui type-check:     Type at position 0 in source is not compatible with type at position 0 in target.
+apps/report-ui type-check:       Type 'string | number | symbol' is not assignable to type 'string | TemplateStringsArray | (string | TemplateStringsArray)[]'.
+apps/report-ui type-check:         Type 'number' is not assignable to type 'string | TemplateStringsArray | (string | TemplateStringsArray)[]'.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(234,81): error TS2339: Property 'findings' does not exist on type 'TFunction<"translation", undefined>'.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(311,24): error TS2345: Argument of type '[string | number | symbol]' is not assignable to parameter of type '[key: string | string[], options: TOptionsBase & $Dictionary & { defaultValue: string; }] | [key: string | string[], defaultValue: string, options?: (TOptionsBase & $Dictionary) | undefined] | [key: ...]'.
+apps/report-ui type-check:   Type '[string | number | symbol]' is not assignable to type '[key: string | TemplateStringsArray | (string | TemplateStringsArray)[], options?: (TOptionsBase & $Dictionary) | undefined]'.
+apps/report-ui type-check:     Type at position 0 in source is not compatible with type at position 0 in target.
+apps/report-ui type-check:       Type 'string | number | symbol' is not assignable to type 'string | TemplateStringsArray | (string | TemplateStringsArray)[]'.
+apps/report-ui type-check:         Type 'number' is not assignable to type 'string | TemplateStringsArray | (string | TemplateStringsArray)[]'.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(311,83): error TS2339: Property 'findings' does not exist on type 'TFunction<"translation", undefined>'.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(340,32): error TS2339: Property 'howToVerify' does not exist on type 'Finding'.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(343,66): error TS2339: Property 'howToVerify' does not exist on type 'Finding'.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(347,32): error TS2339: Property 'evidence' does not exist on type 'Finding'.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(347,60): error TS2339: Property 'evidence' does not exist on type 'Finding'.
+apps/report-ui type-check: src/pages/FindingsPage.tsx(351,38): error TS2339: Property 'evidence' does not exist on type 'Finding'.
+apps/report-ui type-check: src/pages/OverviewPage.tsx(10,3): error TS6133: 'PieChart' is declared but its value is never read.
+apps/report-ui type-check: src/pages/OverviewPage.tsx(11,3): error TS6133: 'Pie' is declared but its value is never read.
+apps/report-ui type-check: src/pages/OverviewPage.tsx(12,3): error TS6133: 'Cell' is declared but its value is never read.
+apps/report-ui type-check: src/pages/OverviewPage.tsx(20,59): error TS6133: 'CheckCircle' is declared but its value is never read.
+apps/report-ui type-check: src/pages/OverviewPage.tsx(22,7): error TS6133: 'COLORS' is declared but its value is never read.
+apps/report-ui type-check: src/pages/ScanDetailPage.tsx(4,1): error TS6133: 'useLanguage' is declared but its value is never read.
+apps/report-ui type-check: src/pages/ScanDetailPage.tsx(180,9): error TS6133: 'currentLanguage' is declared but its value is never read.
+apps/report-ui type-check: src/pages/ScanDetailPage.tsx(185,10): error TS6133: 'showInspector' is declared but its value is never read.
+apps/report-ui type-check: src/pages/ScanDetailPage.tsx(185,25): error TS6133: 'setShowInspector' is declared but its value is never read.
+apps/report-ui type-check: src/pages/ScanDetailPage.tsx(186,10): error TS6133: 'debugInfo' is declared but its value is never read.
+apps/report-ui type-check: src/pages/ScanDetailPage.tsx(248,9): error TS6133: 'fetchDebugInfo' is declared but its value is never read.
+apps/report-ui type-check: src/pages/ScansPage.tsx(5,10): error TS6133: 'Search' is declared but its value is never read.
+apps/report-ui type-check: src/pages/ScansPage.tsx(5,18): error TS6133: 'Plus' is declared but its value is never read.
+apps/report-ui type-check: src/pages/ScansPage.tsx(5,24): error TS6133: 'ExternalLink' is declared but its value is never read.
+apps/report-ui type-check: src/pages/ScansPage.tsx(5,38): error TS6133: 'Play' is declared but its value is never read.
+apps/report-ui type-check: src/pages/ScansPage.tsx(5,44): error TS6133: 'Trash2' is declared but its value is never read.
+apps/report-ui type-check: src/pages/ScansPage.tsx(5,52): error TS6133: 'StopCircle' is declared but its value is never read.
+apps/report-ui type-check: src/pages/ScansPage.tsx(112,13): error TS6133: 'response' is declared but its value is never read.
+apps/report-ui type-check: src/pages/SettingsPage.tsx(4,10): error TS6133: 'Settings' is declared but its value is never read.
+apps/report-ui type-check: src/pages/SettingsPage.tsx(9,37): error TS6133: 'isRTL' is declared but its value is never read.
+apps/report-ui type-check: src/pages/SitesPage.tsx(6,17): error TS6133: 'Calendar' is declared but its value is never read.
+apps/report-ui type-check: src/pages/SitesPage.tsx(29,9): error TS6133: 'isRTL' is declared but its value is never read.
+apps/report-ui type-check: src/pages/WidgetAnalyticsPage.tsx(10,3): error TS6133: 'PieChart' is declared but its value is never read.
+apps/report-ui type-check: src/pages/WidgetAnalyticsPage.tsx(11,3): error TS6133: 'Pie' is declared but its value is never read.
+apps/report-ui type-check: src/pages/WidgetAnalyticsPage.tsx(12,3): error TS6133: 'Cell' is declared but its value is never read.
+apps/report-ui type-check: src/pages/WidgetAnalyticsPage.tsx(20,47): error TS6133: 'Command' is declared but its value is never read.
+apps/report-ui type-check: src/pages/WidgetAnalyticsPage.tsx(22,7): error TS6133: 'COLORS' is declared but its value is never read.
+apps/report-ui type-check: src/utils/polling-strategy.ts(19,11): error TS6133: 'lastSuccess' is declared but its value is never read.
+apps/report-ui type-check: src/utils/table-utils.ts(43,35): error TS6133: 'isRTL' is declared but its value is never read.
+apps/report-ui type-check: Failed
+D:\Waheed\RaawiX\apps\report-ui:
+ΓÇëERR_PNPM_RECURSIVE_RUN_FIRST_FAILΓÇë @raawi-x/report-ui@0.1.0 type-check: `tsc --noEmit`
+Exit status 1
