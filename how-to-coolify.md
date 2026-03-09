@@ -72,6 +72,7 @@ Set these specifically in the **Build Environment Variables** section:
 
 ```env
 VITE_API_URL=https://rxapi.unifinitylab.com
+VITE_API_KEY=3f9e7b8c4d2a1e6f9c7b5d3a8e1f4c6b9d2a7e5c
 ```
 
 > [!IMPORTANT]
