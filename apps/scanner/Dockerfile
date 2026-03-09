@@ -18,4 +18,6 @@ RUN pnpm --filter @raawi-x/scanner... build
 WORKDIR /app/apps/scanner
 EXPOSE 3001
 
-CMD ["sh", "-c", "pnpm db:migrate:deploy && node dist/index.js"]
+# Auto-resolve the specifically corrupted migration if it exists in a failed state
+# Then run deploy and start
+CMD ["sh", "-c", "npx prisma migrate resolve --applied 20250205000000_add_agent_finding_and_page_agent_path || true && pnpm db:migrate:deploy && node dist/index.js"]
