@@ -7,9 +7,12 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
 COPY packages ./packages
 COPY apps/scanner ./apps/scanner
 
+# Ensure devDependencies are installed for build
+ENV NODE_ENV=development
+
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @raawi-x/scanner db:generate
-RUN pnpm --filter @raawi-x/scanner build
+RUN pnpm --filter @raawi-x/scanner... build
 
 WORKDIR /app/apps/scanner
 EXPOSE 3001

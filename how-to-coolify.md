@@ -91,6 +91,7 @@ VITE_API_URL=https://rxapi.unifinitylab.com
 
 If you see an error like `error TS5083: Cannot read file '/app/tsconfig.json'` or `error TS6306: Referenced project ... must have setting "composite": true`:
 
-1.  **Fixed Dockerfiles**: I have updated `apps/scanner/Dockerfile` and `apps/report-ui/Dockerfile` to copy the root `tsconfig.json`. This is required because the apps extend the root configuration.
-2.  **Commit and Push**: You **MUST** commit and push these changes to your repository for Coolify to see the fix.
-3.  **Redeploy**: Once pushed, trigger a new deployment in Coolify.
+1.  **Fixed Dockerfiles**: I have updated `apps/scanner/Dockerfile` and `apps/report-ui/Dockerfile` to copy the root `tsconfig.json`, set `NODE_ENV=development` during build, and built dependencies using `pnpm --filter ...`.
+2.  **Fixed Build Scripts**: Updated all `package.json` files to use `tsc -b` (build mode) for correct project reference handling.
+3.  **Commit and Push**: You **MUST** commit and push these changes to your repository for Coolify to see the fix.
+4.  **Redeploy**: Once pushed, trigger a new deployment in Coolify.
