@@ -1,6 +1,6 @@
-FROM node:20-alpine AS build
+FROM node:20-bookworm-slim AS build
 
-RUN apk add --no-cache openssl libc6-compat ca-certificates
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 WORKDIR /app
 
@@ -16,6 +16,10 @@ RUN pnpm --filter @raawi-x/scanner db:generate
 RUN pnpm --filter @raawi-x/scanner... build
 
 WORKDIR /app/apps/scanner
+
+# Install Playwright dependencies and the Chromium browser
+RUN npx playwright install --with-deps chromium
+
 EXPOSE 3001
 
 # Auto-resolve the specifically corrupted migration if it exists in a failed state
