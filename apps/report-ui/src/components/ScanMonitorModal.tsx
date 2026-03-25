@@ -94,6 +94,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   const [showDetails, setShowDetails] = useState(false);
   const [banner, setBanner] = useState<{ tone: 'info' | 'success' | 'warning' | 'error'; message: string } | null>(null);
   const scanStartedAtRef = useRef<number>(Date.now());
+  const [elapsedMs, setElapsedMs] = useState(0);
   const [simulation, setSimulation] = useState<{
     status: 'not_started' | 'running' | 'done';
     pagesStarted: number;
@@ -137,6 +138,22 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
     const rounded = remainingMin < 2 ? 1 : Math.round(remainingMin);
     return `~${rounded} min`;
   }, [phase, stats.pagesScanned, stats.pagesDiscovered]);
+
+  const elapsedLabel = useMemo(() => {
+    const totalSeconds = Math.floor(Math.max(0, elapsedMs) / 1000);
+    const hh = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+    const mm = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+    const ss = String(totalSeconds % 60).padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
+  }, [elapsedMs]);
+
+  useEffect(() => {
+    if (!isScanning && !scanCompleted && phase === 'selection') return;
+    const tick = () => setElapsedMs(Date.now() - scanStartedAtRef.current);
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [isScanning, scanCompleted, phase]);
 
   const formatRecentEventLabel = (event: ScanEvent): string => {
     try {
@@ -247,6 +264,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
           setIsScanning(true);
           setBanner({ tone: 'info', message: (t('scanMonitor.stageDiscovering') as string) || 'Discovering pages' });
           scanStartedAtRef.current = Date.now();
+          setElapsedMs(0);
 
           const response = await fetch(`${apiUrl}/api/scans/${scanId}/discover`, {
             method: 'POST',
@@ -1404,6 +1422,8 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       setPhase('scanning');
       setIsScanning(true);
       setCurrentStep(t('scanMonitor.crawling'));
+      scanStartedAtRef.current = Date.now();
+      setElapsedMs(0);
 
       // Create scan record in DB NOW (only when user clicks "Start Scanning")
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -1687,7 +1707,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
               {phase === 'scanning' && (t('scanMonitor.title') || 'Scanning in progress')}
             </h2>
             <span className="text-sm text-gray-500">
-              {new URL(seedUrl).hostname} • {stats.pagesDiscovered} {t('scanMonitor.pagesDiscovered')}
+              {new URL(seedUrl).hostname} • {elapsedLabel} • {stats.pagesDiscovered} {t('scanMonitor.pagesDiscovered')}
               {phase === 'selection' && (() => {
                 const visibleNodes = getAllVisibleNodes(rootNodes);
                 const totalVisible = visibleNodes.length;
@@ -1808,6 +1828,10 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
                     {/* Activity */}
                     <div className="p-4 rounded-lg border bg-white space-y-2">
+                      <div className="text-sm text-gray-700">
+                        <span className="font-medium">Time:</span>{' '}
+                        <span className="font-mono text-xs text-gray-800">{elapsedLabel}</span>
+                      </div>
                       <div className="text-sm text-gray-700">
                         <span className="font-medium">{t('scanMonitor.currentPage') || 'Current Page'}: </span>
                         <span className="font-mono text-xs text-gray-800">{currentPage ? friendlyUrlPath(currentPage) : '-'}</span>
