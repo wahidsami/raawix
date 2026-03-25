@@ -1,6 +1,10 @@
 // Load environment variables from .env file
 import 'dotenv/config';
 
+import { setDefaultResultOrder } from 'node:dns';
+// Prefer IPv4 in Docker/VPS where IPv6 egress can fail while IPv4 works
+setDefaultResultOrder('ipv4first');
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';

@@ -30,8 +30,9 @@ export class ScanRepository {
     }
 
     try {
-      await prisma.scan.create({
-        data: {
+      await prisma.scan.upsert({
+        where: { scanId },
+        create: {
           scanId,
           seedUrl,
           status: 'queued',
@@ -42,10 +43,18 @@ export class ScanRepository {
           entityId: entityId || null,
           propertyId: propertyId || null,
         },
+        update: {
+          seedUrl,
+          maxPages,
+          maxDepth,
+          hostname,
+          entityId: entityId || null,
+          propertyId: propertyId || null,
+        },
       });
-      this.logger.info('Scan created in database', { scanId, entityId, propertyId });
+      this.logger.info('Scan record ensured in database', { scanId, entityId, propertyId });
     } catch (error) {
-      this.logger.error('Failed to create scan in database', {
+      this.logger.error('Failed to upsert scan in database', {
         scanId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });

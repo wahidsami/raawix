@@ -4,8 +4,26 @@
  */
 
 import { extractLinks, normalizeUrl, getHostname, isSameHostname, shouldIncludeUrl } from './url-utils.js';
+import { fetchHtmlForDiscovery } from './discovery-http-fetch.js';
 import { scanEventEmitter } from '../events/scan-events.js';
 import { chromium, Browser, Page } from 'playwright';
+
+function formatErrorChain(error: unknown): string {
+  const parts: string[] = [];
+  let cur: unknown = error;
+  let depth = 0;
+  while (cur && depth < 6) {
+    if (cur instanceof Error) {
+      parts.push(cur.message);
+      cur = (cur as { cause?: unknown }).cause;
+    } else {
+      parts.push(String(cur));
+      break;
+    }
+    depth++;
+  }
+  return parts.join(' | ');
+}
 
 export interface DiscoveryResult {
   urls: string[];
@@ -247,10 +265,7 @@ export class PageDiscovery {
 
           console.log(`[DISCOVERY] HTTP fallback ${item.url}: found ${links.length} links, added ${addedCount} new, total: ${discoveredUrls.length}`);
         } catch (fallbackError) {
-          console.warn(
-            `[DISCOVERY] HTTP fallback failed for ${item.url}:`,
-            fallbackError instanceof Error ? fallbackError.message : 'Unknown error'
-          );
+          console.warn(`[DISCOVERY] HTTP fallback failed for ${item.url}: ${formatErrorChain(fallbackError)}`);
         }
       }
     }
@@ -333,7 +348,10 @@ export class PageDiscovery {
 
   private async initialize(): Promise<void> {
     if (!this.browser) {
-      this.browser = await chromium.launch({ headless: true });
+      this.browser = await chromium.launch({
+        headless: true,
+        args: ['--disable-dev-shm-usage', '--no-sandbox', '--disable-setuid-sandbox'],
+      });
     }
   }
 

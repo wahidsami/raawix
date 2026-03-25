@@ -30,6 +30,9 @@ RUN npx playwright install --with-deps chromium
 
 EXPOSE 3001
 
+# Prefer IPv4 when both A and AAAA exist (common Docker/VPS IPv6 egress issues)
+ENV NODE_OPTIONS=--dns-result-order=ipv4first
+
 # Auto-resolve the specifically corrupted migration if it exists in a failed state
 # Then run deploy and start
 CMD ["sh", "-c", "npx prisma migrate resolve --applied 20250205000000_add_agent_finding_and_page_agent_path || true && pnpm db:migrate:deploy && node dist/index.js"]
