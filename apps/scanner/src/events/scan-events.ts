@@ -6,6 +6,7 @@ export type ScanEventType =
   | 'layer_status'
   | 'page_done'
   | 'scan_done'
+  | 'scan_canceled'
   | 'error';
 
 export interface CrawlDiscoveredEvent {
@@ -76,6 +77,19 @@ export interface ScanDoneEvent {
   timestamp: string;
 }
 
+export interface ScanCanceledEvent {
+  type: 'scan_canceled';
+  scanId: string;
+  message: string;
+  totals?: {
+    pages: number;
+    fails: number;
+    needsReview: number;
+    assistivePages: number;
+  };
+  timestamp: string;
+}
+
 export interface ScanErrorEvent {
   type: 'error';
   scanId: string;
@@ -90,6 +104,7 @@ export type ScanEvent =
   | LayerStatusEvent
   | PageDoneEvent
   | ScanDoneEvent
+  | ScanCanceledEvent
   | ScanErrorEvent;
 
 /**

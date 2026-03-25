@@ -298,6 +298,64 @@ export class JobQueue {
     return true;
   }
 
+  private async persistPartialReportForCanceledScan(
+    scanId: string,
+    seedUrl: string,
+    startedAt: string,
+    logger: StructuredLogger
+  ): Promise<void> {
+    try {
+      logger.info('Generating partial report for canceled scan', { scanId });
+      const scanRun = await this.reportGenerator.generateReport(
+        scanId,
+        seedUrl,
+        startedAt,
+        new Date().toISOString()
+      );
+      scanRun.completedAt = new Date().toISOString();
+
+      await this.reportGenerator.saveReport(scanId, scanRun);
+      await this.storage.saveScanResult(scanId, scanRun);
+      await scanRepository.saveReportResults(scanId, scanRun);
+      await scanRepository.updateScanStatus(scanId, 'canceled', new Date());
+
+      const { scanEventEmitter } = await import('./events/scan-events.js');
+      const fails = scanRun.summary.byStatus.fail;
+      const needsReview = scanRun.summary.byStatus.needs_review;
+      const assistivePages = scanRun.pages.filter((p: any) => p.assistiveMapPath).length;
+
+      scanEventEmitter.emitEvent(scanId, {
+        type: 'scan_canceled',
+        scanId,
+        message: 'Scan canceled by user',
+        totals: {
+          pages: scanRun.pages.length,
+          fails,
+          needsReview,
+          assistivePages,
+        },
+        timestamp: new Date().toISOString(),
+      } as any);
+    } catch (error) {
+      logger.warn('Failed to persist partial report for canceled scan', {
+        scanId,
+        error: error instanceof Error ? error.message : 'Unknown',
+      });
+      // Still emit canceled so UI stops cleanly
+      try {
+        const { scanEventEmitter } = await import('./events/scan-events.js');
+        scanEventEmitter.emitEvent(scanId, {
+          type: 'scan_canceled',
+          scanId,
+          message: 'Scan canceled by user',
+          timestamp: new Date().toISOString(),
+        } as any);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   /**
    * Strict state machine transition
    */
@@ -784,6 +842,7 @@ export class JobQueue {
           }
         }
         this.activePageCaptures.delete(scanId);
+        await this.persistPartialReportForCanceledScan(scanId, seedUrl, job.startedAt!, logger);
         return;
       }
 
@@ -801,11 +860,34 @@ export class JobQueue {
 
       // Check if canceled before saving
       if (this.canceled.has(scanId)) {
-        logger.info('Job canceled before saving results - skipping database save', { scanId });
+        logger.info('Job canceled before saving results - persisting partial results', { scanId });
         this.transitionState(job, 'canceled', logger);
         job.canceledAt = new Date().toISOString();
         this.running.delete(scanId);
-        // Clean up pageCapture reference
+        // Persist report.json + DB even if canceled (partial report)
+        finalScanRun.completedAt = new Date().toISOString();
+        await this.reportGenerator.saveReport(scanId, finalScanRun);
+        await this.storage.saveScanResult(scanId, finalScanRun);
+        await scanRepository.saveReportResults(scanId, finalScanRun);
+        await scanRepository.updateScanStatus(scanId, 'canceled', new Date());
+
+        const { scanEventEmitter } = await import('./events/scan-events.js');
+        const fails = finalScanRun.summary.byStatus.fail;
+        const needsReview = finalScanRun.summary.byStatus.needs_review;
+        const assistivePages = finalScanRun.pages.filter((p: any) => p.assistiveMapPath).length;
+        scanEventEmitter.emitEvent(scanId, {
+          type: 'scan_canceled',
+          scanId,
+          message: 'Scan canceled by user',
+          totals: {
+            pages: finalScanRun.pages.length,
+            fails,
+            needsReview,
+            assistivePages,
+          },
+          timestamp: new Date().toISOString(),
+        } as any);
+
         this.activePageCaptures.delete(scanId);
         return;
       }

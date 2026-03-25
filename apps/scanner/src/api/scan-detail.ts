@@ -500,7 +500,7 @@ router.post('/:scanId/cancel', requireAuth, async (req: Request, res: Response) 
       // Emit cancel event
       const { scanEventEmitter } = await import('../events/scan-events.js');
       scanEventEmitter.emitEvent(scanId, {
-        type: 'error',
+        type: 'scan_canceled',
         scanId,
         timestamp: new Date().toISOString(),
         message: 'Scan canceled by user',

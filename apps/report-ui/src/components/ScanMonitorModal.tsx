@@ -303,6 +303,24 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       case 'scan_done':
         handleScanDone(event);
         break;
+      case 'scan_canceled': {
+        addDebugLog('warning', `Scan canceled: ${(event as any).message || 'Canceled by user'}`);
+        setIsScanning(false);
+        setScanCompleted(true);
+        setCurrentPage(null);
+        setCurrentActivity('');
+        setCurrentStep(t('scanMonitor.stopped') || 'Stopped');
+
+        // Close SSE connection
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+          eventSourceRef.current = null;
+        }
+
+        // Do NOT delete the scan — keep partial results if any
+        alert((event as any).message || 'Scan canceled');
+        break;
+      }
       case 'error':
         handleError(event);
         break;
@@ -1091,7 +1109,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
   const handleStopScan = async () => {
     const confirmMessage = t('scanMonitor.confirmStop') ||
-      'Are you sure you want to stop this scan? All discovery and scan progress will be lost. This action cannot be undone.';
+      'Are you sure you want to stop this scan? Any pages already scanned will be saved as a partial report.';
 
     if (!window.confirm(confirmMessage)) {
       return; // User cancelled
@@ -1110,14 +1128,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         eventSourceRef.current = null;
       }
 
-      // Delete scan record from database (since user aborted)
-      try {
-        await apiClient.deleteScan(scanId);
-        addDebugLog('info', 'Scan record deleted from database');
-      } catch (err) {
-        console.warn('Failed to delete scan record:', err);
-        // Non-critical - continue
-      }
+      // Keep scan record so partial results can be viewed/exported
 
       // Refresh scans list
       if (onComplete) {
