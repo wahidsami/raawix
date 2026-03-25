@@ -70,13 +70,13 @@ export const config = {
     maxImagesPerScan: parseInt(process.env.GEMINI_MAX_IMAGES_PER_SCAN || '50', 10), // Rate limit per scan
   },
   agent: {
-    enabled: process.env.AGENT_ENABLED === 'true', // Default disabled
+    enabled: process.env.AGENT_ENABLED !== 'false', // Default enabled
     maxSteps: parseInt(process.env.AGENT_MAX_STEPS || '50', 10),
     maxMs: parseInt(process.env.AGENT_MAX_MS || '10000', 10),
-    probesEnabled: process.env.AGENT_PROBES_ENABLED === 'true', // Default disabled
+    probesEnabled: process.env.AGENT_PROBES_ENABLED !== 'false', // Default enabled
   },
   openai: {
-    enabled: process.env.OPENAI_ENABLED === 'true',
+    enabled: process.env.OPENAI_ENABLED !== 'false', // Default enabled
     apiKey: process.env.OPENAI_API_KEY || '',
     // Default text model for translation/report text.
     model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
@@ -87,7 +87,7 @@ export const config = {
     maxImagesPerScan: parseInt(process.env.OPENAI_MAX_IMAGES_PER_SCAN || '50', 10),
   },
   agentAnalyst: {
-    enabled: process.env.AGENT_ANALYST_ENABLED === 'true',
+    enabled: process.env.AGENT_ANALYST_ENABLED !== 'false', // Default enabled
     maxPagesPerScan: parseInt(process.env.AGENT_ANALYST_MAX_PAGES || '10', 10),
     maxIssuesPerPage: parseInt(process.env.AGENT_ANALYST_MAX_ISSUES || '20', 10),
     cacheTtlMs: parseInt(process.env.AGENT_ANALYST_CACHE_TTL_MS || '604800000', 10), // 7d
