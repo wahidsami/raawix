@@ -152,79 +152,106 @@ export default function OverviewPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Scans Over Time */}
         <div className="bg-card border border-border rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4">{t('overview.scansOverTime')}</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={scansOverTime}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="date"
-                tick={{ fill: 'currentColor' }}
-                style={{ direction: isRTL ? 'rtl' : 'ltr' }}
-              />
-              <YAxis tick={{ fill: 'currentColor' }} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: 'var(--radius)',
-                }}
-              />
-              <Legend />
-              <Line type="monotone" dataKey="count" stroke="hsl(var(--primary))" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
+          <h2 className="text-lg font-semibold mb-1">{t('overview.scansOverTime')}</h2>
+          {!scansOverTime.some((d) => d.count > 0) ? (
+            <p className="text-sm text-muted-foreground py-12 text-center">{t('overview.chartNoScansInRange')}</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={scansOverTime} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: 'currentColor', fontSize: 11 }}
+                  tickFormatter={(v) => String(v).slice(5)}
+                  minTickGap={32}
+                  style={{ direction: isRTL ? 'rtl' : 'ltr' }}
+                />
+                <YAxis tick={{ fill: 'currentColor' }} allowDecimals={false} width={36} />
+                <Tooltip
+                  labelFormatter={(label) => String(label)}
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: 'var(--radius)',
+                  }}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="count"
+                  name={t('overview.chartScansPerDay')}
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={2}
+                  dot={{ r: 2 }}
+                  connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
-        {/* Failures by Level */}
+        {/* Open issues by WCAG level */}
         <div className="bg-card border border-border rounded-lg p-6">
-          <h2 className="text-lg font-semibold mb-4">{t('overview.failuresByLevel')}</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={failuresByLevel}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="level"
-                tick={{ fill: 'currentColor' }}
-                style={{ direction: isRTL ? 'rtl' : 'ltr' }}
-              />
-              <YAxis tick={{ fill: 'currentColor' }} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: 'var(--radius)',
-                }}
-              />
-              <Bar dataKey="failures" fill="hsl(var(--primary))" />
-            </BarChart>
-          </ResponsiveContainer>
+          <h2 className="text-lg font-semibold mb-1">{t('overview.failuresByLevel')}</h2>
+          <p className="text-xs text-muted-foreground mb-3">{t('overview.failuresByLevelHint')}</p>
+          {!failuresByLevel.some((d) => d.failures > 0) ? (
+            <p className="text-sm text-muted-foreground py-12 text-center">{t('overview.chartNoIssuesByLevel')}</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={failuresByLevel} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="level"
+                  tick={{ fill: 'currentColor' }}
+                  tickFormatter={(v) => (v === 'Other' ? t('overview.levelOther') : String(v))}
+                  style={{ direction: isRTL ? 'rtl' : 'ltr' }}
+                />
+                <YAxis tick={{ fill: 'currentColor' }} allowDecimals={false} width={36} />
+                <Tooltip
+                  labelFormatter={(v) => (v === 'Other' ? t('overview.levelOther') : String(v))}
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: 'var(--radius)',
+                  }}
+                />
+                <Bar dataKey="failures" name={t('overview.chartIssues')} fill="hsl(var(--primary))" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
-        {/* Top Failing Rules */}
+        {/* Top rules */}
         <div className="bg-card border border-border rounded-lg p-6">
           <h2 className="text-lg font-semibold mb-4">{t('overview.topFailingRules')}</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={topFailingRules} layout={isRTL ? 'vertical' : 'horizontal'}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                type={isRTL ? 'number' : 'category'}
-                dataKey="rule"
-                tick={{ fill: 'currentColor' }}
-              />
-              <YAxis
-                type={isRTL ? 'category' : 'number'}
-                dataKey={isRTL ? 'rule' : 'failures'}
-                tick={{ fill: 'currentColor' }}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: 'var(--radius)',
-                }}
-              />
-              <Bar dataKey="failures" fill="hsl(var(--destructive))" />
-            </BarChart>
-          </ResponsiveContainer>
+          {topFailingRules.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-12 text-center">{t('overview.chartNoRules')}</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={Math.max(280, topFailingRules.length * 36)}>
+              <BarChart
+                layout="vertical"
+                data={topFailingRules}
+                margin={{ top: 8, right: 24, left: 8, bottom: 8 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" tick={{ fill: 'currentColor' }} allowDecimals={false} />
+                <YAxis
+                  type="category"
+                  dataKey="rule"
+                  width={isRTL ? 100 : 140}
+                  tick={{ fill: 'currentColor', fontSize: 10 }}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: 'var(--radius)',
+                  }}
+                />
+                <Bar dataKey="failures" name={t('overview.chartIssues')} fill="hsl(var(--destructive))" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Top Affected Sites */}
@@ -232,14 +259,14 @@ export default function OverviewPage() {
           <h2 className="text-lg font-semibold mb-4">{t('overview.topAffectedSites')}</h2>
           <div className="space-y-3">
             {topAffectedSites.length === 0 ? (
-              <div className="text-center text-muted-foreground py-4">
-                No data available
-              </div>
+              <p className="text-sm text-muted-foreground text-center py-8">{t('overview.chartNoSites')}</p>
             ) : (
               topAffectedSites.map((site, index) => (
                 <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-md">
-                  <span className="font-medium">{site.domain}</span>
-                  <span className="text-sm text-muted-foreground">{site.issues} {t('findings.title').toLowerCase()}</span>
+                  <span className="font-medium break-all pr-2">{site.domain}</span>
+                  <span className="text-sm text-muted-foreground shrink-0">
+                    {site.issues} {t('overview.chartIssues').toLowerCase()}
+                  </span>
                 </div>
               ))
             )}

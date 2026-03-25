@@ -378,14 +378,15 @@ router.get('/overview', requireAuth, async (req: Request, res: Response) => {
       prisma.visionFinding.count(),
     ]);
 
-    // Get scans over last 30 days
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Scans over last N days (UTC), then fill every calendar day so charts always have a series
+    const scanWindowDays = 90;
+    const windowStart = new Date();
+    windowStart.setUTCDate(windowStart.getUTCDate() - scanWindowDays);
 
     const recentScans = await prisma.scan.findMany({
       where: {
         startedAt: {
-          gte: thirtyDaysAgo,
+          gte: windowStart,
         },
       },
       select: {
@@ -397,94 +398,118 @@ router.get('/overview', requireAuth, async (req: Request, res: Response) => {
       },
     });
 
-    // Group by date
     const scansByDate = new Map<string, number>();
     recentScans.forEach((scan: any) => {
       const date = scan.startedAt.toISOString().split('T')[0];
       scansByDate.set(date, (scansByDate.get(date) || 0) + 1);
     });
 
-    const scansOverTime = Array.from(scansByDate.entries())
-      .map(([date, count]) => ({ date, count }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+    const scansOverTime: Array<{ date: string; count: number }> = [];
+    const todayUtc = new Date();
+    for (let i = scanWindowDays - 1; i >= 0; i--) {
+      const d = new Date(
+        Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth(), todayUtc.getUTCDate() - i)
+      );
+      const key = d.toISOString().split('T')[0];
+      scansOverTime.push({ date: key, count: scansByDate.get(key) || 0 });
+    }
 
-    // Get failures by WCAG level
+    // Chart: open issues per WCAG level (fail + needs_review — matches how scans store Gemini/heuristic output)
+    const openIssueStatuses = ['fail', 'needs_review'] as const;
+    const [aOpen, aaOpen, aaaOpen, otherOpen] = await Promise.all([
+      prisma.finding.count({
+        where: { level: 'A', status: { in: [...openIssueStatuses] } },
+      }),
+      prisma.finding.count({
+        where: { level: 'AA', status: { in: [...openIssueStatuses] } },
+      }),
+      prisma.finding.count({
+        where: { level: 'AAA', status: { in: [...openIssueStatuses] } },
+      }),
+      prisma.finding.count({
+        where: {
+          status: { in: [...openIssueStatuses] },
+          OR: [{ level: null }, { level: { notIn: ['A', 'AA', 'AAA'] } }],
+        },
+      }),
+    ]);
+
     const failuresByLevel = [
-      {
-        level: 'A',
-        failures: aFailures,
-      },
-      {
-        level: 'AA',
-        failures: aaFailures,
-      },
-      {
-        level: 'AAA',
-        failures: await prisma.finding.count({
-          where: {
-            level: 'AAA',
-            status: 'fail',
-          },
-        }),
-      },
+      { level: 'A', failures: aOpen },
+      { level: 'AA', failures: aaOpen },
+      { level: 'AAA', failures: aaaOpen },
+      { level: 'Other', failures: otherOpen },
     ];
 
-    // Get top failing WCAG rules
-    const topFailingRules = await prisma.finding.groupBy({
-      by: ['wcagId'],
-      where: {
-        status: 'fail',
-        wcagId: { not: null },
-      },
-      _count: {
-        wcagId: true,
-      },
-      orderBy: {
-        _count: {
-          wcagId: 'desc',
+    // Top rules: prefer wcagId; fall back to ruleId when wcagId is null (heuristics, etc.)
+    const [topByWcag, topByRule] = await Promise.all([
+      prisma.finding.groupBy({
+        by: ['wcagId'],
+        where: {
+          status: { in: [...openIssueStatuses] },
+          wcagId: { not: null },
         },
-      },
-      take: 10,
+        _count: { wcagId: true },
+        orderBy: { _count: { wcagId: 'desc' } },
+        take: 25,
+      }),
+      prisma.finding.groupBy({
+        by: ['ruleId'],
+        where: {
+          status: { in: [...openIssueStatuses] },
+          wcagId: null,
+        },
+        _count: { ruleId: true },
+        orderBy: { _count: { ruleId: 'desc' } },
+        take: 25,
+      }),
+    ]);
+
+    const ruleIssueCounts = new Map<string, number>();
+    for (const row of topByWcag) {
+      if (row.wcagId) {
+        ruleIssueCounts.set(row.wcagId, row._count.wcagId);
+      }
+    }
+    for (const row of topByRule) {
+      const prev = ruleIssueCounts.get(row.ruleId) ?? 0;
+      ruleIssueCounts.set(row.ruleId, prev + row._count.ruleId);
+    }
+
+    const topFailingRulesFormatted = Array.from(ruleIssueCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([rule, failures]) => ({ rule, failures }));
+
+    // Top hostnames by open issues (any scan state), aggregated across scans
+    const issuesByScan = await prisma.finding.groupBy({
+      by: ['scanId'],
+      where: { status: { in: [...openIssueStatuses] } },
+      _count: { _all: true },
+      orderBy: { _count: { _all: 'desc' } },
+      take: 100,
     });
 
-    const topFailingRulesFormatted = topFailingRules.map((rule: any) => ({
-      rule: rule.wcagId || 'unknown',
-      failures: rule._count.wcagId,
-    }));
-
-    // Get top affected sites
-    const topAffectedSites = await prisma.scan.groupBy({
-      by: ['hostname'],
-      where: {
-        status: 'completed',
-      },
-      _count: {
-        hostname: true,
-      },
-      orderBy: {
-        _count: {
-          hostname: 'desc',
-        },
-      },
-      take: 5,
-    });
-
-    const topAffectedSitesFormatted = await Promise.all(
-      topAffectedSites.map(async (site: any) => {
-        const issueCount = await prisma.finding.count({
-          where: {
-            scan: {
-              hostname: site.hostname,
-            },
-            status: 'fail',
-          },
-        });
-        return {
-          domain: site.hostname,
-          issues: issueCount,
-        };
-      })
-    );
+    let topAffectedSitesFormatted: Array<{ domain: string; issues: number }> = [];
+    if (issuesByScan.length > 0) {
+      const scanRows = await prisma.scan.findMany({
+        where: { id: { in: issuesByScan.map((r: { scanId: string }) => r.scanId) } },
+        select: { id: true, hostname: true },
+      });
+      const scanIdToHost = new Map<string, string>(
+        scanRows.map((s: { id: string; hostname: string }) => [s.id, s.hostname])
+      );
+      const hostTotals = new Map<string, number>();
+      for (const row of issuesByScan) {
+        const host = scanIdToHost.get(row.scanId);
+        if (!host) continue;
+        hostTotals.set(host, (hostTotals.get(host) ?? 0) + row._count._all);
+      }
+      topAffectedSitesFormatted = Array.from(hostTotals.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([domain, issues]) => ({ domain, issues }));
+    }
 
     res.json({
       kpis: {
