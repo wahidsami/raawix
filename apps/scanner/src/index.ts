@@ -775,9 +775,9 @@ const translateSchema = z.object({
 // Body: { text: string, targetLang: "ar"|"en", sourceLang?: string }
 app.post('/api/widget/translate', translationLimiter, async (req, res) => {
   try {
-    // Check if Gemini is enabled
+    // Check if AI translation is enabled
     if (!GeminiTranslator.isEnabled()) {
-      res.status(501).json({ error: 'Translation is disabled. Set GEMINI_ENABLED=true and GEMINI_API_KEY to enable.' });
+      res.status(501).json({ error: 'Translation is disabled. Set OPENAI_ENABLED=true and OPENAI_API_KEY to enable.' });
       return;
     }
 
@@ -794,7 +794,7 @@ app.post('/api/widget/translate', translationLimiter, async (req, res) => {
     const { text, targetLang, sourceLang } = validationResult.data;
 
     // Truncate text to maxChars
-    const maxChars = config.gemini.maxChars;
+    const maxChars = config.openai.maxChars;
     const truncatedText = text.length > maxChars ? text.substring(0, maxChars) : text;
 
     // Check cache
@@ -806,7 +806,7 @@ app.post('/api/widget/translate', translationLimiter, async (req, res) => {
       return;
     }
 
-    // Translate using Gemini
+    // Translate using OpenAI
     const translator = new GeminiTranslator();
     const translatedText = await translator.translate(truncatedText, targetLang, sourceLang);
 

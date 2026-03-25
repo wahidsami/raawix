@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import type { VisionFinding, EvidenceItem } from '@raawi-x/core';
 import { config } from '../config.js';
 import { StructuredLogger } from '../utils/logger.js';
-import { GeminiVisionProvider } from './gemini-provider.js';
+import { OpenAIVisionProvider } from './openai-vision-provider.js';
 import { ImageCandidateSelector } from '../assistive/image-candidate-selector.js';
 
 /**
@@ -14,16 +14,16 @@ import { ImageCandidateSelector } from '../assistive/image-candidate-selector.js
 export class VisionAnalyzer {
   private logger: StructuredLogger;
   private scanId?: string;
-  private geminiProvider?: GeminiVisionProvider;
+  private geminiProvider?: OpenAIVisionProvider;
 
   constructor(scanId?: string) {
     this.scanId = scanId;
     this.logger = new StructuredLogger(scanId);
 
-    // Initialize Gemini provider if enabled
-    if (GeminiVisionProvider.isEnabled()) {
-      this.geminiProvider = new GeminiVisionProvider();
-      this.logger.info('Gemini Vision provider enabled');
+    // Initialize vision provider if enabled
+    if (OpenAIVisionProvider.isEnabled()) {
+      this.geminiProvider = new OpenAIVisionProvider();
+      this.logger.info('OpenAI Vision provider enabled');
     }
   }
 
@@ -583,8 +583,8 @@ export class VisionAnalyzer {
     pageNumber: number,
     outputDir: string
   ): Promise<void> {
-    if (!GeminiVisionProvider.isEnabled()) {
-      return; // Skip if Gemini not enabled
+    if (!OpenAIVisionProvider.isEnabled()) {
+      return; // Skip if AI vision not enabled
     }
 
     try {

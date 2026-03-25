@@ -2,7 +2,7 @@ import { JSDOM } from 'jsdom';
 import { createHash } from 'node:crypto';
 import type { VisionFinding } from '@raawi-x/core';
 import { StructuredLogger } from '../utils/logger.js';
-import { GeminiVisionProvider } from '../vision/gemini-provider.js';
+import { OpenAIVisionProvider } from '../vision/openai-vision-provider.js';
 import type { PageArtifact } from '@raawi-x/core';
 
 /**
@@ -61,15 +61,15 @@ export interface FormAction {
  */
 export class FormAssistExtractor {
   private logger: StructuredLogger;
-  private geminiProvider?: GeminiVisionProvider;
+  private geminiProvider?: OpenAIVisionProvider;
   private scanId?: string;
 
   constructor(scanId?: string) {
     this.logger = new StructuredLogger(scanId);
     this.scanId = scanId;
 
-    if (GeminiVisionProvider.isEnabled()) {
-      this.geminiProvider = new GeminiVisionProvider();
+    if (OpenAIVisionProvider.isEnabled()) {
+      this.geminiProvider = new OpenAIVisionProvider();
     }
   }
 

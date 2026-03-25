@@ -78,8 +78,13 @@ export const config = {
   openai: {
     enabled: process.env.OPENAI_ENABLED === 'true',
     apiKey: process.env.OPENAI_API_KEY || '',
-    // Chosen for reliable structured JSON analyst output; gpt-4o-mini is an optional upgrade (vision/multimodal).
+    // Default text model for translation/report text.
     model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+    // Default multimodal model for OCR/image descriptions.
+    visionModel: process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+    maxChars: parseInt(process.env.OPENAI_MAX_CHARS || '4000', 10),
+    maxImageBytes: parseInt(process.env.OPENAI_MAX_IMAGE_BYTES || '10485760', 10),
+    maxImagesPerScan: parseInt(process.env.OPENAI_MAX_IMAGES_PER_SCAN || '50', 10),
   },
   agentAnalyst: {
     enabled: process.env.AGENT_ANALYST_ENABLED === 'true',

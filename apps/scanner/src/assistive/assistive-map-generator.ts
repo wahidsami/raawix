@@ -6,7 +6,7 @@ import { existsSync } from 'node:fs';
 import type { PageArtifact, VisionFinding } from '@raawi-x/core';
 import { config } from '../config.js';
 import { StructuredLogger } from '../utils/logger.js';
-import { GeminiVisionProvider } from '../vision/gemini-provider.js';
+import { OpenAIVisionProvider } from '../vision/openai-vision-provider.js';
 import { createHash } from 'node:crypto';
 import { ImageCandidateSelector } from './image-candidate-selector.js';
 import { imageCache } from './image-cache.js';
@@ -57,7 +57,7 @@ export interface ConfidenceSummary {
  */
 export class AssistiveMapGenerator {
   private logger: StructuredLogger;
-  private geminiProvider?: GeminiVisionProvider;
+  private geminiProvider?: OpenAIVisionProvider;
   private scanId?: string;
   private geminiImageCount: number = 0; // Track images processed per scan for rate limiting
 
@@ -65,8 +65,8 @@ export class AssistiveMapGenerator {
     this.logger = new StructuredLogger(scanId);
     this.scanId = scanId;
 
-    if (GeminiVisionProvider.isEnabled()) {
-      this.geminiProvider = new GeminiVisionProvider();
+    if (OpenAIVisionProvider.isEnabled()) {
+      this.geminiProvider = new OpenAIVisionProvider();
     }
   }
 
@@ -211,10 +211,10 @@ export class AssistiveMapGenerator {
       // If Gemini enabled, generate alt text
       if (this.geminiProvider && artifact.screenshotPath) {
         // E) Safety controls: Rate limit per scan
-        if (this.geminiImageCount >= config.gemini.maxImagesPerScan) {
+        if (this.geminiImageCount >= config.openai.maxImagesPerScan) {
           this.logger.warn('Gemini image processing rate limit reached', {
             scanId,
-            maxImages: config.gemini.maxImagesPerScan,
+            maxImages: config.openai.maxImagesPerScan,
           });
           continue;
         }

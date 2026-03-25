@@ -1,27 +1,27 @@
 import { config } from '../config.js';
 import { createHash } from 'node:crypto';
+import OpenAI from 'openai';
 
 /**
  * Gemini Translation Service
  * Server-side only - never expose API keys to browser
  */
 export class GeminiTranslator {
-  private baseUrl: string = 'https://generativelanguage.googleapis.com/v1beta/models';
-  private apiKey: string;
-  private model: string;
   private maxChars: number;
+  private client: OpenAI;
+  private model: string;
 
   constructor() {
-    this.apiKey = config.gemini.apiKey || '';
-    this.model = config.gemini.model;
-    this.maxChars = config.gemini.maxChars;
+    this.model = config.openai.model;
+    this.maxChars = config.openai.maxChars;
+    this.client = new OpenAI({ apiKey: config.openai.apiKey });
   }
 
   /**
    * Check if Gemini translation is enabled and configured
    */
   static isEnabled(): boolean {
-    return config.gemini.enabled && !!config.gemini.apiKey;
+    return config.openai.enabled && !!config.openai.apiKey;
   }
 
   /**
@@ -33,7 +33,7 @@ export class GeminiTranslator {
    */
   async translate(text: string, targetLang: 'ar' | 'en', sourceLang?: string): Promise<string> {
     if (!GeminiTranslator.isEnabled()) {
-      throw new Error('Gemini translation is not enabled');
+      throw new Error('OpenAI translation is not enabled');
     }
 
     // Truncate text to maxChars
@@ -55,61 +55,28 @@ Text to translate:
 ${truncatedText}`;
 
     try {
-      const url = `${this.baseUrl}/${this.model}:generateContent?key=${this.apiKey}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-        }),
+      const completion = await this.client.chat.completions.create({
+        model: this.model,
+        temperature: 0.1,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a professional translator for accessibility UI strings. Return only the translated text with no extra commentary.',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Gemini API error: ${response.status} ${errorText}`);
-      }
-
-      const data = await response.json();
-      
-      // Extract translated text from response
-      const translatedText = this.extractTextFromResponse(data);
-      
-      if (!translatedText) {
-        throw new Error('Failed to extract translated text from Gemini response');
-      }
-
+      const translatedText = completion.choices[0]?.message?.content?.trim() || '';
+      if (!translatedText) throw new Error('Failed to extract translated text from OpenAI response');
       return translatedText;
     } catch (error) {
-      console.error('Gemini translation failed:', error);
+      console.error('OpenAI translation failed:', error);
       throw error;
-    }
-  }
-
-  /**
-   * Extract text from Gemini API response
-   */
-  private extractTextFromResponse(data: any): string | null {
-    try {
-      if (data.candidates && data.candidates.length > 0) {
-        const candidate = data.candidates[0];
-        if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
-          return candidate.content.parts[0].text || null;
-        }
-      }
-      return null;
-    } catch (error) {
-      console.error('Failed to extract text from Gemini response:', error);
-      return null;
     }
   }
 

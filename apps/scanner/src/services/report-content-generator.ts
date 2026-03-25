@@ -1,13 +1,13 @@
 /**
  * AI-Powered Report Content Generator
  * 
- * Uses Gemini AI to generate professional, contextual report content
+ * Uses OpenAI to generate professional, contextual report content
  * especially tailored for government entities
  */
 
 import { config } from '../config.js';
 import { StructuredLogger } from '../utils/logger.js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 
 export interface ReportContent {
   introduction: string;
@@ -40,17 +40,17 @@ export interface ScanData {
 
 export class ReportContentGenerator {
   private logger: StructuredLogger;
-  private genAI: GoogleGenerativeAI | null = null;
+  private client: OpenAI | null = null;
 
   constructor(scanId?: string) {
     this.logger = new StructuredLogger(scanId);
     
-    if (config.gemini.enabled && config.gemini.apiKey) {
+    if (config.openai.enabled && config.openai.apiKey) {
       try {
-        this.genAI = new GoogleGenerativeAI(config.gemini.apiKey);
-        this.logger.info('Gemini AI initialized for report content generation');
+        this.client = new OpenAI({ apiKey: config.openai.apiKey });
+        this.logger.info('OpenAI initialized for report content generation');
       } catch (error) {
-        this.logger.warn('Failed to initialize Gemini AI', {
+        this.logger.warn('Failed to initialize OpenAI', {
           error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
@@ -61,14 +61,12 @@ export class ReportContentGenerator {
    * Generate professional report content using AI
    */
   async generateContent(data: ScanData): Promise<ReportContent> {
-    // If Gemini is not available, use fallback templates
-    if (!this.genAI) {
+    // If OpenAI is not available, use fallback templates
+    if (!this.client) {
       return this.generateFallbackContent(data);
     }
 
     try {
-      const model = this.genAI.getGenerativeModel({ model: config.gemini.model });
-      
       const prompt = this.buildPrompt(data);
       
       this.logger.info('Generating AI report content', {
@@ -76,9 +74,19 @@ export class ReportContentGenerator {
         entityType: data.entityType,
       });
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
+      const response = await this.client.chat.completions.create({
+        model: config.openai.model,
+        temperature: 0.2,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You write formal accessibility audit report narratives. Do not include remediation steps unless explicitly requested.',
+          },
+          { role: 'user', content: prompt },
+        ],
+      });
+      const text = response.choices[0]?.message?.content || '';
 
       // Parse AI response into structured content
       return this.parseAIResponse(text, data);
