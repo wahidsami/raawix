@@ -429,7 +429,10 @@ router.get('/overview', requireAuth, async (req: Request, res: Response) => {
       prisma.finding.count({
         where: {
           status: { in: [...openIssueStatuses] },
-          OR: [{ level: null }, { level: { notIn: ['A', 'AA', 'AAA'] } }],
+          OR: [
+            { level: { equals: null } },
+            { level: { notIn: ['A', 'AA', 'AAA'] } },
+          ],
         },
       }),
     ]);
@@ -442,28 +445,30 @@ router.get('/overview', requireAuth, async (req: Request, res: Response) => {
     ];
 
     // Top rules: prefer wcagId; fall back to ruleId when wcagId is null (heuristics, etc.)
-    const [topByWcag, topByRule] = await Promise.all([
+    const [topByWcagRaw, topByRuleRaw] = await Promise.all([
       prisma.finding.groupBy({
         by: ['wcagId'],
         where: {
           status: { in: [...openIssueStatuses] },
-          wcagId: { not: null },
+          wcagId: { not: { equals: null } },
         },
         _count: { wcagId: true },
-        orderBy: { _count: { wcagId: 'desc' } },
-        take: 25,
       }),
       prisma.finding.groupBy({
         by: ['ruleId'],
         where: {
           status: { in: [...openIssueStatuses] },
-          wcagId: null,
+          wcagId: { equals: null },
         },
         _count: { ruleId: true },
-        orderBy: { _count: { ruleId: 'desc' } },
-        take: 25,
       }),
     ]);
+    const topByWcag = [...topByWcagRaw]
+      .sort((a, b) => (b._count.wcagId ?? 0) - (a._count.wcagId ?? 0))
+      .slice(0, 25);
+    const topByRule = [...topByRuleRaw]
+      .sort((a, b) => (b._count.ruleId ?? 0) - (a._count.ruleId ?? 0))
+      .slice(0, 25);
 
     const ruleIssueCounts = new Map<string, number>();
     for (const row of topByWcag) {
@@ -481,14 +486,15 @@ router.get('/overview', requireAuth, async (req: Request, res: Response) => {
       .slice(0, 10)
       .map(([rule, failures]) => ({ rule, failures }));
 
-    // Top hostnames by open issues (any scan state), aggregated across scans
-    const issuesByScan = await prisma.finding.groupBy({
+    // Top hostnames by open issues — avoid orderBy/take on _count._all (runtime issues on some Prisma/DB combos)
+    const issuesByScanRaw = await prisma.finding.groupBy({
       by: ['scanId'],
       where: { status: { in: [...openIssueStatuses] } },
       _count: { _all: true },
-      orderBy: { _count: { _all: 'desc' } },
-      take: 100,
     });
+    const issuesByScan = [...issuesByScanRaw]
+      .sort((a, b) => (b._count._all ?? 0) - (a._count._all ?? 0))
+      .slice(0, 100);
 
     let topAffectedSitesFormatted: Array<{ domain: string; issues: number }> = [];
     if (issuesByScan.length > 0) {
@@ -529,7 +535,8 @@ router.get('/overview', requireAuth, async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('[DASHBOARD] Error fetching overview:', error);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[DASHBOARD] Error fetching overview:', message, error);
     res.status(500).json({ error: 'Failed to fetch overview data' });
   }
 });
