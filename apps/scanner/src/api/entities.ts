@@ -1,9 +1,17 @@
 import { Router, Request, Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import { getPrismaClient } from '../db/client.js';
 import { requireAuth } from '../middleware/auth.js';
 import { z } from 'zod';
 
 const router: Router = Router();
+
+class DomainSiteConflictError extends Error {
+  constructor() {
+    super('DOMAIN_SITE_CONFLICT');
+    this.name = 'DomainSiteConflictError';
+  }
+}
 
 // Validation schemas
 const createEntitySchema = z.object({
@@ -32,6 +40,22 @@ const createPropertySchema = z.object({
   displayNameAr: z.string().optional(),
   isPrimary: z.boolean().optional(),
 });
+
+const updatePropertySchema = z
+  .object({
+    domain: z.string().min(1).optional(),
+    displayNameEn: z.string().optional(),
+    displayNameAr: z.string().optional(),
+    isPrimary: z.boolean().optional(),
+  })
+  .refine(
+    (d) =>
+      d.domain !== undefined ||
+      d.displayNameEn !== undefined ||
+      d.displayNameAr !== undefined ||
+      d.isPrimary !== undefined,
+    { message: 'At least one field is required' }
+  );
 
 /**
  * Generate a unique entity code
@@ -456,6 +480,127 @@ router.post('/:id/properties', requireAuth, async (req: Request, res: Response) 
       return res.status(409).json({ error: 'Property with this domain already exists for this entity' });
     }
     res.status(500).json({ error: 'Failed to create property' });
+  }
+});
+
+/**
+ * PUT /api/entities/:id/properties/:propertyId
+ * Update a property (domain, display names, primary). Verifies property belongs to entity.
+ */
+router.put('/:id/properties/:propertyId', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const prisma = await getPrismaClient();
+    if (!prisma) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+
+    const { id: entityId, propertyId } = req.params;
+
+    const existing = await prisma.property.findFirst({
+      where: { id: propertyId, entityId },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'Property not found' });
+    }
+
+    const data = updatePropertySchema.parse(req.body);
+
+    const domainChanging =
+      data.domain !== undefined && data.domain !== existing.domain;
+
+    if (domainChanging) {
+      const conflict = await prisma.property.findFirst({
+        where: {
+          entityId,
+          domain: data.domain!,
+          NOT: { id: propertyId },
+        },
+      });
+      if (conflict) {
+        return res.status(409).json({
+          error: 'Another property on this entity already uses that domain',
+        });
+      }
+    }
+
+    if (data.isPrimary === true) {
+      await prisma.property.updateMany({
+        where: { entityId, isPrimary: true },
+        data: { isPrimary: false },
+      });
+    }
+
+    try {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        if (domainChanging) {
+          await tx.site.updateMany({
+            where: { propertyId },
+            data: { propertyId: null, entityId: null },
+          });
+        }
+
+        await tx.property.update({
+          where: { id: propertyId },
+          data: {
+            ...(data.domain !== undefined && { domain: data.domain }),
+            ...(data.displayNameEn !== undefined && {
+              displayNameEn: data.displayNameEn || null,
+            }),
+            ...(data.displayNameAr !== undefined && {
+              displayNameAr: data.displayNameAr || null,
+            }),
+            ...(data.isPrimary !== undefined && { isPrimary: data.isPrimary }),
+          },
+        });
+
+        if (domainChanging) {
+          const newDomain = data.domain!;
+          const site = await tx.site.findUnique({
+            where: { domain: newDomain },
+          });
+          if (site?.propertyId && site.propertyId !== propertyId) {
+            throw new DomainSiteConflictError();
+          }
+          let target = site;
+          if (!target) {
+            target = await tx.site.create({
+              data: { domain: newDomain },
+            });
+          }
+          await tx.site.update({
+            where: { id: target.id },
+            data: { propertyId, entityId },
+          });
+        }
+      });
+    } catch (e) {
+      if (e instanceof DomainSiteConflictError) {
+        return res.status(409).json({
+          error: 'That domain is already linked to another property',
+        });
+      }
+      throw e;
+    }
+
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      include: {
+        _count: {
+          select: { sites: true, scans: true },
+        },
+      },
+    });
+
+    res.json({ property });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid request', details: error.errors });
+    }
+    console.error('[ENTITIES] Error updating property:', error);
+    if ((error as any).code === 'P2002') {
+      return res.status(409).json({ error: 'Property with this domain already exists for this entity' });
+    }
+    res.status(500).json({ error: 'Failed to update property' });
   }
 });
 

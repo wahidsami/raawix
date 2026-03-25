@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
 import { apiClient } from '../lib/api';
-import { Building2, Globe, ScanSearch, AlertTriangle, BarChart3, Users, Plus, ArrowLeft, FileText, Map, Download, X, ExternalLink, Search, Trash2 } from 'lucide-react';
+import { Building2, Globe, ScanSearch, AlertTriangle, BarChart3, Users, Plus, ArrowLeft, FileText, Map, Download, X, ExternalLink, Search, Trash2, Pencil } from 'lucide-react';
 import { getWCAGRuleTitle, getWCAGRuleDescription, getRuleMeta } from '../utils/wcag-rules';
 import ScanMonitorModal from '../components/ScanMonitorModal';
 
@@ -49,6 +49,13 @@ export default function EntityDetailPage() {
     search: '',
   });
   const [showAddProperty, setShowAddProperty] = useState(false);
+  const [editPropertyForm, setEditPropertyForm] = useState<{
+    id: string;
+    domain: string;
+    displayNameEn: string;
+    displayNameAr: string;
+    isPrimary: boolean;
+  } | null>(null);
   const [showAddContact, setShowAddContact] = useState(false);
   const [propertyForm, setPropertyForm] = useState({
     domain: '',
@@ -272,6 +279,36 @@ export default function EntityDetailPage() {
       fetchEntity();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add property');
+    }
+  };
+
+  const handleUpdateProperty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !editPropertyForm) return;
+    try {
+      setError(null);
+      let domain = editPropertyForm.domain.trim();
+      if (!domain) {
+        setError('Domain is required');
+        return;
+      }
+      try {
+        const url = new URL(domain.startsWith('http') ? domain : `https://${domain}`);
+        domain = url.host;
+      } catch {
+        // keep hostname as entered
+      }
+
+      await apiClient.updateEntityProperty(id, editPropertyForm.id, {
+        domain,
+        displayNameEn: editPropertyForm.displayNameEn.trim() || undefined,
+        displayNameAr: editPropertyForm.displayNameAr.trim() || undefined,
+        isPrimary: editPropertyForm.isPrimary,
+      });
+      setEditPropertyForm(null);
+      fetchEntity();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update property');
     }
   };
 
@@ -582,7 +619,10 @@ export default function EntityDetailPage() {
           <p className="text-sm text-muted-foreground">{t('entities.propertiesTabSubtitle')}</p>
           <div className="flex justify-end">
             <button
-              onClick={() => setShowAddProperty(true)}
+              onClick={() => {
+                setEditPropertyForm(null);
+                setShowAddProperty(true);
+              }}
               className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
@@ -620,24 +660,43 @@ export default function EntityDetailPage() {
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <button
-                          onClick={() => {
-                            // Construct URL - handle both with and without protocol
-                            let url = property.domain?.trim() || '';
-                            if (!url) {
-                              setError('Property domain is empty');
-                              return;
-                            }
-                            // If domain doesn't start with http:// or https://, add https://
-                            if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                              url = `https://${url}`;
-                            }
-                            handleStartScanClick(property.id, url);
-                          }}
-                          className="text-primary hover:underline text-sm"
-                        >
-                          {t('entities.startScanForProperty')}
-                        </button>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setError(null);
+                              setShowAddProperty(false);
+                              setEditPropertyForm({
+                                id: property.id,
+                                domain: property.domain || '',
+                                displayNameEn: property.displayNameEn || '',
+                                displayNameAr: property.displayNameAr || '',
+                                isPrimary: !!property.isPrimary,
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            {t('entities.editProperty')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              let url = property.domain?.trim() || '';
+                              if (!url) {
+                                setError('Property domain is empty');
+                                return;
+                              }
+                              if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                                url = `https://${url}`;
+                              }
+                              handleStartScanClick(property.id, url);
+                            }}
+                            className="text-primary hover:underline text-sm"
+                          >
+                            {t('entities.startScanForProperty')}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1475,6 +1534,89 @@ export default function EntityDetailPage() {
                   type="button"
                   onClick={() => {
                     setShowAddProperty(false);
+                    setError(null);
+                  }}
+                  className="px-4 py-2 border border-input rounded-md hover:bg-muted"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                >
+                  {t('common.save')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Property Modal */}
+      {editPropertyForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">{t('entities.editProperty')}</h2>
+            <form onSubmit={handleUpdateProperty} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">{t('entities.propertyDomain')} *</label>
+                <input
+                  type="text"
+                  value={editPropertyForm.domain}
+                  onChange={(e) =>
+                    setEditPropertyForm({ ...editPropertyForm, domain: e.target.value })
+                  }
+                  required
+                  placeholder="example.com"
+                  className="w-full px-3 py-2 border border-input rounded-md bg-background"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">{t('entities.propertyDisplayNameEn')}</label>
+                <input
+                  type="text"
+                  value={editPropertyForm.displayNameEn}
+                  onChange={(e) =>
+                    setEditPropertyForm({ ...editPropertyForm, displayNameEn: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-input rounded-md bg-background"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">{t('entities.propertyDisplayNameAr')}</label>
+                <input
+                  type="text"
+                  value={editPropertyForm.displayNameAr}
+                  onChange={(e) =>
+                    setEditPropertyForm({ ...editPropertyForm, displayNameAr: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-input rounded-md bg-background"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="editIsPrimary"
+                  checked={editPropertyForm.isPrimary}
+                  onChange={(e) =>
+                    setEditPropertyForm({ ...editPropertyForm, isPrimary: e.target.checked })
+                  }
+                  className="w-4 h-4"
+                />
+                <label htmlFor="editIsPrimary" className="text-sm">
+                  {t('entities.propertyIsPrimary')}
+                </label>
+              </div>
+              {error && (
+                <div className="bg-destructive/10 text-destructive p-3 rounded-md text-sm">
+                  {error}
+                </div>
+              )}
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditPropertyForm(null);
                     setError(null);
                   }}
                   className="px-4 py-2 border border-input rounded-md hover:bg-muted"

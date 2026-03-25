@@ -520,6 +520,22 @@ class ApiClient {
     });
   }
 
+  async updateEntityProperty(
+    entityId: string,
+    propertyId: string,
+    data: {
+      domain?: string;
+      displayNameEn?: string;
+      displayNameAr?: string;
+      isPrimary?: boolean;
+    }
+  ): Promise<{ property: any }> {
+    return this.request(`/api/entities/${entityId}/properties/${propertyId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
   async getProperties(params?: {
     entityId?: string;
     domain?: string;
