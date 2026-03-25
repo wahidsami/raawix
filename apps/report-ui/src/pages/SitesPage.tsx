@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { apiClient } from '../lib/api';
 import { Globe, AlertTriangle, ExternalLink } from 'lucide-react';
 import GlobalEntityScopeBanner from '../components/GlobalEntityScopeBanner';
+import { useClientPagination } from '../hooks/useClientPagination';
+import TablePagination from '../components/TablePagination';
 
 interface Site {
   id: string;
@@ -48,6 +50,16 @@ export default function SitesPage() {
     }
   };
 
+  const {
+    page: sitePage,
+    setPage: setSitePage,
+    pageSize: sitePageSize,
+    setPageSize: setSitePageSize,
+    totalPages: siteTotalPages,
+    total: siteListTotal,
+    pageItems: pagedSites,
+  } = useClientPagination(sites, sites);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -86,7 +98,7 @@ export default function SitesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {sites.map((site) => (
+              {pagedSites.map((site) => (
                 <tr key={site.id} className="hover:bg-muted/50">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
@@ -133,6 +145,14 @@ export default function SitesPage() {
               ))}
             </tbody>
           </table>
+          <TablePagination
+            page={sitePage}
+            totalPages={siteTotalPages}
+            totalItems={siteListTotal}
+            pageSize={sitePageSize}
+            onPageChange={setSitePage}
+            onPageSizeChange={setSitePageSize}
+          />
         </div>
       )}
     </div>

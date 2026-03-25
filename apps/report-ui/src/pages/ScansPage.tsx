@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../lib/api';
 import { ScanSearch } from 'lucide-react';
 import GlobalEntityScopeBanner from '../components/GlobalEntityScopeBanner';
+import { useClientPagination } from '../hooks/useClientPagination';
+import TablePagination from '../components/TablePagination';
 
 interface Scan {
   scanId: string;
@@ -45,6 +47,17 @@ export default function ScansPage() {
   useEffect(() => {
     fetchScans();
   }, [filters]);
+
+  const scansPaginationKey = useMemo(() => JSON.stringify(filters), [filters]);
+  const {
+    page: scanPage,
+    setPage: setScanPage,
+    pageSize: scanPageSize,
+    setPageSize: setScanPageSize,
+    totalPages: scanTotalPages,
+    total: scanListTotal,
+    pageItems: pagedScans,
+  } = useClientPagination(scans, scansPaginationKey);
 
   useEffect(() => {
     if (showStartScanModal) {
@@ -238,7 +251,7 @@ export default function ScansPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {scans.map((scan) => (
+              {pagedScans.map((scan) => (
                 <tr key={scan.scanId} className="hover:bg-muted/50">
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(scan.status)}`}>
@@ -290,6 +303,14 @@ export default function ScansPage() {
               ))}
             </tbody>
           </table>
+          <TablePagination
+            page={scanPage}
+            totalPages={scanTotalPages}
+            totalItems={scanListTotal}
+            pageSize={scanPageSize}
+            onPageChange={setScanPage}
+            onPageSizeChange={setScanPageSize}
+          />
         </div>
       )}
 

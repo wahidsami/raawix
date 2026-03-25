@@ -21,6 +21,8 @@ import {
   Bot,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
+import { useClientPagination } from '../hooks/useClientPagination';
+import TablePagination from '../components/TablePagination';
 
 // Component for loading and displaying vision finding images with auth
 function VisionFindingImage({
@@ -192,6 +194,16 @@ export default function ScanDetailPage() {
   const [selectedPage, setSelectedPage] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imageCache, setImageCache] = useState<globalThis.Map<string, string>>(new globalThis.Map());
+
+  const {
+    page: pagesTablePage,
+    setPage: setPagesTablePage,
+    pageSize: pagesTablePageSize,
+    setPageSize: setPagesTablePageSize,
+    totalPages: pagesTableTotalPages,
+    total: pagesTableTotal,
+    pageItems: pagedScanPages,
+  } = useClientPagination(scanDetail?.pages ?? [], scanDetail?.scanId ?? scanId ?? '');
 
   // Helper function to build screenshot URL
   const getScreenshotUrl = (artifactPath: string): string => {
@@ -525,7 +537,7 @@ export default function ScanDetailPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {scanDetail.pages.map((page) => (
+            {pagedScanPages.map((page) => (
               <tr key={page.pageNumber} className="hover:bg-muted/50">
                 <td className="px-6 py-4">{page.pageNumber}</td>
                 <td className="px-6 py-4">
@@ -585,6 +597,14 @@ export default function ScanDetailPage() {
             ))}
           </tbody>
         </table>
+        <TablePagination
+          page={pagesTablePage}
+          totalPages={pagesTableTotalPages}
+          totalItems={pagesTableTotal}
+          pageSize={pagesTablePageSize}
+          onPageChange={setPagesTablePage}
+          onPageSizeChange={setPagesTablePageSize}
+        />
       </div>
 
       {/* Page Detail Panel */}

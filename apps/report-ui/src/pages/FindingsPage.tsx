@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../lib/api';
 import { Search, ExternalLink, AlertTriangle, X } from 'lucide-react';
 import GlobalEntityScopeBanner from '../components/GlobalEntityScopeBanner';
 import { getWCAGRuleTitle, getWCAGRuleDescription } from '../utils/wcag-rules';
+import { useClientPagination } from '../hooks/useClientPagination';
+import TablePagination from '../components/TablePagination';
 
 interface Finding {
   id: string;
@@ -39,6 +41,17 @@ export default function FindingsPage() {
   useEffect(() => {
     fetchFindings();
   }, [filters]);
+
+  const findingsPaginationKey = useMemo(() => JSON.stringify(filters), [filters]);
+  const {
+    page: findingPage,
+    setPage: setFindingPage,
+    pageSize: findingPageSize,
+    setPageSize: setFindingPageSize,
+    totalPages: findingTotalPages,
+    total: findingListTotal,
+    pageItems: pagedFindings,
+  } = useClientPagination(findings, findingsPaginationKey);
 
   const fetchFindings = async () => {
     try {
@@ -202,7 +215,7 @@ export default function FindingsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {findings.map((finding) => (
+                  {pagedFindings.map((finding) => (
                     <tr
                       key={finding.id}
                       className={`hover:bg-muted/50 cursor-pointer ${selectedFinding?.id === finding.id ? 'bg-muted' : ''}`}
@@ -256,6 +269,14 @@ export default function FindingsPage() {
                   ))}
                 </tbody>
               </table>
+              <TablePagination
+                page={findingPage}
+                totalPages={findingTotalPages}
+                totalItems={findingListTotal}
+                pageSize={findingPageSize}
+                onPageChange={setFindingPage}
+                onPageSizeChange={setFindingPageSize}
+              />
             </div>
           )}
         </div>

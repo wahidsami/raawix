@@ -1,8 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../lib/api';
-import { Building2, Plus, Globe, ScanSearch, Edit, Trash2, ExternalLink, Upload, ImageIcon } from 'lucide-react';
+import {
+  Building2,
+  Plus,
+  Globe,
+  ScanSearch,
+  Edit,
+  Trash2,
+  ExternalLink,
+  Upload,
+  ImageIcon,
+  CheckCircle2,
+} from 'lucide-react';
+import { useClientPagination } from '../hooks/useClientPagination';
+import TablePagination from '../components/TablePagination';
 
 interface Entity {
   id: string;
@@ -53,6 +66,33 @@ export default function EntitiesPage() {
   useEffect(() => {
     fetchEntities();
   }, []);
+
+  const entityStats = useMemo(() => {
+    let totalProperties = 0;
+    let totalScans = 0;
+    let activeCount = 0;
+    for (const e of entities) {
+      totalProperties += e._count.properties;
+      totalScans += e._count.scans;
+      if (e.status === 'active') activeCount++;
+    }
+    return {
+      totalEntities: entities.length,
+      totalProperties,
+      totalScans,
+      activeCount,
+    };
+  }, [entities]);
+
+  const {
+    page: entityPage,
+    setPage: setEntityPage,
+    pageSize: entityPageSize,
+    setPageSize: setEntityPageSize,
+    totalPages: entityTotalPages,
+    total: entityListTotal,
+    pageItems: pagedEntities,
+  } = useClientPagination(entities, entities);
 
   const fetchEntities = async () => {
     try {
@@ -235,6 +275,53 @@ export default function EntitiesPage() {
 
   return (
     <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-lg border border-border bg-card p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="mb-1 text-sm text-muted-foreground">{t('entities.statsTotalEntities')}</p>
+              <p className="text-2xl font-bold tabular-nums">
+                {entityStats.totalEntities.toLocaleString()}
+              </p>
+            </div>
+            <Building2 className="h-8 w-8 shrink-0 text-emerald-400" />
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="mb-1 text-sm text-muted-foreground">{t('entities.statsLinkedProperties')}</p>
+              <p className="text-2xl font-bold tabular-nums">
+                {entityStats.totalProperties.toLocaleString()}
+              </p>
+            </div>
+            <Globe className="h-8 w-8 shrink-0 text-sky-400" />
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="mb-1 text-sm text-muted-foreground">{t('entities.statsScansAcrossEntities')}</p>
+              <p className="text-2xl font-bold tabular-nums">
+                {entityStats.totalScans.toLocaleString()}
+              </p>
+            </div>
+            <ScanSearch className="h-8 w-8 shrink-0 text-violet-400" />
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="mb-1 text-sm text-muted-foreground">{t('entities.statsActiveEntities')}</p>
+              <p className="text-2xl font-bold tabular-nums">
+                {entityStats.activeCount.toLocaleString()}
+              </p>
+            </div>
+            <CheckCircle2 className="h-8 w-8 shrink-0 text-amber-300" />
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-end">
         <button
           onClick={() => {
@@ -295,7 +382,7 @@ export default function EntitiesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {entities.map((entity) => (
+              {pagedEntities.map((entity) => (
                 <tr key={entity.id} className="hover:bg-muted/50">
                   <td className="px-6 py-4">
                     <div>
@@ -357,6 +444,14 @@ export default function EntitiesPage() {
               ))}
             </tbody>
           </table>
+          <TablePagination
+            page={entityPage}
+            totalPages={entityTotalPages}
+            totalItems={entityListTotal}
+            pageSize={entityPageSize}
+            onPageChange={setEntityPage}
+            onPageSizeChange={setEntityPageSize}
+          />
         </div>
       )}
 

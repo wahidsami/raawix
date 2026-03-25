@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { apiClient } from '../lib/api';
 import { Map, Globe, ExternalLink } from 'lucide-react';
 import GlobalEntityScopeBanner from '../components/GlobalEntityScopeBanner';
+import { useClientPagination } from '../hooks/useClientPagination';
+import TablePagination from '../components/TablePagination';
 
 interface AssistiveMap {
   id: string;
@@ -40,6 +42,16 @@ export default function AssistiveMapsPage() {
       setLoading(false);
     }
   };
+
+  const {
+    page: mapPage,
+    setPage: setMapPage,
+    pageSize: mapPageSize,
+    setPageSize: setMapPageSize,
+    totalPages: mapTotalPages,
+    total: mapListTotal,
+    pageItems: pagedMaps,
+  } = useClientPagination(maps, maps);
 
   if (loading) {
     return (
@@ -90,7 +102,7 @@ export default function AssistiveMapsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {maps.map((map) => (
+              {pagedMaps.map((map) => (
                 <tr key={map.id} className="hover:bg-muted/50">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
@@ -146,6 +158,14 @@ export default function AssistiveMapsPage() {
               ))}
             </tbody>
           </table>
+          <TablePagination
+            page={mapPage}
+            totalPages={mapTotalPages}
+            totalItems={mapListTotal}
+            pageSize={mapPageSize}
+            onPageChange={setMapPage}
+            onPageSizeChange={setMapPageSize}
+          />
         </div>
       )}
     </div>

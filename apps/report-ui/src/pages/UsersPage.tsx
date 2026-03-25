@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { apiClient, type User } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
 import { Users as UsersIcon, Plus, Pencil, Trash2 } from 'lucide-react';
+import { useClientPagination } from '../hooks/useClientPagination';
+import TablePagination from '../components/TablePagination';
 
 export default function UsersPage() {
   const { t } = useTranslation();
@@ -16,6 +18,16 @@ export default function UsersPage() {
   const [editForm, setEditForm] = useState({ role: 'viewer' as 'admin' | 'viewer', newPassword: '' });
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  const {
+    page: userPage,
+    setPage: setUserPage,
+    pageSize: userPageSize,
+    setPageSize: setUserPageSize,
+    totalPages: userTotalPages,
+    total: userListTotal,
+    pageItems: pagedUsers,
+  } = useClientPagination(users, users);
 
   const isAdmin = currentUser?.role === 'admin';
 
@@ -143,7 +155,7 @@ export default function UsersPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {users.map((u) => (
+            {pagedUsers.map((u) => (
               <tr key={u.id} className="hover:bg-muted/30">
                 <td className="px-6 py-4">{u.email}</td>
                 <td className="px-6 py-4 capitalize">{u.role}</td>
@@ -197,6 +209,14 @@ export default function UsersPage() {
             ))}
           </tbody>
         </table>
+        <TablePagination
+          page={userPage}
+          totalPages={userTotalPages}
+          totalItems={userListTotal}
+          pageSize={userPageSize}
+          onPageChange={setUserPage}
+          onPageSizeChange={setUserPageSize}
+        />
         {users.length === 0 && (
           <div className="px-6 py-8 text-center text-muted-foreground">{t('users.noUsers')}</div>
         )}
