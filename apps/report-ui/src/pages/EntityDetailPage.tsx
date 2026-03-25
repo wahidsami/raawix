@@ -295,15 +295,19 @@ export default function EntityDetailPage() {
   };
 
   const handleStartScanClick = (propertyId: string, seedUrl: string) => {
-    // Open scan configuration modal
-    setScanConfig({
+    // Open scan configuration modal — keep maxPages/maxDepth/scanMode from existing config (defaults 500/10/domain).
+    // Do not force 1/1 here; that capped discovery to a single URL for whole-site crawls.
+    const trimmed = seedUrl.trim();
+    let protocol: 'http' | 'https' = 'https';
+    if (trimmed.startsWith('https://')) protocol = 'https';
+    else if (trimmed.startsWith('http://')) protocol = 'http';
+
+    setScanConfig((prev) => ({
+      ...prev,
       propertyId,
-      seedUrl,
-      maxPages: 1,
-      maxDepth: 1,
-      protocol: 'http',
-      scanMode: 'domain',
-    });
+      seedUrl: trimmed,
+      protocol,
+    }));
     setShowScanConfig(true);
   };
 
