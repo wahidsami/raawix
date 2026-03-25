@@ -59,6 +59,10 @@ function enforceProductionSecrets(): void {
 
 enforceProductionSecrets();
 
+// Coolify/Nginx runs scanner behind a reverse proxy.
+// Trust first proxy so rate limiting and client IP detection work correctly.
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 
@@ -284,15 +288,25 @@ app.post('/api/scans/:scanId/init', requireAuth, async (req, res) => {
     const { getHostname } = await import('./crawler/url-utils.js');
 
     const hostname = getHostname(seedUrl);
-    await scanRepository.createScan(
-      scanId,
-      seedUrl,
-      Math.min(maxPages || 25, config.quotas.maxPagesHardLimit),
-      Math.min(maxDepth || 5, config.quotas.maxDepthHardLimit),
-      hostname,
-      entityId,
-      propertyId
-    );
+    const boundedMaxPages = Math.min(maxPages || 25, config.quotas.maxPagesHardLimit);
+    const boundedMaxDepth = Math.min(maxDepth || 5, config.quotas.maxDepthHardLimit);
+    try {
+      await scanRepository.createScan(
+        scanId,
+        seedUrl,
+        boundedMaxPages,
+        boundedMaxDepth,
+        hostname,
+        entityId,
+        propertyId
+      );
+    } catch (createError: any) {
+      // Idempotency: if the same scanId is initialized twice, continue with existing record.
+      if (createError?.code !== 'P2002') {
+        throw createError;
+      }
+      console.warn(`[API] Duplicate init ignored for scanId=${scanId}`);
+    }
 
     // Update status to 'discovering' (not queued - won't trigger job processing)
     await scanRepository.updateScanStatus(scanId, 'discovering', undefined);
@@ -321,15 +335,24 @@ app.post('/api/scans/:scanId/discover', requireAuth, async (req, res) => {
       return;
     }
 
-    console.log('[DISCOVERY] Starting with scan mode:', scanMode, 'for URL:', seedUrl);
+    const effectiveMaxPages = Math.min(maxPages, config.quotas.maxPagesHardLimit);
+    const effectiveMaxDepth = Math.min(maxDepth, config.quotas.maxDepthHardLimit);
+    const includeCount = Array.isArray(includePatterns) ? includePatterns.length : 0;
+    const excludeCount = Array.isArray(excludePatterns) ? excludePatterns.length : 0;
+    console.log(
+      `[DISCOVERY] Request scanId=${scanId} seedUrl=${seedUrl} scanMode=${scanMode} ` +
+        `maxPages=${effectiveMaxPages} (requested ${maxPages}, cap ${config.quotas.maxPagesHardLimit}) ` +
+        `maxDepth=${effectiveMaxDepth} (requested ${maxDepth}, cap ${config.quotas.maxDepthHardLimit}) ` +
+        `includePatterns=${includeCount} excludePatterns=${excludeCount}`
+    );
 
     // Import PageDiscovery
     const { PageDiscovery } = await import('./crawler/page-discovery.js');
 
     const discovery = new PageDiscovery(
       seedUrl,
-      Math.min(maxPages, config.quotas.maxPagesHardLimit),
-      Math.min(maxDepth, config.quotas.maxDepthHardLimit),
+      effectiveMaxPages,
+      effectiveMaxDepth,
       includePatterns,
       excludePatterns,
       scanId,

@@ -5,7 +5,7 @@
 
 import { normalizeUrl, getHostname, isSameHostname, shouldIncludeUrl } from './url-utils.js';
 import { scanEventEmitter } from '../events/scan-events.js';
-import { chromium, Browser } from 'playwright';
+import { chromium, Browser, Page } from 'playwright';
 
 export interface DiscoveryResult {
   urls: string[];
@@ -22,6 +22,8 @@ export class PageDiscovery {
   private includePatterns?: string[];
   private excludePatterns?: string[];
   private scanMode: 'domain' | 'single';
+  private readonly primaryNavTimeoutMs = 30000;
+  private readonly fallbackNavTimeoutMs = 15000;
 
   constructor(
     seedUrl: string,
@@ -85,11 +87,9 @@ export class PageDiscovery {
         const page = await this.browser!.newPage();
         
         try {
-          // Quick navigation with minimal wait
-          await page.goto(item.url, { 
-            waitUntil: 'domcontentloaded', 
-            timeout: 10000 
-          });
+          // Some sites never reach domcontentloaded quickly (heavy scripts/anti-bot/CDN).
+          // Try normal navigation first, then fall back to 'commit' so we can still parse anchors.
+          await this.navigateForDiscovery(page, item.url);
 
           // Extract links from live DOM
           const links = await page.evaluate((baseUrl) => {
@@ -215,6 +215,24 @@ export class PageDiscovery {
       urls: discoveredUrls,
       total: discoveredUrls.length,
     };
+  }
+
+  private async navigateForDiscovery(page: Page, url: string): Promise<void> {
+    try {
+      await page.goto(url, {
+        waitUntil: 'domcontentloaded',
+        timeout: this.primaryNavTimeoutMs,
+      });
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[DISCOVERY] domcontentloaded timeout/error for ${url}, retrying with commit: ${message}`);
+    }
+
+    await page.goto(url, {
+      waitUntil: 'commit',
+      timeout: this.fallbackNavTimeoutMs,
+    });
   }
 
   private async initialize(): Promise<void> {
