@@ -42,6 +42,8 @@ export interface LayerStatusEvent {
   layer: 'L1' | 'L2' | 'L3';
   status: 'pending' | 'running' | 'done' | 'failed';
   meta?: {
+    /** Document title from the page (for live UI); set when capture has read `page.title()`. */
+    title?: string;
     findingsCount?: number;
     visionCount?: number;
     assistiveCounts?: {

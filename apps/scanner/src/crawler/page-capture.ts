@@ -179,6 +179,8 @@ export class PageCapture {
       // A2) Capture screenshot after stabilization (same point as Layer1)
       console.log('[L2] Screenshot start');
 
+      const titleForEvents = result.title?.trim() || undefined;
+
       // B1) Emit L2 running status
       if (this.scanId) {
         scanEventEmitter.emitEvent(this.scanId, {
@@ -188,6 +190,7 @@ export class PageCapture {
           pageNumber,
           layer: 'L2',
           status: 'running',
+          ...(titleForEvents ? { meta: { title: titleForEvents } } : {}),
           timestamp: new Date().toISOString(),
         });
       }
@@ -212,6 +215,7 @@ export class PageCapture {
           pageNumber,
           layer: 'L1',
           status: 'running',
+          ...(titleForEvents ? { meta: { title: titleForEvents } } : {}),
           timestamp: new Date().toISOString(),
         });
       }
