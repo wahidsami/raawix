@@ -7,6 +7,11 @@ export type ScanEventType =
   | 'page_done'
   | 'scan_done'
   | 'scan_canceled'
+  | 'agent_started'
+  | 'agent_progress'
+  | 'agent_done'
+  | 'analyst_started'
+  | 'analyst_done'
   | 'error';
 
 export interface CrawlDiscoveredEvent {
@@ -90,6 +95,48 @@ export interface ScanCanceledEvent {
   timestamp: string;
 }
 
+export interface AgentStartedEvent {
+  type: 'agent_started';
+  scanId: string;
+  url: string;
+  pageNumber: number;
+  timestamp: string;
+}
+
+export interface AgentProgressEvent {
+  type: 'agent_progress';
+  scanId: string;
+  url: string;
+  pageNumber: number;
+  stepIndex: number;
+  maxSteps: number;
+  timestamp: string;
+}
+
+export interface AgentDoneEvent {
+  type: 'agent_done';
+  scanId: string;
+  url: string;
+  pageNumber: number;
+  issuesCount: number;
+  timestamp: string;
+}
+
+export interface AnalystStartedEvent {
+  type: 'analyst_started';
+  scanId: string;
+  pagesPlanned: number;
+  timestamp: string;
+}
+
+export interface AnalystDoneEvent {
+  type: 'analyst_done';
+  scanId: string;
+  pagesAnalyzed: number;
+  findingsAdded: number;
+  timestamp: string;
+}
+
 export interface ScanErrorEvent {
   type: 'error';
   scanId: string;
@@ -105,6 +152,11 @@ export type ScanEvent =
   | PageDoneEvent
   | ScanDoneEvent
   | ScanCanceledEvent
+  | AgentStartedEvent
+  | AgentProgressEvent
+  | AgentDoneEvent
+  | AnalystStartedEvent
+  | AnalystDoneEvent
   | ScanErrorEvent;
 
 /**

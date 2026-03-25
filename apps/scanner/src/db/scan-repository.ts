@@ -443,6 +443,18 @@ export class ScanRepository {
       try {
         const { config } = await import('../config.js');
         if (config.openai?.enabled && config.agentAnalyst?.enabled && config.openai.apiKey) {
+          try {
+            const { scanEventEmitter } = await import('../events/scan-events.js');
+            scanEventEmitter.emitEvent(scanId, {
+              type: 'analyst_started',
+              scanId,
+              pagesPlanned: Math.min(config.agentAnalyst.maxPagesPerScan, pagesForAnalyst.length),
+              timestamp: new Date().toISOString(),
+            } as any);
+          } catch {
+            // Non-fatal
+          }
+
           const {
             buildCompactInput,
             getStableCompactPayload,
@@ -459,6 +471,8 @@ export class ScanRepository {
             config.agentAnalyst.maxPagesPerScan,
             pagesForAnalyst.length
           );
+          let analyzedPages = 0;
+          let totalAdded = 0;
           for (let i = 0; i < maxPages; i++) {
             const { page, artifact, pageId } = pagesForAnalyst[i];
             const pageFingerprintStr =
@@ -485,7 +499,9 @@ export class ScanRepository {
               enriched = result.enrichedFindings;
               setAgentAnalystCached(key, enriched);
             }
+            analyzedPages++;
             for (const f of enriched || []) {
+              totalAdded++;
               agentFindingsData.push({
                 scanId: scan.id,
                 pageId,
@@ -503,6 +519,19 @@ export class ScanRepository {
                 source: 'openai',
               });
             }
+          }
+
+          try {
+            const { scanEventEmitter } = await import('../events/scan-events.js');
+            scanEventEmitter.emitEvent(scanId, {
+              type: 'analyst_done',
+              scanId,
+              pagesAnalyzed: analyzedPages,
+              findingsAdded: totalAdded,
+              timestamp: new Date().toISOString(),
+            } as any);
+          } catch {
+            // Non-fatal
           }
         }
       } catch (analystErr) {

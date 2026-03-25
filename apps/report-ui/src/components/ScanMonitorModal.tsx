@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { apiClient } from '../lib/api';
+import { useNavigate } from 'react-router-dom';
 
 interface ScanEvent {
   type: string;
@@ -55,6 +56,7 @@ interface ScanMonitorModalProps {
 export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain', maxPages, maxDepth, entityId, propertyId, onClose, onComplete }: ScanMonitorModalProps) {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
+  const navigate = useNavigate();
   // Phase management: 'discovery' | 'selection' | 'scanning'
   const [phase, setPhase] = useState<'discovery' | 'selection' | 'scanning'>('discovery');
   const [isScanning, setIsScanning] = useState(false); // Changed default to false
@@ -89,12 +91,91 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error' | 'closed'>('connecting');
   const [debugLogs, setDebugLogs] = useState<Array<{ time: string; type: string; message: string }>>([]);
   const [showDebug, setShowDebug] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [banner, setBanner] = useState<{ tone: 'info' | 'success' | 'warning' | 'error'; message: string } | null>(null);
+  const scanStartedAtRef = useRef<number>(Date.now());
+  const [simulation, setSimulation] = useState<{
+    status: 'not_started' | 'running' | 'done';
+    pagesStarted: number;
+    pagesDone: number;
+    issues: number;
+    lastStep?: { stepIndex: number; maxSteps: number; pagePath: string };
+    analyst?: { status: 'not_started' | 'running' | 'done'; pagesPlanned: number; pagesAnalyzed: number; findingsAdded: number };
+  }>({
+    status: 'not_started',
+    pagesStarted: 0,
+    pagesDone: 0,
+    issues: 0,
+    analyst: { status: 'not_started', pagesPlanned: 0, pagesAnalyzed: 0, findingsAdded: 0 },
+  });
   /** True after POST /init succeeds — required because GET .../events returns 404 until a Scan row exists. */
   const [scanRecordReady, setScanRecordReady] = useState(false);
 
   const addDebugLog = (type: string, message: string) => {
     const time = new Date().toLocaleTimeString();
     setDebugLogs((prev) => [{ time, type, message }, ...prev].slice(0, 50)); // Keep last 50 logs
+  };
+
+  const friendlyUrlPath = (url: string): string => {
+    try {
+      return new URL(url).pathname || '/';
+    } catch {
+      return url;
+    }
+  };
+
+  const estimatedRemainingLabel = useMemo(() => {
+    if (phase !== 'scanning') return null;
+    if (stats.pagesScanned <= 0 || stats.pagesDiscovered <= 0) return null;
+    const elapsedMs = Date.now() - scanStartedAtRef.current;
+    if (elapsedMs < 15000) return null;
+    const perMin = stats.pagesScanned / (elapsedMs / 60000);
+    if (!Number.isFinite(perMin) || perMin <= 0) return null;
+    const remaining = Math.max(0, stats.pagesDiscovered - stats.pagesScanned);
+    const remainingMin = remaining / perMin;
+    if (!Number.isFinite(remainingMin) || remainingMin <= 0) return null;
+    const rounded = remainingMin < 2 ? 1 : Math.round(remainingMin);
+    return `~${rounded} min`;
+  }, [phase, stats.pagesScanned, stats.pagesDiscovered]);
+
+  const formatRecentEventLabel = (event: ScanEvent): string => {
+    try {
+      switch (event.type) {
+        case 'crawl_discovered':
+          return t('scanMonitor.eventDiscoveredPage') || 'Found a page';
+        case 'page_started':
+          return t('scanMonitor.eventPageStarted') || 'Scanning page';
+        case 'layer_status': {
+          const layer = (event as any).layer as string | undefined;
+          if (layer === 'L1') return t('scanMonitor.eventLayerL1') || 'Checking page structure';
+          if (layer === 'L2') return t('scanMonitor.eventLayerL2') || 'Analyzing screenshot';
+          if (layer === 'L3') return t('scanMonitor.eventLayerL3') || 'Building assistive map';
+          return t('scanMonitor.activityLabel') || 'Activity';
+        }
+        case 'page_done':
+          return t('scanMonitor.eventPageDone') || 'Finished page';
+        case 'scan_done':
+          return t('scanMonitor.eventScanDone') || 'Report ready';
+        case 'scan_canceled':
+          return t('scanMonitor.eventScanCanceled') || 'Stopped (partial report saved)';
+        case 'agent_started':
+          return t('scanMonitor.eventAgentStarted') || 'Starting keyboard simulation';
+        case 'agent_progress':
+          return t('scanMonitor.eventAgentProgress') || 'Keyboard simulation in progress';
+        case 'agent_done':
+          return t('scanMonitor.eventAgentDone') || 'Finished keyboard simulation';
+        case 'analyst_started':
+          return t('scanMonitor.eventAnalystStarted') || 'AI analyst started';
+        case 'analyst_done':
+          return t('scanMonitor.eventAnalystDone') || 'AI analyst completed';
+        case 'error':
+          return t('common.error') || 'Error';
+        default:
+          return event.type;
+      }
+    } catch {
+      return event.type;
+    }
   };
 
   // Create DB row before discovery + SSE (SSE handler requires scan to exist)
@@ -164,6 +245,8 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
           addDebugLog('info', 'Starting discovery phase...');
           setIsScanning(true);
+          setBanner({ tone: 'info', message: (t('scanMonitor.stageDiscovering') as string) || 'Discovering pages' });
+          scanStartedAtRef.current = Date.now();
 
           const response = await fetch(`${apiUrl}/api/scans/${scanId}/discover`, {
             method: 'POST',
@@ -187,6 +270,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         } catch (error) {
           addDebugLog('error', `Failed to start discovery: ${error instanceof Error ? error.message : 'Unknown error'}`);
           setIsScanning(false);
+          setBanner({ tone: 'error', message: error instanceof Error ? error.message : 'Failed to start discovery' });
         }
       };
 
@@ -303,6 +387,58 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       case 'scan_done':
         handleScanDone(event);
         break;
+      case 'agent_started': {
+        const pagePath = event.url ? friendlyUrlPath(event.url) : '/';
+        setSimulation((prev) => ({
+          ...prev,
+          status: 'running',
+          pagesStarted: prev.pagesStarted + 1,
+          lastStep: prev.lastStep ? { ...prev.lastStep, pagePath } : { stepIndex: 0, maxSteps: 0, pagePath },
+        }));
+        break;
+      }
+      case 'agent_progress': {
+        const pagePath = event.url ? friendlyUrlPath(event.url) : '/';
+        setSimulation((prev) => ({
+          ...prev,
+          status: 'running',
+          lastStep: { stepIndex: event.stepIndex ?? 0, maxSteps: event.maxSteps ?? 0, pagePath },
+        }));
+        break;
+      }
+      case 'agent_done': {
+        setSimulation((prev) => ({
+          ...prev,
+          status: 'done',
+          pagesDone: prev.pagesDone + 1,
+          issues: prev.issues + (event.issuesCount ?? 0),
+        }));
+        break;
+      }
+      case 'analyst_started': {
+        setSimulation((prev) => ({
+          ...prev,
+          analyst: {
+            status: 'running',
+            pagesPlanned: event.pagesPlanned ?? prev.analyst?.pagesPlanned ?? 0,
+            pagesAnalyzed: 0,
+            findingsAdded: 0,
+          },
+        }));
+        break;
+      }
+      case 'analyst_done': {
+        setSimulation((prev) => ({
+          ...prev,
+          analyst: {
+            status: 'done',
+            pagesPlanned: prev.analyst?.pagesPlanned ?? 0,
+            pagesAnalyzed: event.pagesAnalyzed ?? 0,
+            findingsAdded: event.findingsAdded ?? 0,
+          },
+        }));
+        break;
+      }
       case 'scan_canceled': {
         addDebugLog('warning', `Scan canceled: ${(event as any).message || 'Canceled by user'}`);
         setIsScanning(false);
@@ -310,6 +446,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         setCurrentPage(null);
         setCurrentActivity('');
         setCurrentStep(t('scanMonitor.stopped') || 'Stopped');
+        setBanner({ tone: 'warning', message: (t('scanMonitor.scanSavedPartial') as string) || 'Scan stopped. A partial report was saved.' });
 
         // Close SSE connection
         if (eventSourceRef.current) {
@@ -318,7 +455,6 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         }
 
         // Do NOT delete the scan — keep partial results if any
-        alert((event as any).message || 'Scan canceled');
         break;
       }
       case 'error':
@@ -412,8 +548,9 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
     console.log('[SCAN] page_started event received', { url: new URL(url).pathname, pageNumber: event.pageNumber, phase: currentPhase, isScanning: currentIsScanning });
     setCurrentPage(url);
     setCurrentStep(`Scanning page ${event.pageNumber}...`);
-    setCurrentActivity(t('scanMonitor.activity.loading') || '🌐 Loading page...');
+    setCurrentActivity((t('scanMonitor.activityMessages.loading') as string) || 'Loading page...');
     addDebugLog('info', `Page started scanning: ${new URL(url).pathname} (page #${event.pageNumber})`);
+    setBanner({ tone: 'info', message: `${(t('scanMonitor.stageScanning') as string) || 'Scanning pages'} • ${friendlyUrlPath(url)}` });
 
     // During scanning phase, collect pages but don't build tree yet (build after completion)
     // Use isScanning flag as well to catch events even if phase is out of sync
@@ -498,9 +635,9 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
     // Update current activity with user-friendly message
     if (status === 'running') {
       const activityMessages = {
-        L1: t('scanMonitor.activity.scanningDOM') || '📄 Scanning page structure (HTML/DOM)...',
-        L2: t('scanMonitor.activity.analyzingScreenshot') || '📸 Analyzing screenshot (Vision AI)...',
-        L3: t('scanMonitor.activity.buildingAssistiveMap') || '🗺️ Building assistive technology map...',
+        L1: (t('scanMonitor.activityMessages.scanningDOM') as string) || 'Scanning page structure...',
+        L2: (t('scanMonitor.activityMessages.analyzingScreenshot') as string) || 'Analyzing screenshot...',
+        L3: (t('scanMonitor.activityMessages.buildingAssistiveMap') as string) || 'Building assistive map...',
       };
       setCurrentActivity(activityMessages[layer] || `Processing ${layer}...`);
     }
@@ -1103,8 +1240,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       });
     }
 
-    // Show error alert to user
-    alert(displayMessage);
+    // Client UX: avoid blocking alert dialogs; show banner instead
   };
 
   const handleStopScan = async () => {
@@ -1140,7 +1276,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
     } catch (error) {
       addDebugLog('error', `Failed to stop scan: ${error instanceof Error ? error.message : 'Unknown error'}`);
       console.error('Failed to stop scan:', error);
-      alert(t('scanMonitor.stopError') || 'Failed to stop scan. Please try again.');
+      setBanner({ tone: 'error', message: t('scanMonitor.stopError') || 'Failed to stop scan. Please try again.' });
     }
   };
 
@@ -1259,7 +1395,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
   const handleStartScanning = async () => {
     if (selectedUrls.size === 0) {
-      alert(t('scanMonitor.noPagesSelected') || 'Please select at least one page to scan.');
+      setBanner({ tone: 'warning', message: t('scanMonitor.noPagesSelected') || 'Please select at least one page to scan.' });
       return;
     }
 
@@ -1332,7 +1468,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       // The SSE connection will handle the rest
     } catch (error) {
       addDebugLog('error', `Failed to start scan: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      alert(t('scanMonitor.startScanError') || 'Failed to start scan. Please try again.');
+      setBanner({ tone: 'error', message: t('scanMonitor.startScanError') || 'Failed to start scan. Please try again.' });
       setPhase('selection'); // Go back to selection phase
       setIsScanning(false);
     }
@@ -1562,7 +1698,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
               {phase === 'scanning' && ` • ${stats.pagesScanned} ${t('scanMonitor.pagesScanned')}`}
               {phase === 'selection' && ` • ${selectedUrls.size} ${t('scanMonitor.selected') || 'selected'}`}
             </span>
-            {/* Connection status indicator */}
+            {/* Connection + view toggles */}
             <div className="flex items-center gap-2">
               <div
                 className={`w-2 h-2 rounded-full ${connectionStatus === 'connected'
@@ -1573,11 +1709,21 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                   }`}
                 title={connectionStatus}
               />
+
+              {phase !== 'selection' && (
+                <button
+                  onClick={() => setShowDetails((v) => !v)}
+                  className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-700"
+                >
+                  {showDetails ? (t('scanMonitor.hideDetails') || 'Hide details') : (t('scanMonitor.showDetails') || 'Show details')}
+                </button>
+              )}
+
               <button
-                onClick={() => setShowDebug(!showDebug)}
-                className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-600"
+                onClick={() => setShowDebug((v) => !v)}
+                className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-700"
               >
-                {showDebug ? 'Hide' : 'Show'} Debug
+                {t('scanMonitor.technicalLogs') || 'Technical logs'}
               </button>
             </div>
           </div>
@@ -1602,10 +1748,167 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
           </div>
         </div>
 
+        {/* Banner (client-friendly status/errors) */}
+        {banner && (
+          <div
+            className={`px-4 py-3 border-b text-sm flex items-center justify-between ${banner.tone === 'success'
+              ? 'bg-green-50 border-green-200 text-green-900'
+              : banner.tone === 'warning'
+                ? 'bg-yellow-50 border-yellow-200 text-yellow-900'
+                : banner.tone === 'error'
+                  ? 'bg-red-50 border-red-200 text-red-900'
+                  : 'bg-blue-50 border-blue-200 text-blue-900'
+              }`}
+          >
+            <div className="min-w-0">
+              <span className="font-medium">{banner.message}</span>
+            </div>
+            <button
+              onClick={() => setBanner(null)}
+              className="ml-3 text-xs px-2 py-1 rounded bg-white/60 hover:bg-white"
+            >
+              {t('common.close') || 'Close'}
+            </button>
+          </div>
+        )}
+
         {/* Body */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Left: Tree (60%) */}
-          <div className="flex-1 border-r border-gray-200 overflow-y-auto p-4">
+          {(() => {
+            const effectiveShowDetails = showDetails || phase === 'selection';
+
+            if (!effectiveShowDetails) {
+              return (
+                <div className="flex-1 overflow-y-auto p-6">
+                  <div className="max-w-[900px] mx-auto space-y-6">
+                    <div>
+                      <div className="text-lg font-semibold text-gray-900">{t('scanMonitor.summaryTitle') || 'Scan progress'}</div>
+                      <div className="text-sm text-gray-600">{t('scanMonitor.summarySubtitle') || 'We’ll update this in real time as pages are processed.'}</div>
+                    </div>
+
+                    {/* Primary metrics */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="p-4 rounded-lg border bg-white">
+                        <div className="text-xs text-gray-500">{t('scanMonitor.pagesDiscovered')}</div>
+                        <div className="text-2xl font-semibold text-gray-900">{stats.pagesDiscovered}</div>
+                      </div>
+                      <div className="p-4 rounded-lg border bg-white">
+                        <div className="text-xs text-gray-500">{t('scanMonitor.pagesScanned')}</div>
+                        <div className="text-2xl font-semibold text-gray-900">{stats.pagesScanned}</div>
+                      </div>
+                      <div className="p-4 rounded-lg border bg-white">
+                        <div className="text-xs text-gray-500">{t('scanMonitor.fails')}</div>
+                        <div className="text-2xl font-semibold text-red-700">{stats.fails}</div>
+                      </div>
+                      <div className="p-4 rounded-lg border bg-white">
+                        <div className="text-xs text-gray-500">{t('scanMonitor.needsReview')}</div>
+                        <div className="text-2xl font-semibold text-yellow-700">{stats.needsReview}</div>
+                      </div>
+                    </div>
+
+                    {/* Activity */}
+                    <div className="p-4 rounded-lg border bg-white space-y-2">
+                      <div className="text-sm text-gray-700">
+                        <span className="font-medium">{t('scanMonitor.currentPage') || 'Current Page'}: </span>
+                        <span className="font-mono text-xs text-gray-800">{currentPage ? friendlyUrlPath(currentPage) : '-'}</span>
+                      </div>
+                      <div className="text-sm text-gray-700">
+                        <span className="font-medium">{t('scanMonitor.activityLabel') || 'Activity'}: </span>
+                        <span className="text-gray-800">{currentActivity || '-'}</span>
+                      </div>
+                      {estimatedRemainingLabel && (
+                        <div className="text-sm text-gray-700">
+                          <span className="font-medium">{t('scanMonitor.estimatedRemaining') || 'Estimated remaining'}: </span>
+                          <span className="text-gray-800">{estimatedRemainingLabel}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Accessibility simulation (keyboard user) */}
+                    <div className="p-4 rounded-lg border bg-white space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-gray-900">
+                            {t('scanMonitor.simulationTitle') || 'Accessibility simulation (keyboard user)'}
+                          </div>
+                          <div className="text-sm text-gray-600 mt-1">
+                            {simulation.status === 'running'
+                              ? (t('scanMonitor.simulationStatusRunning') || 'Running')
+                              : simulation.pagesDone > 0 || simulation.status === 'done'
+                                ? (t('scanMonitor.simulationStatusDone') || 'Completed')
+                                : (t('scanMonitor.simulationStatusNotStarted') || 'Not started yet')}
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          {simulation.pagesDone}/{Math.max(simulation.pagesStarted, simulation.pagesDone)} pages
+                        </div>
+                      </div>
+
+                      {simulation.lastStep && simulation.lastStep.maxSteps > 0 && (
+                        <div className="text-sm text-gray-700">
+                          <span className="font-medium">{t('scanMonitor.simulationNow') || 'Now'}:</span>{' '}
+                          <span className="font-mono text-xs">{simulation.lastStep.pagePath}</span>{' '}
+                          <span className="text-gray-600">
+                            (step {simulation.lastStep.stepIndex}/{simulation.lastStep.maxSteps})
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="p-3 rounded border bg-gray-50">
+                          <div className="text-[11px] text-gray-500">{t('scanMonitor.simulationPagesTested') || 'Pages tested'}</div>
+                          <div className="text-lg font-semibold text-gray-900">{simulation.pagesDone}</div>
+                        </div>
+                        <div className="p-3 rounded border bg-gray-50">
+                          <div className="text-[11px] text-gray-500">{t('scanMonitor.simulationPotentialIssues') || 'Potential issues'}</div>
+                          <div className="text-lg font-semibold text-gray-900">{simulation.issues}</div>
+                        </div>
+                        <div className="p-3 rounded border bg-gray-50">
+                          <div className="text-[11px] text-gray-500">{t('scanMonitor.simulationAnalyst') || 'Analyst'}</div>
+                          <div className="text-lg font-semibold text-gray-900">
+                            {simulation.analyst?.status === 'running'
+                              ? (t('scanMonitor.simulationAnalystRunning') || 'Running')
+                              : simulation.analyst?.status === 'done'
+                                ? (t('scanMonitor.simulationAnalystDone') || 'Done')
+                                : '—'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {simulation.analyst && simulation.analyst.status !== 'not_started' && (
+                        <div className="text-sm text-gray-700">
+                          <span className="font-medium">{t('scanMonitor.simulationAnalyst') || 'Analyst'}:</span>{' '}
+                          {simulation.analyst.pagesAnalyzed}/{simulation.analyst.pagesPlanned} pages • {simulation.analyst.findingsAdded} findings
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Completion CTA */}
+                    {(scanCompleted || phase === 'scanning') && (
+                      <div className="flex items-center gap-2">
+                        {scanCompleted && (
+                          <button
+                            onClick={() => {
+                              if (onComplete) onComplete();
+                              onClose();
+                              navigate(`/scans/${scanId}`);
+                            }}
+                            className="px-4 py-2 rounded bg-primary text-white hover:bg-primary/90"
+                          >
+                            {t('scanMonitor.viewReport') || 'View report'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <>
+                {/* Left: Tree (60%) */}
+                <div className="flex-1 border-r border-gray-200 overflow-y-auto p-4">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold text-gray-900">{t('scanMonitor.websiteTree')}</h3>
               {phase === 'selection' && (
@@ -1643,10 +1946,10 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                 })()}
               </div>
             )}
-          </div>
+                </div>
 
-          {/* Right: Status (40%) */}
-          <div className="w-[40%] p-4 overflow-y-auto">
+                {/* Right: Status (40%) */}
+                <div className="w-[40%] p-4 overflow-y-auto">
             {phase === 'selection' ? (
               <>
                 <h3 className="font-semibold mb-4 text-gray-900">
@@ -1670,7 +1973,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                   {t('scanMonitor.startScanning') || `Start Scanning (${selectedUrls.size} pages)`}
                 </button>
               </>
-            ) : (
+                  ) : (
               <>
                 <h3 className="font-semibold mb-4 text-gray-900">{t('scanMonitor.nowScanning')}</h3>
 
@@ -1705,7 +2008,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                   </div>
                 )}
 
-                {/* Current Activity - User-friendly display */}
+                {/* Current Activity */}
                 {(currentPage || currentActivity) && (
                   <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="space-y-2">
@@ -1719,7 +2022,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                       )}
                       {currentActivity && (
                         <div className="text-sm">
-                          <span className="font-medium text-gray-700">{t('scanMonitor.activity') || 'Activity'}:</span>
+                          <span className="font-medium text-gray-700">{t('scanMonitor.activityLabel') || 'Activity'}:</span>
                           <span className="ml-2 text-blue-600">{currentActivity}</span>
                         </div>
                       )}
@@ -1747,20 +2050,18 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                   </div>
                 </div>
 
-                {/* Recent events */}
+                {/* Recent activity (client-friendly) */}
                 <div className="mt-4">
-                  <h4 className="text-sm font-semibold mb-2 text-gray-900">{t('scanMonitor.recentEvents')}</h4>
+                  <h4 className="text-sm font-semibold mb-2 text-gray-900">{t('scanMonitor.recentActivity') || t('scanMonitor.recentEvents')}</h4>
                   <div className="space-y-1 max-h-48 overflow-y-auto">
                     {recentEvents.length === 0 ? (
                       <div className="text-sm text-gray-500">{t('scanMonitor.noEvents')}</div>
                     ) : (
                       recentEvents.map((event, idx) => (
                         <div key={idx} className="text-xs text-gray-600 p-1">
-                          <span className="font-mono">{event.type}</span>
+                          <span className="font-medium">{formatRecentEventLabel(event)}</span>
                           {event.url && (
-                            <span className="ml-2 text-gray-500">
-                              {new URL(event.url).pathname}
-                            </span>
+                            <span className="ml-2 font-mono text-[11px] text-gray-500">{friendlyUrlPath(event.url)}</span>
                           )}
                         </div>
                       ))
@@ -1768,8 +2069,11 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                   </div>
                 </div>
               </>
-            )}
-          </div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
         </div>
 
         {/* Footer */}

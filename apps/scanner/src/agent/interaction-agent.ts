@@ -506,7 +506,7 @@ function focusSignature(active: ActiveSnapshot): string {
 export async function runInteractionAgent(
   page: Page,
   ctx: { url: string; pageNumber: number },
-  opts: InteractionAgentOptions
+  opts: InteractionAgentOptions & { onProgress?: (stepIndex: number, maxSteps: number) => void }
 ): Promise<InteractionArtifact> {
   const start = Date.now();
   const steps: InteractionArtifact['steps'] = [];
@@ -569,6 +569,14 @@ export async function runInteractionAgent(
     return raw;
   };
 
+  const maybeProgress = (i: number) => {
+    if (!opts.onProgress) return;
+    // Emit on step 1 and then every 5 steps to reduce SSE spam.
+    if (i === 1 || i % 5 === 0) {
+      opts.onProgress(i, opts.maxSteps);
+    }
+  };
+
   try {
     await page.keyboard.press('Tab');
     await page.waitForTimeout(50);
@@ -580,6 +588,7 @@ export async function runInteractionAgent(
       await page.keyboard.press('Tab');
       await page.waitForTimeout(50);
       await captureStep(i, 'tab');
+      maybeProgress(i);
 
       const windowStart = Math.max(0, steps.length - LOOP_WINDOW);
       const windowSteps = steps.slice(windowStart);

@@ -358,6 +358,15 @@ export class PageCapture {
       if (config.agent.enabled) {
         try {
           const { runInteractionAgent } = await import('../agent/interaction-agent.js');
+          if (this.scanId) {
+            scanEventEmitter.emitEvent(this.scanId, {
+              type: 'agent_started',
+              scanId: this.scanId,
+              url: finalUrl,
+              pageNumber,
+              timestamp: new Date().toISOString(),
+            } as any);
+          }
           const artifact = await runInteractionAgent(
             page,
             { url: finalUrl, pageNumber },
@@ -365,6 +374,18 @@ export class PageCapture {
               maxSteps: config.agent.maxSteps,
               maxMs: config.agent.maxMs,
               probesEnabled: config.agent.probesEnabled,
+              onProgress: (stepIndex: number, maxSteps: number) => {
+                if (!this.scanId) return;
+                scanEventEmitter.emitEvent(this.scanId, {
+                  type: 'agent_progress',
+                  scanId: this.scanId,
+                  url: finalUrl,
+                  pageNumber,
+                  stepIndex,
+                  maxSteps,
+                  timestamp: new Date().toISOString(),
+                } as any);
+              },
             }
           );
           const interactionDir = join(pageDir, 'interaction');
@@ -372,6 +393,17 @@ export class PageCapture {
           const interactionPath = join(interactionDir, 'interaction.json');
           await writeFile(interactionPath, JSON.stringify(artifact, null, 2), 'utf-8');
           result.agentPath = interactionPath;
+
+          if (this.scanId) {
+            scanEventEmitter.emitEvent(this.scanId, {
+              type: 'agent_done',
+              scanId: this.scanId,
+              url: finalUrl,
+              pageNumber,
+              issuesCount: Array.isArray((artifact as any).issues) ? (artifact as any).issues.length : 0,
+              timestamp: new Date().toISOString(),
+            } as any);
+          }
         } catch (agentErr) {
           console.warn(`[Agent] Interaction agent failed for page ${pageNumber}:`, agentErr);
         }
