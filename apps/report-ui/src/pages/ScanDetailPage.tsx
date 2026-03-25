@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../lib/api';
 import {
@@ -175,7 +175,17 @@ interface ScanDetail {
 export default function ScanDetailPage() {
   const { scanId } = useParams<{ scanId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
+  const fromEntityId = (location.state as { fromEntityId?: string } | null)?.fromEntityId;
+
+  const goBackFromScan = () => {
+    if (fromEntityId) {
+      navigate(`/entities/${fromEntityId}?tab=scans`);
+    } else {
+      navigate('/scans');
+    }
+  };
   const [scanDetail, setScanDetail] = useState<ScanDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -253,7 +263,7 @@ export default function ScanDetailPage() {
     return (
       <div className="space-y-4">
         <button
-          onClick={() => navigate('/scans')}
+          onClick={goBackFromScan}
           className="flex items-center gap-2 text-primary hover:underline"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -276,7 +286,7 @@ export default function ScanDetailPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate('/scans')}
+            onClick={goBackFromScan}
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="w-4 h-4" />

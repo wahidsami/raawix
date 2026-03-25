@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../lib/api';
 import { Globe, AlertTriangle, ExternalLink } from 'lucide-react';
+import GlobalEntityScopeBanner from '../components/GlobalEntityScopeBanner';
 
 interface Site {
   id: string;
@@ -65,6 +66,7 @@ export default function SitesPage() {
 
   return (
     <div className="space-y-6">
+      <GlobalEntityScopeBanner />
 
       {sites.length === 0 ? (
         <div className="bg-card border border-border rounded-lg p-8 text-center">

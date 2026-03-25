@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../lib/api';
 import { Map, Globe, ExternalLink } from 'lucide-react';
+import GlobalEntityScopeBanner from '../components/GlobalEntityScopeBanner';
 
 interface AssistiveMap {
   id: string;
@@ -58,6 +59,7 @@ export default function AssistiveMapsPage() {
 
   return (
     <div className="space-y-6">
+      <GlobalEntityScopeBanner />
 
       {maps.length === 0 ? (
         <div className="bg-card border border-border rounded-lg p-12 text-center">

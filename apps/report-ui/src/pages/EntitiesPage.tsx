@@ -143,10 +143,12 @@ export default function EntitiesPage() {
 
       const entityData = { ...formData, logoPath };
 
+      let createdEntityId: string | undefined;
       if (editingEntity) {
         await apiClient.updateEntity(editingEntity.id, entityData);
       } else {
-        await apiClient.createEntity(entityData);
+        const { entity: created } = await apiClient.createEntity(entityData);
+        createdEntityId = created?.id;
       }
 
       setShowCreateModal(false);
@@ -163,6 +165,9 @@ export default function EntitiesPage() {
         logoPath: '',
       });
       fetchEntities();
+      if (createdEntityId) {
+        navigate(`/entities/${createdEntityId}?tab=properties`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save entity');
     }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../lib/api';
 import { ScanSearch } from 'lucide-react';
+import GlobalEntityScopeBanner from '../components/GlobalEntityScopeBanner';
 
 interface Scan {
   scanId: string;
@@ -143,13 +144,28 @@ export default function ScansPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-end">
+      <GlobalEntityScopeBanner />
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <button
+            type="button"
+            onClick={() => navigate('/entities')}
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-2 w-fit"
+          >
+            <ScanSearch className="w-4 h-4" />
+            {t('scans.startFromEntity')}
+          </button>
+          <p className="text-xs text-muted-foreground max-w-md">
+            {t('scans.startFromEntityDescription')}
+          </p>
+        </div>
         <button
+          type="button"
           onClick={() => setShowStartScanModal(true)}
-          className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-2"
+          className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-2 sm:self-center"
         >
-          <ScanSearch className="w-4 h-4" />
-          {t('scan.startScan')}
+          {t('scans.advancedStartHere')}
         </button>
       </div>
 

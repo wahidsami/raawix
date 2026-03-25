@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
 import { apiClient } from '../lib/api';
@@ -7,16 +7,35 @@ import { Building2, Globe, ScanSearch, AlertTriangle, BarChart3, Users, Plus, Ar
 import { getWCAGRuleTitle, getWCAGRuleDescription, getRuleMeta } from '../utils/wcag-rules';
 import ScanMonitorModal from '../components/ScanMonitorModal';
 
+const ENTITY_TAB_IDS = [
+  'overview',
+  'properties',
+  'scans',
+  'findings',
+  'analytics',
+  'reports',
+  'assistiveMaps',
+  'contacts',
+] as const;
+type EntityTabId = (typeof ENTITY_TAB_IDS)[number];
+
+function tabFromParam(value: string | null): EntityTabId {
+  if (value && (ENTITY_TAB_IDS as readonly string[]).includes(value)) {
+    return value as EntityTabId;
+  }
+  return 'overview';
+}
+
 export default function EntityDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { t, i18n } = useTranslation();
   const { isRTL } = useLanguage();
   const currentLanguage = i18n.language === 'ar' ? 'ar' : 'en';
   const [entity, setEntity] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'properties' | 'scans' | 'findings' | 'analytics' | 'contacts' | 'reports' | 'assistiveMaps'>('overview');
   const [complianceScores, setComplianceScores] = useState<any>(null);
   const [entityScans, setEntityScans] = useState<any[]>([]);
   const [entityFindings, setEntityFindings] = useState<any[]>([]);
@@ -65,6 +84,37 @@ export default function EntityDetailPage() {
   const [showScanMonitor, setShowScanMonitor] = useState(false);
   const [monitorScanId, setMonitorScanId] = useState<string | null>(null);
   const [monitorSeedUrl, setMonitorSeedUrl] = useState<string>('');
+
+  const tabParam = searchParams.get('tab');
+  const activeTab = tabFromParam(tabParam);
+
+  useEffect(() => {
+    if (tabParam && !(ENTITY_TAB_IDS as readonly string[]).includes(tabParam)) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('tab');
+          return next;
+        },
+        { replace: true }
+      );
+    }
+  }, [id, tabParam, setSearchParams]);
+
+  const goToTab = (tabId: EntityTabId) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (tabId === 'overview') {
+          next.delete('tab');
+        } else {
+          next.set('tab', tabId);
+        }
+        return next;
+      },
+      { replace: true }
+    );
+  };
 
   useEffect(() => {
     if (id) {
@@ -337,7 +387,7 @@ export default function EntityDetailPage() {
       setMonitorSeedUrl(validUrl);
       setShowScanMonitor(true);
 
-      setActiveTab('scans');
+      goToTab('scans');
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start scan');
@@ -404,7 +454,7 @@ export default function EntityDetailPage() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => goToTab(tab.id as EntityTabId)}
                 className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${activeTab === tab.id
                     ? 'border-primary text-primary'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -525,6 +575,7 @@ export default function EntityDetailPage() {
 
       {activeTab === 'properties' && (
         <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">{t('entities.propertiesTabSubtitle')}</p>
           <div className="flex justify-end">
             <button
               onClick={() => setShowAddProperty(true)}
@@ -596,9 +647,22 @@ export default function EntityDetailPage() {
       {activeTab === 'scans' && (
         <div className="space-y-4">
           {entityScans.length === 0 ? (
-            <div className="bg-card border border-border rounded-lg p-8 text-center">
-              <ScanSearch className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">{t('scans.noScans')}</p>
+            <div className="bg-card border border-border rounded-lg p-8 text-center space-y-4">
+              <ScanSearch className="w-12 h-12 mx-auto text-muted-foreground" />
+              <p className="text-muted-foreground">
+                {entity.properties.length === 0
+                  ? t('entities.scansEmptyNoProperties')
+                  : t('entities.scansEmptyWithProperties')}
+              </p>
+              {entity.properties.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => goToTab('properties')}
+                  className="text-primary hover:underline text-sm font-medium"
+                >
+                  {t('entities.scansEmptyGoToProperties')}
+                </button>
+              )}
             </div>
           ) : (
             <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -637,7 +701,11 @@ export default function EntityDetailPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <button
-                            onClick={() => navigate(`/scans/${scan.scanId}`)}
+                            onClick={() =>
+                              navigate(`/scans/${scan.scanId}`, {
+                                state: { fromEntityId: id },
+                              })
+                            }
                             className="text-primary hover:underline text-sm"
                           >
                             {t('common.view')}

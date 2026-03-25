@@ -62,12 +62,16 @@
     "resetPasswordError": "Failed to reset password."
   },
   "nav": {
+    "sectionPortfolio": "Portfolio",
+    "sectionWork": "Work",
+    "sectionAllData": "All data",
+    "sectionSystem": "System",
     "overview": "Overview",
     "entities": "Entities",
-    "sites": "Sites",
-    "scans": "Scans",
-    "findings": "Findings",
-    "assistiveMaps": "Assistive Maps",
+    "sites": "All sites",
+    "scans": "All scans",
+    "findings": "All findings",
+    "assistiveMaps": "All assistive maps",
     "widgetAnalytics": "Widget Analytics",
     "users": "Users",
     "settings": "Settings"
@@ -93,6 +97,11 @@
     "newScan": "New Scan",
     "welcome": "Welcome"
   },
+  "globalLists": {
+    "entityScopeHint": "These lists span all entities. To add sites or run scans, open an entity.",
+    "goToEntities": "Open entities",
+    "dismiss": "Dismiss"
+  },
   "overview": {
     "title": "Overview",
     "totalSites": "Total Sites",
@@ -105,7 +114,12 @@
     "scansOverTime": "Scans Over Time (30 Days)",
     "failuresByLevel": "Failures by WCAG Level",
     "topFailingRules": "Top Failing WCAG Rules",
-    "topAffectedSites": "Top Affected Sites"
+    "topAffectedSites": "Top Affected Sites",
+    "yourEntities": "Your entities",
+    "yourEntitiesSubtitle": "Open an entity to add site URLs, run scans, and review findings.",
+    "addSite": "Add site",
+    "scans": "Scans",
+    "noEntitiesYet": "No entities yet. Create one from the Entities page."
   },
   "sites": {
     "title": "Sites",
@@ -119,6 +133,9 @@
     "assistiveMapCoverage": "Assistive Map Coverage"
   },
   "scans": {
+    "startFromEntity": "Start scan from an entity",
+    "startFromEntityDescription": "Scans run in the context of an entity and its properties.",
+    "advancedStartHere": "Advanced: start scan from this page",
     "title": "Scans",
     "status": "Status",
     "startedAt": "Started At",
@@ -326,8 +343,13 @@
     "contactIsPrimary": "Primary Contact",
     "startScanForProperty": "Start Scan",
     "overview": "Overview",
-    "propertiesTab": "Properties",
+    "propertiesTab": "Sites & URLs",
+    "propertiesTabSubtitle": "Domains and site URLs linked to this entity. Add at least one before running a scan.",
     "scansTab": "Scans",
+    "scansEmptyNoProperties": "Add a site URL on the Sites & URLs tab, then return here to run a scan.",
+    "scansEmptyGoToProperties": "Go to Sites & URLs",
+    "scansEmptyWithProperties": "No scans yet. Open Sites & URLs and use Start scan on a property.",
+    "postCreateHint": "Add a site URL, then open the Scans tab to run a scan.",
     "findingsTab": "Findings",
     "analyticsTab": "Analytics",
     "assistiveMaps": "Assistive Maps",

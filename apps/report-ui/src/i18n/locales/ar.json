@@ -62,12 +62,16 @@
     "resetPasswordError": "فشل إعادة تعيين كلمة المرور."
   },
   "nav": {
+    "sectionPortfolio": "المحفظة",
+    "sectionWork": "العمل",
+    "sectionAllData": "كل البيانات",
+    "sectionSystem": "النظام",
     "overview": "نظرة عامة",
     "entities": "الكيانات",
-    "sites": "المواقع",
-    "scans": "المسوحات",
-    "findings": "النتائج",
-    "assistiveMaps": "خرائط المساعدة",
+    "sites": "كل المواقع",
+    "scans": "كل المسوحات",
+    "findings": "كل النتائج",
+    "assistiveMaps": "كل خرائط المساعدة",
     "widgetAnalytics": "تحليلات الويدجت",
     "users": "المستخدمون",
     "settings": "الإعدادات"
@@ -87,6 +91,11 @@
     "editUser": "تعديل المستخدم",
     "newPasswordOptional": "كلمة المرور الجديدة (اختياري)"
   },
+  "globalLists": {
+    "entityScopeHint": "تشمل هذه القوائم كل الكيانات. لإضافة مواقع أو تشغيل مسوحات، افتح كياناً.",
+    "goToEntities": "فتح الكيانات",
+    "dismiss": "إغلاق"
+  },
   "dashboard": {
     "title": "لوحة تحكم راوي إكس",
     "subtitle": "ماسح امتثال إمكانية الوصول",
@@ -105,7 +114,12 @@
     "scansOverTime": "المسوحات مع مرور الوقت (30 يوم)",
     "failuresByLevel": "الإخفاقات حسب مستوى WCAG",
     "topFailingRules": "أهم قواعد WCAG الفاشلة",
-    "topAffectedSites": "أهم المواقع المتأثرة"
+    "topAffectedSites": "أهم المواقع المتأثرة",
+    "yourEntities": "كياناتك",
+    "yourEntitiesSubtitle": "افتح كياناً لإضافة روابط المواقع وتشغيل المسوحات ومراجعة النتائج.",
+    "addSite": "إضافة موقع",
+    "scans": "المسوحات",
+    "noEntitiesYet": "لا توجد كيانات بعد. أنشئ كياناً من صفحة الكيانات."
   },
   "sites": {
     "title": "المواقع",
@@ -119,6 +133,9 @@
     "assistiveMapCoverage": "تغطية خريطة المساعدة"
   },
   "scans": {
+    "startFromEntity": "بدء المسح من كيان",
+    "startFromEntityDescription": "تُشغَّل المسوحات في سياق الكيان وخصائصه.",
+    "advancedStartHere": "متقدم: بدء المسح من هذه الصفحة",
     "title": "المسوحات",
     "status": "الحالة",
     "startedAt": "تاريخ البدء",
@@ -326,8 +343,13 @@
     "contactIsPrimary": "جهة اتصال رئيسية",
     "startScanForProperty": "بدء المسح",
     "overview": "نظرة عامة",
-    "propertiesTab": "الخصائص",
+    "propertiesTab": "المواقع والروابط",
+    "propertiesTabSubtitle": "النطاقات وروابط المواقع المرتبطة بهذا الكيان. أضف موقعاً واحداً على الأقل قبل تشغيل مسح.",
     "scansTab": "المسوحات",
+    "scansEmptyNoProperties": "أضف رابط موقع في تبويب المواقع والروابط، ثم عد هنا لتشغيل مسح.",
+    "scansEmptyGoToProperties": "الانتقال إلى المواقع والروابط",
+    "scansEmptyWithProperties": "لا توجد مسوحات بعد. افتح المواقع والروابط واستخدم «بدء المسح» على خاصية.",
+    "postCreateHint": "أضف رابط موقع، ثم افتح تبويب المسوحات لتشغيل مسح.",
     "findingsTab": "النتائج",
     "analyticsTab": "التحليلات",
     "assistiveMaps": "خرائط المساعدة",

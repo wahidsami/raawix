@@ -10,6 +10,12 @@ COPY apps/report-ui ./apps/report-ui
 # Ensure devDependencies are installed for build
 ENV NODE_ENV=development
 
+# Baked into the static bundle at build time (set in Coolify as build args or build env)
+ARG VITE_API_URL=http://localhost:3001
+ARG VITE_API_KEY=
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_API_KEY=$VITE_API_KEY
+
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @raawi-x/report-ui... build
 

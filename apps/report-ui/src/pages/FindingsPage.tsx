@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../lib/api';
 import { Search, ExternalLink, AlertTriangle, X } from 'lucide-react';
+import GlobalEntityScopeBanner from '../components/GlobalEntityScopeBanner';
 import { getWCAGRuleTitle, getWCAGRuleDescription } from '../utils/wcag-rules';
 
 interface Finding {
@@ -117,6 +118,7 @@ export default function FindingsPage() {
 
   return (
     <div className="space-y-6">
+      <GlobalEntityScopeBanner />
 
       {/* Filters */}
       <div className="bg-card border border-border rounded-lg p-4 space-y-4">

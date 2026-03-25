@@ -109,8 +109,16 @@ Then:
 |-------|--------|
 | Scanner won’t start | `DATABASE_URL` correct? DB container reachable from Scanner? Logs in Coolify. |
 | Report UI shows “network error” / API fails | `VITE_API_URL` set at **build** time and matches Scanner domain? Rebuild Report UI after changing it. |
-| Login redirect or CORS | `REPORT_UI_ORIGIN` in Scanner must match Report UI domain exactly (including `https://`). |
+| Login redirect or CORS | `REPORT_UI_ORIGIN` in Scanner must match Report UI domain exactly (including `https://`). If you set `WIDGET_ORIGINS` on the Scanner, **include** `https://<your-report-ui-domain>` in the comma-separated list (otherwise CORS will block the dashboard). |
 | 408 / timeout on push | Unrelated to Coolify; was a Git push size issue (already fixed by rewriting history). |
+
+---
+
+## 8. Security notes (production)
+
+- **Do not paste** `DATABASE_URL`, `JWT_SECRET`, `API_KEY`, or cloud API keys into public chats or tickets. If they were exposed, **rotate** them in Coolify and anywhere else they were reused.
+- **`VITE_API_KEY` on Report UI:** Anything prefixed with `VITE_` is compiled into the public JavaScript bundle. Anyone can read it. The main dashboard uses **JWT** after login; the API key is only needed for the legacy **ScanDashboard** route. Prefer **omitting** `VITE_API_KEY` in production (legacy route will not work with API auth) or accept that the key is public—**never** use the same value as a secret server-only `API_KEY` if you need that key to stay private.
+- **Report UI build:** The Dockerfile passes `VITE_API_URL` / `VITE_API_KEY` as Docker `ARG`/`ENV` during `pnpm build`. In Coolify, ensure those values are available when the image is **built** (redeploy after changing them).
 
 ---
 

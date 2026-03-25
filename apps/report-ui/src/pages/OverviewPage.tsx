@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
 import { apiClient } from '../lib/api';
@@ -14,7 +15,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { Globe, ScanSearch, FileText, AlertTriangle, Eye, Clock } from 'lucide-react';
+import { Globe, ScanSearch, FileText, AlertTriangle, Eye, Clock, Building2 } from 'lucide-react';
 
 export default function OverviewPage() {
   const { t } = useTranslation();
@@ -34,6 +35,7 @@ export default function OverviewPage() {
   const [failuresByLevel, setFailuresByLevel] = useState<Array<{ level: string; failures: number }>>([]);
   const [topFailingRules, setTopFailingRules] = useState<Array<{ rule: string; failures: number }>>([]);
   const [topAffectedSites, setTopAffectedSites] = useState<Array<{ domain: string; issues: number }>>([]);
+  const [entities, setEntities] = useState<Array<{ id: string; nameEn: string; nameAr?: string }>>([]);
 
   useEffect(() => {
     fetchOverview();
@@ -42,7 +44,11 @@ export default function OverviewPage() {
   const fetchOverview = async () => {
     try {
       setLoading(true);
-      const data = await apiClient.getOverview();
+      const [data, entitiesRes] = await Promise.all([
+        apiClient.getOverview(),
+        apiClient.getEntities().catch(() => ({ entities: [] as Array<{ id: string; nameEn: string; nameAr?: string }> })),
+      ]);
+      setEntities(entitiesRes.entities);
 
       // Update KPIs
       setKpis([
@@ -87,6 +93,42 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-6">
+      <div className="bg-card border border-border rounded-lg p-6">
+        <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
+          <Building2 className="w-5 h-5 text-primary" />
+          {t('overview.yourEntities')}
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">{t('overview.yourEntitiesSubtitle')}</p>
+        {entities.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('overview.noEntitiesYet')}</p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {entities.map((e) => (
+              <li
+                key={e.id}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-border px-3 py-2 bg-muted/30"
+              >
+                <Link to={`/entities/${e.id}`} className="font-medium text-primary hover:underline">
+                  {e.nameEn}
+                </Link>
+                <span className="text-muted-foreground hidden sm:inline">·</span>
+                <Link
+                  to={`/entities/${e.id}?tab=properties`}
+                  className="text-sm text-muted-foreground hover:text-primary"
+                >
+                  {t('overview.addSite')}
+                </Link>
+                <Link
+                  to={`/entities/${e.id}?tab=scans`}
+                  className="text-sm text-muted-foreground hover:text-primary"
+                >
+                  {t('overview.scans')}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
