@@ -31,11 +31,19 @@ Then configure env vars and domains.
 6. **Port:** `3001` (exposed in the Dockerfile).
 7. Create the resource.
 
+**Important — `NODE_ENV` (build vs runtime)**  
+If Coolify shows a warning that `NODE_ENV=production` skips devDependencies at build time, fix it like this:
+
+- Edit **`NODE_ENV`** → uncheck **Available at Buildtime**, leave **Available at Runtime** checked.  
+- Keep the value **`production`** for runtime (the running API).
+
+The Dockerfiles already set `NODE_ENV=development` for `pnpm install` / build steps; leaving `NODE_ENV` as **runtime-only** avoids the platform injecting `production` too early and keeps builds correct and often faster (full install instead of broken retries).
+
 **Environment variables** (Scanner → Environment Variables):
 
 | Variable | Value | Required |
 |----------|--------|----------|
-| `NODE_ENV` | `production` | Yes |
+| `NODE_ENV` | `production` (**runtime only** — see above) | Yes |
 | `PORT` | `3001` | Yes |
 | `DATABASE_URL` | `postgresql://USER:PASSWORD@raawix-db:5432/postgres` (use the DB URL from step 1; replace USER/PASSWORD) | Yes |
 | `JWT_SECRET` | Generate a long random string | Yes |
@@ -131,3 +139,22 @@ Then:
 | Report UI | Application | wahidsami/raawix | apps/report-ui/Dockerfile | 80 |
 
 Build context for both apps: **repository root** (default when Base Directory is empty).
+
+---
+
+## 9. Faster Docker builds (optional)
+
+Typical first-time or cold-cache builds take **a few minutes**, mostly from:
+
+- **`pnpm install`** (monorepo + lockfile)
+- **TypeScript / Vite build**
+- **Scanner only:** `playwright install --with-deps chromium` (browser + OS packages)
+
+Ways to improve:
+
+1. **`NODE_ENV` runtime-only** (see above) — avoids bad installs and warnings.
+2. **Coolify build cache** — if your Coolify version supports Docker registry/build cache for apps, enable it so unchanged layers reuse `pnpm install` and base images.
+3. **Redeploy only what changed** — after a UI-only commit, redeploy **Report UI** only; after API-only changes, redeploy **Scanner** only.
+4. **Do not set `NODE_ENV=production` at build** for either service in Coolify.
+
+The repo Dockerfiles use BuildKit cache mounts for OS package managers and the pnpm store where supported (Docker BuildKit / `docker buildx`).

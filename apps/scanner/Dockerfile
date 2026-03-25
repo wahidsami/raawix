@@ -1,6 +1,11 @@
+# syntax=docker/dockerfile:1
 FROM node:20-bookworm-slim AS build
 
-RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+# Cache apt metadata/packages between builds (BuildKit)
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 WORKDIR /app
 
@@ -8,10 +13,13 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
 COPY packages ./packages
 COPY apps/scanner ./apps/scanner
 
-# Ensure devDependencies are installed for build
+# Ensure devDependencies are installed for build (override Coolify build-time NODE_ENV=production)
 ENV NODE_ENV=development
 
-RUN pnpm install --frozen-lockfile
+# Cache pnpm store between builds on the same host (BuildKit)
+RUN --mount=type=cache,id=pnpm-raawix-scanner,target=/pnpm-store \
+    pnpm config set store-dir /pnpm-store \
+    && pnpm install --frozen-lockfile
 RUN pnpm --filter @raawi-x/scanner db:generate
 RUN pnpm --filter @raawi-x/scanner... build
 
