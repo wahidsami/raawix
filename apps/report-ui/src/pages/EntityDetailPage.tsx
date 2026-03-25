@@ -26,6 +26,27 @@ function tabFromParam(value: string | null): EntityTabId {
   return 'overview';
 }
 
+/** Host/path only — protocol comes from HTTP/HTTPS toggles in the scan modal. */
+function stripLeadingUrlScheme(raw: string): {
+  hostAndPath: string;
+  detectedProtocol?: 'http' | 'https';
+} {
+  const trimmed = raw.trim();
+  if (/^https:\/\//i.test(trimmed)) {
+    return {
+      hostAndPath: trimmed.replace(/^https:\/\//i, ''),
+      detectedProtocol: 'https',
+    };
+  }
+  if (/^http:\/\//i.test(trimmed)) {
+    return {
+      hostAndPath: trimmed.replace(/^http:\/\//i, ''),
+      detectedProtocol: 'http',
+    };
+  }
+  return { hostAndPath: trimmed };
+}
+
 export default function EntityDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -334,16 +355,12 @@ export default function EntityDetailPage() {
   const handleStartScanClick = (propertyId: string, seedUrl: string) => {
     // Open scan configuration modal — keep maxPages/maxDepth/scanMode from existing config (defaults 500/10/domain).
     // Do not force 1/1 here; that capped discovery to a single URL for whole-site crawls.
-    const trimmed = seedUrl.trim();
-    let protocol: 'http' | 'https' = 'https';
-    if (trimmed.startsWith('https://')) protocol = 'https';
-    else if (trimmed.startsWith('http://')) protocol = 'http';
-
+    const { hostAndPath, detectedProtocol } = stripLeadingUrlScheme(seedUrl);
     setScanConfig((prev) => ({
       ...prev,
       propertyId,
-      seedUrl: trimmed,
-      protocol,
+      seedUrl: hostAndPath,
+      protocol: detectedProtocol ?? prev.protocol ?? 'https',
     }));
     setShowScanConfig(true);
   };
@@ -367,29 +384,21 @@ export default function EntityDetailPage() {
     try {
       const { seedUrl, maxPages, maxDepth } = scanConfig;
 
-      // Validate URL before sending
-      if (!seedUrl || !seedUrl.trim()) {
+      const { hostAndPath } = stripLeadingUrlScheme(seedUrl);
+      if (!hostAndPath) {
         setError('Invalid URL: URL cannot be empty');
         return;
       }
 
-      // Ensure URL has protocol
-      let validUrl = seedUrl.trim();
-      if (!validUrl.startsWith('http://') && !validUrl.startsWith('https://')) {
-        // Use selected protocol from toggle
-        validUrl = `${scanConfig.protocol}://${validUrl}`;
-      } else {
-        // If URL already has protocol, update scanConfig to match
-        const currentProtocol = validUrl.startsWith('https://') ? 'https' : 'http';
-        setScanConfig(prev => ({ ...prev, protocol: currentProtocol }));
-      }
+      // Protocol only from toggles; strip any pasted scheme so we never get https://https://...
+      const validUrl = `${scanConfig.protocol}://${hostAndPath}`;
 
       // Basic URL validation
       let parsedUrl: URL;
       try {
         parsedUrl = new URL(validUrl);
       } catch {
-        setError(`Invalid URL: ${seedUrl}`);
+        setError(`Invalid URL: ${validUrl}`);
         return;
       }
 
@@ -1670,18 +1679,15 @@ export default function EntityDetailPage() {
                     type="text"
                     value={scanConfig.seedUrl}
                     onChange={(e) => {
-                      const url = e.target.value.trim();
-                      // Auto-detect protocol if user types http:// or https://
-                      if (url.startsWith('https://')) {
-                        setScanConfig({ ...scanConfig, seedUrl: url.replace('https://', ''), protocol: 'https' });
-                      } else if (url.startsWith('http://')) {
-                        setScanConfig({ ...scanConfig, seedUrl: url.replace('http://', ''), protocol: 'http' });
-                      } else {
-                        setScanConfig({ ...scanConfig, seedUrl: url });
-                      }
+                      const { hostAndPath, detectedProtocol } = stripLeadingUrlScheme(e.target.value);
+                      setScanConfig({
+                        ...scanConfig,
+                        seedUrl: hostAndPath,
+                        ...(detectedProtocol ? { protocol: detectedProtocol } : {}),
+                      });
                     }}
                     required
-                    placeholder="localhost:4173 or example.com"
+                    placeholder="www.example.com or localhost:4173"
                     className="flex-1 px-3 py-2 border border-input rounded-md bg-background"
                     dir="ltr"
                   />
