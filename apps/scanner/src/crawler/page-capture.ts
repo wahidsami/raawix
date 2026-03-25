@@ -203,6 +203,16 @@ export class PageCapture {
       result.screenshotPath = screenshotPath;
       console.log('[L2] Screenshot end');
 
+      if (this.scanId) {
+        scanEventEmitter.emitEvent(this.scanId, {
+          type: 'screenshot_ready',
+          scanId: this.scanId,
+          url,
+          pageNumber,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       // A2) Capture HTML after stabilization
       console.log('[L1] Capture start');
 

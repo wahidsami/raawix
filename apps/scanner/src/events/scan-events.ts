@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 export type ScanEventType =
   | 'crawl_discovered'
   | 'page_started'
+  | 'screenshot_ready'
   | 'layer_status'
   | 'page_done'
   | 'scan_done'
@@ -28,6 +29,15 @@ export interface CrawlDiscoveredEvent {
 
 export interface PageStartedEvent {
   type: 'page_started';
+  scanId: string;
+  url: string;
+  pageNumber: number;
+  timestamp: string;
+}
+
+/** Emitted after full-page screenshot.png is written — lets UIs fetch the artifact without guessing timing. */
+export interface ScreenshotReadyEvent {
+  type: 'screenshot_ready';
   scanId: string;
   url: string;
   pageNumber: number;
@@ -150,6 +160,7 @@ export interface ScanErrorEvent {
 export type ScanEvent =
   | CrawlDiscoveredEvent
   | PageStartedEvent
+  | ScreenshotReadyEvent
   | LayerStatusEvent
   | PageDoneEvent
   | ScanDoneEvent

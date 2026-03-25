@@ -566,8 +566,9 @@ app.get('/api/scan/:id/artifact/*', async (req, res, next) => {
   }
 }, async (req, res) => {
   const scanId = req.params.id;
-  // Extract path from URL manually
-  const match = req.url.match(/\/artifact\/(.+)$/);
+  // Use pathname only (req.url can include query string; some proxies alter req.url)
+  const pathname = (typeof req.path === 'string' && req.path.length > 0 ? req.path : req.url.split('?')[0]) || '';
+  const match = pathname.match(/\/artifact\/(.+)$/);
   const artifactPath = match ? match[1] : '';
 
   // Sanitize scanId and artifactPath

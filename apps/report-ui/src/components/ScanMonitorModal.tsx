@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { apiClient } from '../lib/api';
@@ -8,6 +8,17 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 function screenshotArtifactUrl(scanId: string, pageNumber: number): string {
   return `${API_BASE}/api/scan/${encodeURIComponent(scanId)}/artifact/pages/${pageNumber}/screenshot.png`;
+}
+
+async function blobLooksLikePng(blob: Blob): Promise<boolean> {
+  const head = new Uint8Array(await blob.slice(0, 8).arrayBuffer());
+  return (
+    head.length >= 8 &&
+    head[0] === 0x89 &&
+    head[1] === 0x50 &&
+    head[2] === 0x4e &&
+    head[3] === 0x47
+  );
 }
 
 interface ScanEvent {
@@ -86,6 +97,11 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   const [activeScanPageNumber, setActiveScanPageNumber] = useState<number | null>(null);
   const [activeScanPageTitle, setActiveScanPageTitle] = useState<string | null>(null);
   const [pagePreviewObjectUrl, setPagePreviewObjectUrl] = useState<string | null>(null);
+  const activeScanPageNumberRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    activeScanPageNumberRef.current = activeScanPageNumber;
+  }, [activeScanPageNumber]);
 
   useEffect(() => {
     if (!currentPage) {
@@ -93,6 +109,32 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       setActiveScanPageTitle(null);
     }
   }, [currentPage]);
+
+  const fetchScreenshotPreview = useCallback(
+    async (pageNumber: number): Promise<boolean> => {
+      const token = apiClient.getToken();
+      const url = `${screenshotArtifactUrl(scanId, pageNumber)}?t=${Date.now()}`;
+      try {
+        const res = await fetch(url, {
+          cache: 'no-store',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) return false;
+        const blob = await res.blob();
+        if (!(await blobLooksLikePng(blob))) return false;
+        if (activeScanPageNumberRef.current !== pageNumber) return true;
+        const next = URL.createObjectURL(blob);
+        setPagePreviewObjectUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev);
+          return next;
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [scanId],
+  );
 
   useEffect(() => {
     if (phase !== 'scanning' || !isScanning || activeScanPageNumber == null) {
@@ -105,29 +147,14 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
     let alive = true;
     let interval: ReturnType<typeof setInterval> | undefined;
+    const pageNumber = activeScanPageNumber;
 
-    const tryFetch = async () => {
+    const tick = async () => {
       if (!alive) return;
-      const token = apiClient.getToken();
-      try {
-        const res = await fetch(screenshotArtifactUrl(scanId, activeScanPageNumber), {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!alive) return;
-        if (!res.ok) return;
-        const blob = await res.blob();
-        if (!alive) return;
-        const next = URL.createObjectURL(blob);
-        setPagePreviewObjectUrl((prev) => {
-          if (prev) URL.revokeObjectURL(prev);
-          return next;
-        });
-        if (interval) {
-          clearInterval(interval);
-          interval = undefined;
-        }
-      } catch {
-        /* screenshot not written yet — keep polling */
+      const ok = await fetchScreenshotPreview(pageNumber);
+      if (ok && interval) {
+        clearInterval(interval);
+        interval = undefined;
       }
     };
 
@@ -135,8 +162,8 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       if (prev) URL.revokeObjectURL(prev);
       return null;
     });
-    void tryFetch();
-    interval = setInterval(tryFetch, 650);
+    void tick();
+    interval = setInterval(tick, 500);
 
     return () => {
       alive = false;
@@ -146,7 +173,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         return null;
       });
     };
-  }, [scanId, activeScanPageNumber, phase, isScanning]);
+  }, [scanId, activeScanPageNumber, phase, isScanning, fetchScreenshotPreview]);
   const [, setCurrentStep] = useState<string>('');
   const [currentActivity, setCurrentActivity] = useState<string>(''); // New: user-friendly activity description
   const [stats, setStats] = useState({
@@ -235,6 +262,8 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
           return t('scanMonitor.eventDiscoveredPage') || 'Found a page';
         case 'page_started':
           return t('scanMonitor.eventPageStarted') || 'Scanning page';
+        case 'screenshot_ready':
+          return t('scanMonitor.eventScreenshotReady') || 'Page screenshot ready';
         case 'layer_status': {
           const layer = (event as any).layer as string | undefined;
           if (layer === 'L1') return t('scanMonitor.eventLayerL1') || 'Checking page structure';
@@ -468,6 +497,11 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         break;
       case 'page_started':
         handlePageStarted(event);
+        break;
+      case 'screenshot_ready':
+        if (event.scanId === scanId && typeof event.pageNumber === 'number' && Number.isFinite(event.pageNumber)) {
+          void fetchScreenshotPreview(event.pageNumber);
+        }
         break;
       case 'layer_status':
         handleLayerStatus(event);
@@ -1938,52 +1972,58 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                     </div>
 
                     {phase === 'scanning' && isScanning && (
-                      <div className="p-4 rounded-lg border border-border bg-card space-y-2">
-                        <div className="text-sm font-semibold text-foreground">
-                          {t('scanMonitor.pagePreviewTitle') || 'Live page preview'}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {t('scanMonitor.pagePreviewSubtitle') ||
-                            'Full-page capture from the scanner (updates as each page is processed).'}
-                        </div>
-                        {currentPage && (
-                          <div className="text-xs font-mono text-foreground break-all">
-                            {friendlyUrlPath(currentPage)}
+                      <div className="p-4 rounded-lg border border-border bg-card space-y-3">
+                        <div>
+                          <div className="text-sm font-semibold text-foreground">
+                            {t('scanMonitor.pagePreviewTitle') || 'Live page preview'}
                           </div>
-                        )}
-                        {(activeScanPageTitle || activeScanPageNumber != null) && (
-                          <div className="text-sm text-foreground">
-                            {activeScanPageTitle ? (
-                              <div
-                                className="font-semibold leading-snug line-clamp-3"
-                                title={activeScanPageTitle}
-                              >
-                                {activeScanPageTitle}
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {t('scanMonitor.pagePreviewSubtitle') ||
+                              'Full-page capture from the scanner (updates as each page is processed).'}
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-5">
+                          <div className="order-2 md:order-1 min-w-0 flex-1 space-y-2">
+                            {currentPage && (
+                              <div className="text-xs font-mono text-foreground break-all">
+                                {friendlyUrlPath(currentPage)}
                               </div>
-                            ) : (
-                              <div className="text-xs text-muted-foreground">
-                                {t('scanMonitor.pagePreviewTitlePending') || 'Getting page title…'}
+                            )}
+                            {(activeScanPageTitle || activeScanPageNumber != null) && (
+                              <div className="text-sm text-foreground">
+                                {activeScanPageTitle ? (
+                                  <div
+                                    className="font-semibold leading-snug line-clamp-3"
+                                    title={activeScanPageTitle}
+                                  >
+                                    {activeScanPageTitle}
+                                  </div>
+                                ) : (
+                                  <div className="text-xs text-muted-foreground">
+                                    {t('scanMonitor.pagePreviewTitlePending') || 'Getting page title…'}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
-                        )}
-                        <div className="mt-2 rounded-md border border-border bg-muted/30 overflow-hidden flex items-center justify-center min-h-[140px] max-h-[min(40vh,320px)]">
-                          {pagePreviewObjectUrl ? (
-                            <img
-                              src={pagePreviewObjectUrl}
-                              alt=""
-                              className="w-full max-h-[min(40vh,320px)] object-contain object-top bg-background"
-                            />
-                          ) : activeScanPageNumber != null ? (
-                            <div className="text-sm text-muted-foreground p-6 text-center">
-                              {t('scanMonitor.pagePreviewWaiting') || 'Waiting for screenshot…'}
-                            </div>
-                          ) : (
-                            <div className="text-sm text-muted-foreground p-6 text-center">
-                              {t('scanMonitor.pagePreviewUnavailable') ||
-                                'Preview will appear shortly after the page loads.'}
-                            </div>
-                          )}
+                          <div className="order-1 md:order-2 w-full md:w-[min(42%,280px)] shrink-0 self-center md:self-start rounded-md border border-border bg-muted/30 overflow-hidden flex items-center justify-center min-h-[130px] max-h-[min(40vh,320px)]">
+                            {pagePreviewObjectUrl ? (
+                              <img
+                                src={pagePreviewObjectUrl}
+                                alt=""
+                                className="w-full h-full max-h-[min(40vh,320px)] object-contain object-top bg-background"
+                              />
+                            ) : activeScanPageNumber != null ? (
+                              <div className="text-sm text-muted-foreground p-4 text-center">
+                                {t('scanMonitor.pagePreviewWaiting') || 'Waiting for screenshot…'}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-muted-foreground p-4 text-center">
+                                {t('scanMonitor.pagePreviewUnavailable') ||
+                                  'Preview will appear shortly after the page loads.'}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -2195,52 +2235,58 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                 )}
 
                 {phase === 'scanning' && isScanning && (
-                  <div className="mb-4 p-4 rounded-lg border border-sky-500/25 bg-sky-500/5 space-y-2">
-                    <div className="text-sm font-semibold text-foreground">
-                      {t('scanMonitor.pagePreviewTitle') || 'Live page preview'}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {t('scanMonitor.pagePreviewSubtitle') ||
-                        'Full-page capture from the scanner (updates as each page is processed).'}
-                    </div>
-                    {currentPage && (
-                      <div className="text-xs font-mono text-sky-200/90 break-all">
-                        {friendlyUrlPath(currentPage)}
+                  <div className="mb-4 p-4 rounded-lg border border-sky-500/25 bg-sky-500/5 space-y-3">
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">
+                        {t('scanMonitor.pagePreviewTitle') || 'Live page preview'}
                       </div>
-                    )}
-                    {(activeScanPageTitle || activeScanPageNumber != null) && (
-                      <div className="text-sm text-foreground">
-                        {activeScanPageTitle ? (
-                          <div
-                            className="font-semibold leading-snug line-clamp-3 text-sky-100"
-                            title={activeScanPageTitle}
-                          >
-                            {activeScanPageTitle}
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {t('scanMonitor.pagePreviewSubtitle') ||
+                          'Full-page capture from the scanner (updates as each page is processed).'}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-5">
+                      <div className="order-2 md:order-1 min-w-0 flex-1 space-y-2">
+                        {currentPage && (
+                          <div className="text-xs font-mono text-sky-200/90 break-all">
+                            {friendlyUrlPath(currentPage)}
                           </div>
-                        ) : (
-                          <div className="text-xs text-muted-foreground">
-                            {t('scanMonitor.pagePreviewTitlePending') || 'Getting page title…'}
+                        )}
+                        {(activeScanPageTitle || activeScanPageNumber != null) && (
+                          <div className="text-sm text-foreground">
+                            {activeScanPageTitle ? (
+                              <div
+                                className="font-semibold leading-snug line-clamp-3 text-sky-100"
+                                title={activeScanPageTitle}
+                              >
+                                {activeScanPageTitle}
+                              </div>
+                            ) : (
+                              <div className="text-xs text-muted-foreground">
+                                {t('scanMonitor.pagePreviewTitlePending') || 'Getting page title…'}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    )}
-                    <div className="mt-2 rounded-md border border-sky-500/20 overflow-hidden flex items-center justify-center min-h-[120px] max-h-[min(35vh,280px)] bg-background/50">
-                      {pagePreviewObjectUrl ? (
-                        <img
-                          src={pagePreviewObjectUrl}
-                          alt=""
-                          className="w-full max-h-[min(35vh,280px)] object-contain object-top"
-                        />
-                      ) : activeScanPageNumber != null ? (
-                        <div className="text-sm text-muted-foreground p-4 text-center">
-                          {t('scanMonitor.pagePreviewWaiting') || 'Waiting for screenshot…'}
-                        </div>
-                      ) : (
-                        <div className="text-sm text-muted-foreground p-4 text-center">
-                          {t('scanMonitor.pagePreviewUnavailable') ||
-                            'Preview will appear shortly after the page loads.'}
-                        </div>
-                      )}
+                      <div className="order-1 md:order-2 w-full md:w-[min(42%,260px)] shrink-0 self-center md:self-start rounded-md border border-sky-500/20 overflow-hidden flex items-center justify-center min-h-[120px] max-h-[min(35vh,280px)] bg-background/50">
+                        {pagePreviewObjectUrl ? (
+                          <img
+                            src={pagePreviewObjectUrl}
+                            alt=""
+                            className="w-full h-full max-h-[min(35vh,280px)] object-contain object-top"
+                          />
+                        ) : activeScanPageNumber != null ? (
+                          <div className="text-sm text-muted-foreground p-4 text-center">
+                            {t('scanMonitor.pagePreviewWaiting') || 'Waiting for screenshot…'}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground p-4 text-center">
+                            {t('scanMonitor.pagePreviewUnavailable') ||
+                              'Preview will appear shortly after the page loads.'}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}

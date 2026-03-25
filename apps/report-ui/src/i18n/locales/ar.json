@@ -326,6 +326,7 @@
     "recentActivity": "النشاط الأخير",
     "eventDiscoveredPage": "تم العثور على صفحة",
     "eventPageStarted": "جاري مسح الصفحة",
+    "eventScreenshotReady": "لقطة الشاشة جاهزة",
     "eventLayerL1": "فحص بنية الصفحة",
     "eventLayerL2": "تحليل لقطة الشاشة",
     "eventLayerL3": "بناء خريطة المساعدة",
