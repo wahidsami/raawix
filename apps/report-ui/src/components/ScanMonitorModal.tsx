@@ -89,15 +89,69 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error' | 'closed'>('connecting');
   const [debugLogs, setDebugLogs] = useState<Array<{ time: string; type: string; message: string }>>([]);
   const [showDebug, setShowDebug] = useState(false);
+  /** True after POST /init succeeds — required because GET .../events returns 404 until a Scan row exists. */
+  const [scanRecordReady, setScanRecordReady] = useState(false);
 
   const addDebugLog = (type: string, message: string) => {
     const time = new Date().toLocaleTimeString();
     setDebugLogs((prev) => [{ time, type, message }, ...prev].slice(0, 50)); // Keep last 50 logs
   };
 
-  // Auto-start discovery when modal opens
+  // Create DB row before discovery + SSE (SSE handler requires scan to exist)
   useEffect(() => {
-    if (phase === 'discovery') {
+    setScanRecordReady(false);
+    let cancelled = false;
+
+    const runInit = async () => {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const token = localStorage.getItem('raawix_token');
+      if (!token) {
+        addDebugLog('error', 'No auth token found');
+        setConnectionStatus('error');
+        return;
+      }
+
+      addDebugLog('info', 'Creating scan record for discovery (init)...');
+      try {
+        const initResponse = await fetch(`${apiUrl}/api/scans/${scanId}/init`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            seedUrl,
+            maxPages: maxPages || 50,
+            maxDepth: maxDepth || 3,
+            entityId,
+            propertyId,
+          }),
+        });
+        if (cancelled) return;
+        if (!initResponse.ok) {
+          const errText = await initResponse.text().catch(() => '');
+          addDebugLog('error', `Init failed: ${initResponse.status} ${errText}`);
+          setConnectionStatus('error');
+          return;
+        }
+        addDebugLog('success', 'Scan record ready; discovery and SSE can proceed');
+        setScanRecordReady(true);
+      } catch (e) {
+        if (cancelled) return;
+        addDebugLog('error', `Init request failed: ${e instanceof Error ? e.message : 'Unknown'}`);
+        setConnectionStatus('error');
+      }
+    };
+
+    runInit();
+    return () => {
+      cancelled = true;
+    };
+  }, [scanId, seedUrl, maxPages, maxDepth, entityId, propertyId]);
+
+  // Auto-start discovery when modal opens (after DB row exists)
+  useEffect(() => {
+    if (phase === 'discovery' && scanRecordReady) {
       const startDiscovery = async () => {
         try {
           const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -138,11 +192,15 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
       startDiscovery();
     }
-  }, [phase, scanId, seedUrl]);
+  }, [phase, scanId, seedUrl, scanRecordReady, maxPages, maxDepth, scanMode]);
 
   useEffect(() => {
     // Connect to SSE endpoint
     // Note: EventSource doesn't support custom headers, so we pass token via query param
+    if (!scanRecordReady) {
+      return;
+    }
+
     const token = localStorage.getItem('raawix_token');
     if (!token) {
       addDebugLog('error', 'No auth token found in localStorage');
@@ -215,7 +273,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         eventSourceRef.current = null;
       }
     };
-  }, [scanId]);
+  }, [scanId, scanRecordReady]);
 
   const handleEvent = (event: ScanEvent) => {
     // Skip heartbeat and connection messages
