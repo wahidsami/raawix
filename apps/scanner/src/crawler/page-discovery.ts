@@ -3,7 +3,7 @@
  * Used for Phase 1: Discovery (fast, no scanning)
  */
 
-import { normalizeUrl, getHostname, isSameHostname, shouldIncludeUrl } from './url-utils.js';
+import { extractLinks, normalizeUrl, getHostname, isSameHostname, shouldIncludeUrl } from './url-utils.js';
 import { scanEventEmitter } from '../events/scan-events.js';
 import { chromium, Browser, Page } from 'playwright';
 
@@ -24,6 +24,7 @@ export class PageDiscovery {
   private scanMode: 'domain' | 'single';
   private readonly primaryNavTimeoutMs = 30000;
   private readonly fallbackNavTimeoutMs = 15000;
+  private readonly httpFallbackTimeoutMs = 20000;
 
   constructor(
     seedUrl: string,
@@ -181,8 +182,76 @@ export class PageDiscovery {
           await page.close();
         }
       } catch (error) {
-        console.warn(`[DISCOVERY] Failed to discover links from ${item.url}:`, error instanceof Error ? error.message : 'Unknown error');
-        // Continue with other pages
+        console.warn(`[DISCOVERY] Failed browser discovery from ${item.url}:`, error instanceof Error ? error.message : 'Unknown error');
+
+        // Fallback path for environments where headless browser is blocked/timed out.
+        try {
+          const links = await this.discoverLinksViaHttp(item.url);
+          let addedCount = 0;
+
+          for (const link of links) {
+            const normalizedLink = normalizeUrl(link, item.url);
+
+            if (!isSameHostname(normalizedLink, item.url)) {
+              continue;
+            }
+
+            if (visited.has(normalizedLink)) {
+              continue;
+            }
+
+            if (discoveredUrls.length >= this.maxPages) {
+              break;
+            }
+
+            if (item.depth + 1 > this.maxDepth) {
+              continue;
+            }
+
+            if (!shouldIncludeUrl(normalizedLink, this.includePatterns, this.excludePatterns)) {
+              continue;
+            }
+
+            if (this.scanMode === 'single') {
+              try {
+                const seedUrlObj = new URL(this.seedUrl);
+                const linkUrlObj = new URL(normalizedLink);
+                const seedPath = seedUrlObj.pathname.replace(/\/$/, '');
+                const linkPath = linkUrlObj.pathname.replace(/\/$/, '');
+                if (!linkPath.startsWith(seedPath) || linkPath === seedPath) {
+                  continue;
+                }
+              } catch {
+                continue;
+              }
+            }
+
+            visited.add(normalizedLink);
+            discoveredUrls.push(normalizedLink);
+            queue.push({ url: normalizedLink, depth: item.depth + 1, parentUrl: item.url });
+            addedCount++;
+
+            if (this.scanId) {
+              scanEventEmitter.emitEvent(this.scanId, {
+                type: 'crawl_discovered',
+                scanId: this.scanId,
+                url: normalizedLink,
+                parentUrl: item.url,
+                depth: item.depth + 1,
+                timestamp: new Date().toISOString(),
+                source: 'crawl',
+                metadata: { source: 'crawl_fallback_http' },
+              } as any);
+            }
+          }
+
+          console.log(`[DISCOVERY] HTTP fallback ${item.url}: found ${links.length} links, added ${addedCount} new, total: ${discoveredUrls.length}`);
+        } catch (fallbackError) {
+          console.warn(
+            `[DISCOVERY] HTTP fallback failed for ${item.url}:`,
+            fallbackError instanceof Error ? fallbackError.message : 'Unknown error'
+          );
+        }
       }
     }
 
@@ -233,6 +302,33 @@ export class PageDiscovery {
       waitUntil: 'commit',
       timeout: this.fallbackNavTimeoutMs,
     });
+  }
+
+  private async discoverLinksViaHttp(url: string): Promise<string[]> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.httpFallbackTimeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        signal: controller.signal,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+      }
+
+      const html = await response.text();
+      return extractLinks(html, url);
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   private async initialize(): Promise<void> {
