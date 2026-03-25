@@ -30,7 +30,9 @@
     "selectLanguage": "اختر اللغة",
     "english": "الإنجليزية",
     "arabic": "العربية",
-    "confirm": "تأكيد"
+    "confirm": "تأكيد",
+    "themeSwitchToLight": "التبديل إلى الوضع الفاتح",
+    "themeSwitchToDark": "التبديل إلى الوضع الداكن"
   },
   "auth": {
     "login": "تسجيل الدخول",

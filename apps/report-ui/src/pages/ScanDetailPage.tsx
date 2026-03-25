@@ -649,10 +649,10 @@ export default function ScanDetailPage() {
                     <div key={idx} className="border border-border rounded p-3">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="font-medium">{finding.kind}</span>
-                        <span className={`text - xs px - 2 py - 1 rounded ${finding.confidence === 'high' ? 'bg-green-100 text-green-800' :
-                          finding.confidence === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-gray-100 text-gray-800'
-                          } `}>
+                        <span className={`text-xs px-2 py-1 rounded ${finding.confidence === 'high' ? 'bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-500/20' :
+                          finding.confidence === 'medium' ? 'bg-amber-500/15 text-amber-200 ring-1 ring-amber-500/20' :
+                            'bg-muted text-muted-foreground'
+                          }`}>
                           {finding.confidence}
                         </span>
                       </div>
@@ -705,14 +705,14 @@ export default function ScanDetailPage() {
                       <div key={finding.id ?? idx} className="border border-border rounded p-3">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-medium">{finding.kind}</span>
-                          <span className={`text - xs px - 2 py - 1 rounded ${label === 'high' ? 'bg-green-100 text-green-800' :
-                            label === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-gray-100 text-gray-800'
-                            } `}>
+                          <span className={`text-xs px-2 py-1 rounded ${label === 'high' ? 'bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-500/20' :
+                            label === 'medium' ? 'bg-amber-500/15 text-amber-200 ring-1 ring-amber-500/20' :
+                              'bg-muted text-muted-foreground'
+                            }`}>
                             {pct ? `${label} (${pct})` : label}
                           </span>
                           {isOpenAi && (
-                            <span className="text-xs px-2 py-1 rounded bg-violet-100 text-violet-800 font-medium" title="Enriched by OpenAI analyst">
+                            <span className="text-xs px-2 py-1 rounded bg-violet-500/15 text-violet-200 ring-1 ring-violet-500/25 font-medium" title="Enriched by OpenAI analyst">
                               AI
                             </span>
                           )}
@@ -758,7 +758,7 @@ export default function ScanDetailPage() {
           <div className="relative max-w-7xl max-h-[90vh]">
             <button
               onClick={() => setSelectedImage(null)}
-              className="absolute -top-10 right-0 text-white hover:text-gray-300 p-2"
+              className="absolute -top-10 right-0 text-white hover:text-white/80 p-2"
               aria-label="Close"
             >
               <X className="w-6 h-6" />
@@ -766,7 +766,7 @@ export default function ScanDetailPage() {
             <img
               src={selectedImage}
               alt="Vision finding screenshot"
-              className="max-w-full max-h-[90vh] rounded shadow-2xl"
+              className="max-w-full max-h-[90vh] rounded-md border border-border shadow-md"
               onClick={(e) => e.stopPropagation()}
             />
           </div>

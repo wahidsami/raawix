@@ -1526,7 +1526,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
     return (
       <div key={node.url} className="select-none">
         <div
-          className={`flex items-center gap-2 py-1 px-2 hover:bg-gray-100 rounded ${node.url === currentPage ? 'bg-blue-50' : ''
+          className={`flex items-center gap-2 py-1 px-2 hover:bg-muted rounded ${node.url === currentPage ? 'bg-primary/15' : ''
             }`}
           style={{ paddingLeft: `${depth * 20 + 8}px` }}
           onClick={(e) => {
@@ -1544,7 +1544,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
           {hasChildren && (
             <button
               onClick={() => toggleNode(node.url)}
-              className="w-4 h-4 flex items-center justify-center text-gray-500 hover:text-gray-700"
+              className="w-4 h-4 flex items-center justify-center text-muted-foreground hover:text-foreground"
             >
               {isExpanded ? '▼' : '▶'}
             </button>
@@ -1553,7 +1553,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
           {/* Page number counter */}
           {pageNumberMap && pageNumberMap.has(node.url) && (
-            <span className="text-xs font-semibold text-gray-500 w-8 text-right flex-shrink-0">
+            <span className="text-xs font-semibold text-muted-foreground w-8 text-right flex-shrink-0">
               {pageNumberMap.get(node.url)}.
             </span>
           )}
@@ -1574,7 +1574,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
               onMouseDown={(e) => {
                 e.stopPropagation(); // Also stop on mousedown
               }}
-              className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary cursor-pointer relative z-10 flex-shrink-0"
+              className="w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer relative z-10 flex-shrink-0"
               style={{ pointerEvents: 'auto', zIndex: 10 }}
             />
           )}
@@ -1583,9 +1583,9 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
           {phase !== 'selection' && (
             <>
               {node.status === 'scanned' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
-              {node.status === 'in_progress' && <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />}
+              {node.status === 'in_progress' && <Loader2 className="w-4 h-4 text-primary animate-spin" />}
               {node.status === 'failed' && <XCircle className="w-4 h-4 text-red-500" />}
-              {node.status === 'not_scanned' && <XCircle className="w-4 h-4 text-gray-400" />}
+              {node.status === 'not_scanned' && <XCircle className="w-4 h-4 text-muted-foreground" />}
             </>
           )}
 
@@ -1595,7 +1595,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
           </span>
           {/* Discovery source badge */}
           {node.discoverySource && node.discoverySource !== 'crawl' && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 ml-2">
+            <span className="text-xs px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-200 ring-1 ring-sky-500/20 ml-2">
               {node.discoverySource === 'seed' ? 'Seed' :
                 node.discoverySource === 'sitemap' ? 'Sitemap' :
                   node.discoverySource === 'post_login_seed' ? 'Post-Login' : 'Unknown'}
@@ -1611,7 +1611,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                   ? 'bg-blue-500 animate-pulse'
                   : node.layers.L1 === 'failed'
                     ? 'bg-red-500'
-                    : 'bg-gray-300'
+                    : 'bg-muted'
                 }`}
               title="L1: DOM"
             />
@@ -1622,7 +1622,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                   ? 'bg-blue-500 animate-pulse'
                   : node.layers.L2 === 'failed'
                     ? 'bg-red-500'
-                    : 'bg-gray-300'
+                    : 'bg-muted'
                 }`}
               title="L2: Vision"
             />
@@ -1633,7 +1633,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                   ? 'bg-blue-500 animate-pulse'
                   : node.layers.L3 === 'failed'
                     ? 'bg-red-500'
-                    : 'bg-gray-300'
+                    : 'bg-muted'
                 }`}
               title="L3: Assistive Map"
             />
@@ -1690,23 +1690,22 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm">
       <div
-        className={`bg-white rounded-lg shadow-xl w-[95vw] max-w-[1200px] h-[90vh] flex flex-col ${isRTL ? 'text-right' : 'text-left'
+        className={`bg-card text-card-foreground rounded-lg border border-border shadow-md w-[95vw] max-w-[1200px] h-[90vh] flex flex-col ${isRTL ? 'text-right' : 'text-left'
           }`}
         dir={isRTL ? 'rtl' : 'ltr'}
-        style={{ colorScheme: 'light' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-3">
-            {(isScanning || phase === 'discovery') && <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />}
-            <h2 className="text-xl font-semibold text-gray-900">
+            {(isScanning || phase === 'discovery') && <Loader2 className="w-5 h-5 text-primary animate-spin" />}
+            <h2 className="text-xl font-semibold text-foreground">
               {phase === 'discovery' && (t('scanMonitor.discovering') || 'Discovering Pages...')}
               {phase === 'selection' && (t('scanMonitor.selectPages') || 'Select Pages to Scan')}
               {phase === 'scanning' && (t('scanMonitor.title') || 'Scanning in progress')}
             </h2>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-muted-foreground">
               {new URL(seedUrl).hostname} • {elapsedLabel} • {stats.pagesDiscovered} {t('scanMonitor.pagesDiscovered')}
               {phase === 'selection' && (() => {
                 const visibleNodes = getAllVisibleNodes(rootNodes);
@@ -1733,7 +1732,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
               {phase !== 'selection' && (
                 <button
                   onClick={() => setShowDetails((v) => !v)}
-                  className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-700"
+                  className="text-xs px-2 py-1 bg-muted hover:bg-muted/80 rounded text-foreground"
                 >
                   {showDetails ? (t('scanMonitor.hideDetails') || 'Hide details') : (t('scanMonitor.showDetails') || 'Show details')}
                 </button>
@@ -1741,7 +1740,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
               <button
                 onClick={() => setShowDebug((v) => !v)}
-                className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-700"
+                className="text-xs px-2 py-1 bg-muted hover:bg-muted/80 rounded text-foreground"
               >
                 {t('scanMonitor.technicalLogs') || 'Technical logs'}
               </button>
@@ -1751,7 +1750,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
             {isScanning && (
               <button
                 onClick={handleStopScan}
-                className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-2"
+                className="px-3 py-1.5 text-sm bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 flex items-center gap-2"
                 aria-label={t('scanMonitor.stopScan') || 'Stop Scan'}
               >
                 <XCircle className="w-4 h-4" />
@@ -1760,7 +1759,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
             )}
             <button
               onClick={handleClose}
-              className="p-2 hover:bg-gray-100 rounded"
+              className="p-2 hover:bg-muted rounded"
               aria-label={t('common.close')}
             >
               <X className="w-5 h-5" />
@@ -1772,12 +1771,12 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         {banner && (
           <div
             className={`px-4 py-3 border-b text-sm flex items-center justify-between ${banner.tone === 'success'
-              ? 'bg-green-50 border-green-200 text-green-900'
+              ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-100'
               : banner.tone === 'warning'
-                ? 'bg-yellow-50 border-yellow-200 text-yellow-900'
+                ? 'bg-amber-500/10 border-amber-500/25 text-amber-100'
                 : banner.tone === 'error'
-                  ? 'bg-red-50 border-red-200 text-red-900'
-                  : 'bg-blue-50 border-blue-200 text-blue-900'
+                  ? 'bg-red-500/10 border-red-500/25 text-red-100'
+                  : 'bg-sky-500/10 border-sky-500/25 text-sky-100'
               }`}
           >
             <div className="min-w-0">
@@ -1785,7 +1784,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
             </div>
             <button
               onClick={() => setBanner(null)}
-              className="ml-3 text-xs px-2 py-1 rounded bg-white/60 hover:bg-white"
+              className="ml-3 text-xs px-2 py-1 rounded bg-muted/80 hover:bg-muted"
             >
               {t('common.close') || 'Close'}
             </button>
@@ -1802,60 +1801,60 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                 <div className="flex-1 overflow-y-auto p-6">
                   <div className="max-w-[900px] mx-auto space-y-6">
                     <div>
-                      <div className="text-lg font-semibold text-gray-900">{t('scanMonitor.summaryTitle') || 'Scan progress'}</div>
-                      <div className="text-sm text-gray-600">{t('scanMonitor.summarySubtitle') || 'We’ll update this in real time as pages are processed.'}</div>
+                      <div className="text-lg font-semibold text-foreground">{t('scanMonitor.summaryTitle') || 'Scan progress'}</div>
+                      <div className="text-sm text-muted-foreground">{t('scanMonitor.summarySubtitle') || 'We’ll update this in real time as pages are processed.'}</div>
                     </div>
 
                     {/* Primary metrics */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <div className="p-4 rounded-lg border bg-white">
-                        <div className="text-xs text-gray-500">{t('scanMonitor.pagesDiscovered')}</div>
-                        <div className="text-2xl font-semibold text-gray-900">{stats.pagesDiscovered}</div>
+                      <div className="p-4 rounded-lg border border-border bg-card">
+                        <div className="text-xs text-muted-foreground">{t('scanMonitor.pagesDiscovered')}</div>
+                        <div className="text-2xl font-semibold text-foreground">{stats.pagesDiscovered}</div>
                       </div>
-                      <div className="p-4 rounded-lg border bg-white">
-                        <div className="text-xs text-gray-500">{t('scanMonitor.pagesScanned')}</div>
-                        <div className="text-2xl font-semibold text-gray-900">{stats.pagesScanned}</div>
+                      <div className="p-4 rounded-lg border border-border bg-card">
+                        <div className="text-xs text-muted-foreground">{t('scanMonitor.pagesScanned')}</div>
+                        <div className="text-2xl font-semibold text-foreground">{stats.pagesScanned}</div>
                       </div>
-                      <div className="p-4 rounded-lg border bg-white">
-                        <div className="text-xs text-gray-500">{t('scanMonitor.fails')}</div>
-                        <div className="text-2xl font-semibold text-red-700">{stats.fails}</div>
+                      <div className="p-4 rounded-lg border border-border bg-card">
+                        <div className="text-xs text-muted-foreground">{t('scanMonitor.fails')}</div>
+                        <div className="text-2xl font-semibold text-red-400">{stats.fails}</div>
                       </div>
-                      <div className="p-4 rounded-lg border bg-white">
-                        <div className="text-xs text-gray-500">{t('scanMonitor.needsReview')}</div>
-                        <div className="text-2xl font-semibold text-yellow-700">{stats.needsReview}</div>
+                      <div className="p-4 rounded-lg border border-border bg-card">
+                        <div className="text-xs text-muted-foreground">{t('scanMonitor.needsReview')}</div>
+                        <div className="text-2xl font-semibold text-amber-300">{stats.needsReview}</div>
                       </div>
                     </div>
 
                     {/* Activity */}
-                    <div className="p-4 rounded-lg border bg-white space-y-2">
-                      <div className="text-sm text-gray-700">
+                    <div className="p-4 rounded-lg border border-border bg-card space-y-2">
+                      <div className="text-sm text-foreground">
                         <span className="font-medium">Time:</span>{' '}
-                        <span className="font-mono text-xs text-gray-800">{elapsedLabel}</span>
+                        <span className="font-mono text-xs text-foreground">{elapsedLabel}</span>
                       </div>
-                      <div className="text-sm text-gray-700">
+                      <div className="text-sm text-foreground">
                         <span className="font-medium">{t('scanMonitor.currentPage') || 'Current Page'}: </span>
-                        <span className="font-mono text-xs text-gray-800">{currentPage ? friendlyUrlPath(currentPage) : '-'}</span>
+                        <span className="font-mono text-xs text-foreground">{currentPage ? friendlyUrlPath(currentPage) : '-'}</span>
                       </div>
-                      <div className="text-sm text-gray-700">
+                      <div className="text-sm text-foreground">
                         <span className="font-medium">{t('scanMonitor.activityLabel') || 'Activity'}: </span>
-                        <span className="text-gray-800">{currentActivity || '-'}</span>
+                        <span className="text-foreground">{currentActivity || '-'}</span>
                       </div>
                       {estimatedRemainingLabel && (
-                        <div className="text-sm text-gray-700">
+                        <div className="text-sm text-foreground">
                           <span className="font-medium">{t('scanMonitor.estimatedRemaining') || 'Estimated remaining'}: </span>
-                          <span className="text-gray-800">{estimatedRemainingLabel}</span>
+                          <span className="text-foreground">{estimatedRemainingLabel}</span>
                         </div>
                       )}
                     </div>
 
                     {/* Accessibility simulation (keyboard user) */}
-                    <div className="p-4 rounded-lg border bg-white space-y-2">
+                    <div className="p-4 rounded-lg border border-border bg-card space-y-2">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-sm font-semibold text-gray-900">
+                          <div className="text-sm font-semibold text-foreground">
                             {t('scanMonitor.simulationTitle') || 'Accessibility simulation (keyboard user)'}
                           </div>
-                          <div className="text-sm text-gray-600 mt-1">
+                          <div className="text-sm text-muted-foreground mt-1">
                             {simulation.status === 'running'
                               ? (t('scanMonitor.simulationStatusRunning') || 'Running')
                               : simulation.pagesDone > 0 || simulation.status === 'done'
@@ -1863,33 +1862,33 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                                 : (t('scanMonitor.simulationStatusNotStarted') || 'Not started yet')}
                           </div>
                         </div>
-                        <div className="text-xs text-gray-600">
+                        <div className="text-xs text-muted-foreground">
                           {simulation.pagesDone}/{Math.max(simulation.pagesStarted, simulation.pagesDone)} pages
                         </div>
                       </div>
 
                       {simulation.lastStep && simulation.lastStep.maxSteps > 0 && (
-                        <div className="text-sm text-gray-700">
+                        <div className="text-sm text-foreground">
                           <span className="font-medium">{t('scanMonitor.simulationNow') || 'Now'}:</span>{' '}
                           <span className="font-mono text-xs">{simulation.lastStep.pagePath}</span>{' '}
-                          <span className="text-gray-600">
+                          <span className="text-muted-foreground">
                             (step {simulation.lastStep.stepIndex}/{simulation.lastStep.maxSteps})
                           </span>
                         </div>
                       )}
 
                       <div className="grid grid-cols-3 gap-2">
-                        <div className="p-3 rounded border bg-gray-50">
-                          <div className="text-[11px] text-gray-500">{t('scanMonitor.simulationPagesTested') || 'Pages tested'}</div>
-                          <div className="text-lg font-semibold text-gray-900">{simulation.pagesDone}</div>
+                        <div className="p-3 rounded border bg-muted/50">
+                          <div className="text-[11px] text-muted-foreground">{t('scanMonitor.simulationPagesTested') || 'Pages tested'}</div>
+                          <div className="text-lg font-semibold text-foreground">{simulation.pagesDone}</div>
                         </div>
-                        <div className="p-3 rounded border bg-gray-50">
-                          <div className="text-[11px] text-gray-500">{t('scanMonitor.simulationPotentialIssues') || 'Potential issues'}</div>
-                          <div className="text-lg font-semibold text-gray-900">{simulation.issues}</div>
+                        <div className="p-3 rounded border bg-muted/50">
+                          <div className="text-[11px] text-muted-foreground">{t('scanMonitor.simulationPotentialIssues') || 'Potential issues'}</div>
+                          <div className="text-lg font-semibold text-foreground">{simulation.issues}</div>
                         </div>
-                        <div className="p-3 rounded border bg-gray-50">
-                          <div className="text-[11px] text-gray-500">{t('scanMonitor.simulationAnalyst') || 'Analyst'}</div>
-                          <div className="text-lg font-semibold text-gray-900">
+                        <div className="p-3 rounded border bg-muted/50">
+                          <div className="text-[11px] text-muted-foreground">{t('scanMonitor.simulationAnalyst') || 'Analyst'}</div>
+                          <div className="text-lg font-semibold text-foreground">
                             {simulation.analyst?.status === 'running'
                               ? (t('scanMonitor.simulationAnalystRunning') || 'Running')
                               : simulation.analyst?.status === 'done'
@@ -1900,7 +1899,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                       </div>
 
                       {simulation.analyst && simulation.analyst.status !== 'not_started' && (
-                        <div className="text-sm text-gray-700">
+                        <div className="text-sm text-foreground">
                           <span className="font-medium">{t('scanMonitor.simulationAnalyst') || 'Analyst'}:</span>{' '}
                           {simulation.analyst.pagesAnalyzed}/{simulation.analyst.pagesPlanned} pages • {simulation.analyst.findingsAdded} findings
                         </div>
@@ -1917,7 +1916,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                               onClose();
                               navigate(`/scans/${scanId}`);
                             }}
-                            className="px-4 py-2 rounded bg-primary text-white hover:bg-primary/90"
+                            className="px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90"
                           >
                             {t('scanMonitor.viewReport') || 'View report'}
                           </button>
@@ -1932,20 +1931,20 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
             return (
               <>
                 {/* Left: Tree (60%) */}
-                <div className="flex-1 border-r border-gray-200 overflow-y-auto p-4">
+                <div className="flex-1 border-r border-border overflow-y-auto p-4">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-gray-900">{t('scanMonitor.websiteTree')}</h3>
+              <h3 className="font-semibold text-foreground">{t('scanMonitor.websiteTree')}</h3>
               {phase === 'selection' && (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={selectAllPages}
-                    className="text-xs px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded"
+                    className="text-xs px-2 py-1 bg-primary/20 hover:bg-primary/30 text-foreground rounded"
                   >
                     {t('scanMonitor.selectAll') || 'Select All'}
                   </button>
                   <button
                     onClick={deselectAllPages}
-                    className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded"
+                    className="text-xs px-2 py-1 bg-muted hover:bg-muted/80 text-foreground rounded"
                   >
                     {t('scanMonitor.deselectAll') || 'Deselect All'}
                   </button>
@@ -1953,11 +1952,11 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
               )}
             </div>
             {rootNodes.length === 0 ? (
-              <div className="text-gray-500 text-center py-8">
+              <div className="text-muted-foreground text-center py-8">
                 {phase === 'discovery' && (t('scanMonitor.discoveringPages') || 'Discovering pages...')}
                 {phase !== 'discovery' && t('scanMonitor.noPagesDiscovered')}
                 {connectionStatus === 'error' && (
-                  <div className="mt-2 text-red-600 text-sm">
+                  <div className="mt-2 text-red-400 text-sm">
                     Connection error - check debug panel
                   </div>
                 )}
@@ -1976,15 +1975,15 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                 <div className="w-[40%] p-4 overflow-y-auto">
             {phase === 'selection' ? (
               <>
-                <h3 className="font-semibold mb-4 text-gray-900">
+                <h3 className="font-semibold mb-4 text-foreground">
                   {t('scanMonitor.selectPages') || 'Select Pages to Scan'}
                 </h3>
-                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded">
-                  <p className="text-sm text-gray-700 mb-2">
+                <div className="mb-4 p-4 bg-sky-500/10 border border-sky-500/25 rounded-lg">
+                  <p className="text-sm text-foreground mb-2">
                     {t('scanMonitor.selectionInstructions') ||
                       'Select the pages you want to scan. Click "Start Scanning" when ready.'}
                   </p>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs text-muted-foreground">
                     <span className="font-semibold">{selectedUrls.size}</span> of{' '}
                     <span className="font-semibold">{stats.pagesDiscovered}</span> pages selected
                   </p>
@@ -1992,41 +1991,41 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                 <button
                   onClick={handleStartScanning}
                   disabled={selectedUrls.size === 0}
-                  className="w-full px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 disabled:bg-gray-300 disabled:cursor-not-allowed font-semibold"
+                  className="w-full px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:bg-muted disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                 >
                   {t('scanMonitor.startScanning') || `Start Scanning (${selectedUrls.size} pages)`}
                 </button>
               </>
                   ) : (
               <>
-                <h3 className="font-semibold mb-4 text-gray-900">{t('scanMonitor.nowScanning')}</h3>
+                <h3 className="font-semibold mb-4 text-foreground">{t('scanMonitor.nowScanning')}</h3>
 
                 {/* Debug Panel */}
                 {showDebug && (
-                  <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
-                    <h4 className="text-sm font-semibold mb-2 text-gray-900">Debug Log</h4>
+                  <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/25 rounded-lg">
+                    <h4 className="text-sm font-semibold mb-2 text-foreground">Debug Log</h4>
                     <div className="text-xs space-y-1 max-h-48 overflow-y-auto font-mono">
                       {debugLogs.length === 0 ? (
-                        <div className="text-gray-500">No debug logs yet</div>
+                        <div className="text-muted-foreground">No debug logs yet</div>
                       ) : (
                         debugLogs.map((log, idx) => (
                           <div
                             key={idx}
                             className={`p-1 rounded ${log.type === 'error'
-                              ? 'bg-red-100 text-red-800'
+                              ? 'bg-red-500/15 text-red-200'
                               : log.type === 'success'
-                                ? 'bg-green-100 text-green-800'
+                                ? 'bg-emerald-500/15 text-emerald-200'
                                 : log.type === 'warning'
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-gray-100 text-gray-800'
+                                  ? 'bg-amber-500/15 text-amber-200'
+                                  : 'bg-muted text-foreground'
                               }`}
                           >
-                            <span className="text-gray-500">[{log.time}]</span> {log.type.toUpperCase()}: {log.message}
+                            <span className="text-muted-foreground">[{log.time}]</span> {log.type.toUpperCase()}: {log.message}
                           </div>
                         ))
                       )}
                     </div>
-                    <div className="mt-2 text-xs text-gray-600">
+                    <div className="mt-2 text-xs text-muted-foreground">
                       Connection: <span className="font-semibold">{connectionStatus}</span> | Events: {recentEvents.length} | Tree nodes: {tree.size}
                     </div>
                   </div>
@@ -2034,20 +2033,20 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
                 {/* Current Activity */}
                 {(currentPage || currentActivity) && (
-                  <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="mb-4 p-4 bg-sky-500/10 border border-sky-500/25 rounded-lg">
                     <div className="space-y-2">
                       {currentPage && (
                         <div className="text-sm">
-                          <span className="font-medium text-gray-700">{t('scanMonitor.currentPage') || 'Current Page'}:</span>
-                          <span className="ml-2 text-blue-700 font-mono text-xs break-all">
+                          <span className="font-medium text-foreground">{t('scanMonitor.currentPage') || 'Current Page'}:</span>
+                          <span className="ml-2 text-sky-300 font-mono text-xs break-all">
                             {new URL(currentPage).pathname}
                           </span>
                         </div>
                       )}
                       {currentActivity && (
                         <div className="text-sm">
-                          <span className="font-medium text-gray-700">{t('scanMonitor.activityLabel') || 'Activity'}:</span>
-                          <span className="ml-2 text-blue-600">{currentActivity}</span>
+                          <span className="font-medium text-foreground">{t('scanMonitor.activityLabel') || 'Activity'}:</span>
+                          <span className="ml-2 text-sky-300">{currentActivity}</span>
                         </div>
                       )}
                     </div>
@@ -2056,19 +2055,19 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
                 {/* Stats */}
                 <div className="mb-4 space-y-2">
-                  <div className="flex justify-between text-gray-900">
+                  <div className="flex justify-between text-foreground">
                     <span>{t('scanMonitor.pagesDiscovered')}:</span>
                     <span className="font-semibold">{stats.pagesDiscovered}</span>
                   </div>
-                  <div className="flex justify-between text-gray-900">
+                  <div className="flex justify-between text-foreground">
                     <span>{t('scanMonitor.pagesScanned')}:</span>
                     <span className="font-semibold">{stats.pagesScanned}</span>
                   </div>
-                  <div className="flex justify-between text-red-600">
+                  <div className="flex justify-between text-red-400">
                     <span>{t('scanMonitor.fails')}:</span>
                     <span className="font-semibold">{stats.fails}</span>
                   </div>
-                  <div className="flex justify-between text-yellow-600">
+                  <div className="flex justify-between text-amber-400">
                     <span>{t('scanMonitor.needsReview')}:</span>
                     <span className="font-semibold">{stats.needsReview}</span>
                   </div>
@@ -2076,16 +2075,16 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
                 {/* Recent activity (client-friendly) */}
                 <div className="mt-4">
-                  <h4 className="text-sm font-semibold mb-2 text-gray-900">{t('scanMonitor.recentActivity') || t('scanMonitor.recentEvents')}</h4>
+                  <h4 className="text-sm font-semibold mb-2 text-foreground">{t('scanMonitor.recentActivity') || t('scanMonitor.recentEvents')}</h4>
                   <div className="space-y-1 max-h-48 overflow-y-auto">
                     {recentEvents.length === 0 ? (
-                      <div className="text-sm text-gray-500">{t('scanMonitor.noEvents')}</div>
+                      <div className="text-sm text-muted-foreground">{t('scanMonitor.noEvents')}</div>
                     ) : (
                       recentEvents.map((event, idx) => (
-                        <div key={idx} className="text-xs text-gray-600 p-1">
+                        <div key={idx} className="text-xs text-muted-foreground p-1">
                           <span className="font-medium">{formatRecentEventLabel(event)}</span>
                           {event.url && (
-                            <span className="ml-2 font-mono text-[11px] text-gray-500">{friendlyUrlPath(event.url)}</span>
+                            <span className="ml-2 font-mono text-[11px] text-muted-foreground">{friendlyUrlPath(event.url)}</span>
                           )}
                         </div>
                       ))
@@ -2101,7 +2100,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-200 p-4 flex justify-end gap-2">
+        <div className="border-t border-border p-4 flex justify-end gap-2">
           {(() => {
             // Debug logging for button render
             console.log('[BUTTON-RENDER] Current state:', { phase, isScanning, scanCompleted, selectedUrls: selectedUrls.size });
@@ -2111,14 +2110,14 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                 <>
                   <button
                     onClick={handleClose}
-                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                    className="px-4 py-2 border border-border rounded hover:bg-muted/50"
                   >
                     {t('common.close')}
                   </button>
                   <button
                     onClick={handleStartScanning}
                     disabled={selectedUrls.size === 0}
-                    className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {t('scanMonitor.startScanning') || `Start Scanning (${selectedUrls.size})`}
                   </button>
@@ -2129,13 +2128,13 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                 <>
                   <button
                     onClick={handleStopScan}
-                    className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                    className="px-4 py-2 bg-destructive text-destructive-foreground rounded hover:bg-destructive/90"
                   >
                     {t('scanMonitor.stopScan')}
                   </button>
                   <button
                     onClick={handleClose}
-                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                    className="px-4 py-2 border border-border rounded hover:bg-muted/50"
                   >
                     {t('common.close')}
                   </button>
@@ -2147,13 +2146,13 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                 <>
                   <button
                     onClick={handleClose}
-                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                    className="px-4 py-2 border border-border rounded hover:bg-muted/50"
                   >
                     {t('common.close')}
                   </button>
                   <button
                     onClick={handleSaveFindings}
-                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
                   >
                     {t('scanMonitor.saveFindings') || 'Save Findings'}
                   </button>
@@ -2164,7 +2163,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
               return (
                 <button
                   onClick={handleClose}
-                  className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                  className="px-4 py-2 border border-border rounded hover:bg-muted/50"
                 >
                   {t('common.close')}
                 </button>

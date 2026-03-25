@@ -86,15 +86,15 @@ export default function SettingsPage() {
         {/* Scanner Configuration */}
         <div className="bg-card border border-border rounded-lg p-6">
           <div className="flex items-center gap-3 mb-4">
-            <ScanSearch className="w-5 h-5 text-blue-600" />
+            <ScanSearch className="w-5 h-5 text-sky-400" />
             <h2 className="text-lg font-semibold">{t('settings.scannerConfig') || 'Scanner Configuration'}</h2>
           </div>
           <div className="space-y-4">
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-3 flex items-start gap-2">
-              <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-900">
+            <div className="bg-sky-500/10 border border-sky-500/25 rounded-md p-3 flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-sky-400 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-foreground">
                 <p className="font-medium">{t('settings.scannerConfigNote') || 'These limits apply to all new scans'}</p>
-                <p className="mt-1 text-blue-700">
+                <p className="mt-1 text-muted-foreground">
                   {t('settings.scannerConfigWarning') || 'Changes take effect immediately for new scans. Running scans are not affected.'}
                 </p>
               </div>
@@ -157,11 +157,11 @@ export default function SettingsPage() {
             </div>
 
             {/* Recommendations */}
-            <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
-              <p className="text-sm font-medium text-gray-900 mb-2">
+            <div className="bg-muted/50 border border-border rounded-md p-3">
+              <p className="text-sm font-medium text-foreground mb-2">
                 {t('settings.recommendations') || '💡 Recommendations:'}
               </p>
-              <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
+              <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
                 <li>{t('settings.rec1') || 'Small sites (< 20 pages): 50 pages, 5 depth, 10 min'}</li>
                 <li>{t('settings.rec2') || 'Medium sites (20-100 pages): 100 pages, 7 depth, 20 min'}</li>
                 <li>{t('settings.rec3') || 'Large sites (> 100 pages): 200+ pages, 10 depth, 30+ min'}</li>
@@ -216,7 +216,7 @@ export default function SettingsPage() {
                   onChange={(e) => setSettings({ ...settings, telemetryEnabled: e.target.checked })}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-border after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
               </label>
             </div>
           </div>
@@ -243,7 +243,7 @@ export default function SettingsPage() {
                   onChange={(e) => setSettings({ ...settings, geminiEnabled: e.target.checked })}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-border after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
               </label>
             </div>
             {settings.geminiEnabled && (
@@ -295,8 +295,8 @@ export default function SettingsPage() {
         <div className="flex items-center justify-between">
           {saveMessage && (
             <div className={`px-4 py-2 rounded-md ${saveMessage.type === 'success'
-                ? 'bg-green-50 text-green-800 border border-green-200'
-                : 'bg-red-50 text-red-800 border border-red-200'
+                ? 'bg-emerald-500/10 text-emerald-200 border border-emerald-500/25'
+                : 'bg-red-500/10 text-red-200 border border-red-500/25'
               }`}>
               {saveMessage.text}
             </div>

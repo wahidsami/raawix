@@ -22,13 +22,13 @@ export default function OverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [kpis, setKpis] = useState([
-    { label: t('overview.totalSites'), value: '0', icon: Globe, color: 'text-blue-600' },
-    { label: t('overview.totalScans'), value: '0', icon: ScanSearch, color: 'text-green-600' },
-    { label: t('overview.pagesScanned'), value: '0', icon: FileText, color: 'text-purple-600' },
-    { label: t('overview.wcagAFailures'), value: '0', icon: AlertTriangle, color: 'text-red-600' },
-    { label: t('overview.wcagAAFailures'), value: '0', icon: AlertTriangle, color: 'text-orange-600' },
-    { label: t('overview.needsReview'), value: '0', icon: Clock, color: 'text-yellow-600' },
-    { label: t('overview.visionFindings'), value: '0', icon: Eye, color: 'text-indigo-600' },
+    { label: t('overview.totalSites'), value: '0', icon: Globe, color: 'text-sky-400' },
+    { label: t('overview.totalScans'), value: '0', icon: ScanSearch, color: 'text-emerald-400' },
+    { label: t('overview.pagesScanned'), value: '0', icon: FileText, color: 'text-violet-400' },
+    { label: t('overview.wcagAFailures'), value: '0', icon: AlertTriangle, color: 'text-red-400' },
+    { label: t('overview.wcagAAFailures'), value: '0', icon: AlertTriangle, color: 'text-orange-400' },
+    { label: t('overview.needsReview'), value: '0', icon: Clock, color: 'text-amber-300' },
+    { label: t('overview.visionFindings'), value: '0', icon: Eye, color: 'text-indigo-400' },
   ]);
   const [scansOverTime, setScansOverTime] = useState<Array<{ date: string; count: number }>>([]);
   const [failuresByLevel, setFailuresByLevel] = useState<Array<{ level: string; failures: number }>>([]);
@@ -46,13 +46,13 @@ export default function OverviewPage() {
 
       // Update KPIs
       setKpis([
-        { label: t('overview.totalSites'), value: data.kpis.totalSites.toLocaleString(), icon: Globe, color: 'text-blue-600' },
-        { label: t('overview.totalScans'), value: data.kpis.totalScans.toLocaleString(), icon: ScanSearch, color: 'text-green-600' },
-        { label: t('overview.pagesScanned'), value: data.kpis.pagesScanned.toLocaleString(), icon: FileText, color: 'text-purple-600' },
-        { label: t('overview.wcagAFailures'), value: data.kpis.wcagAFailures.toLocaleString(), icon: AlertTriangle, color: 'text-red-600' },
-        { label: t('overview.wcagAAFailures'), value: data.kpis.wcagAAFailures.toLocaleString(), icon: AlertTriangle, color: 'text-orange-600' },
-        { label: t('overview.needsReview'), value: data.kpis.needsReview.toLocaleString(), icon: Clock, color: 'text-yellow-600' },
-        { label: t('overview.visionFindings'), value: data.kpis.visionFindings.toLocaleString(), icon: Eye, color: 'text-indigo-600' },
+        { label: t('overview.totalSites'), value: data.kpis.totalSites.toLocaleString(), icon: Globe, color: 'text-sky-400' },
+        { label: t('overview.totalScans'), value: data.kpis.totalScans.toLocaleString(), icon: ScanSearch, color: 'text-emerald-400' },
+        { label: t('overview.pagesScanned'), value: data.kpis.pagesScanned.toLocaleString(), icon: FileText, color: 'text-violet-400' },
+        { label: t('overview.wcagAFailures'), value: data.kpis.wcagAFailures.toLocaleString(), icon: AlertTriangle, color: 'text-red-400' },
+        { label: t('overview.wcagAAFailures'), value: data.kpis.wcagAAFailures.toLocaleString(), icon: AlertTriangle, color: 'text-orange-400' },
+        { label: t('overview.needsReview'), value: data.kpis.needsReview.toLocaleString(), icon: Clock, color: 'text-amber-300' },
+        { label: t('overview.visionFindings'), value: data.kpis.visionFindings.toLocaleString(), icon: Eye, color: 'text-indigo-400' },
       ]);
 
       // Update charts
@@ -115,10 +115,10 @@ export default function OverviewPage() {
           ) : (
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={scansOverTime} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.55} />
                 <XAxis
                   dataKey="date"
-                  tick={{ fill: 'currentColor', fontSize: 11 }}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                   tickFormatter={(v) => String(v).slice(5)}
                   minTickGap={32}
                   style={{ direction: isRTL ? 'rtl' : 'ltr' }}
@@ -156,10 +156,10 @@ export default function OverviewPage() {
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={failuresByLevel} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.55} />
                 <XAxis
                   dataKey="level"
-                  tick={{ fill: 'currentColor' }}
+                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
                   tickFormatter={(v) => (v === 'Other' ? t('overview.levelOther') : String(v))}
                   style={{ direction: isRTL ? 'rtl' : 'ltr' }}
                 />
@@ -190,19 +190,20 @@ export default function OverviewPage() {
                 data={topFailingRules}
                 margin={{ top: 8, right: 24, left: 8, bottom: 8 }}
               >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" tick={{ fill: 'currentColor' }} allowDecimals={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.55} />
+                <XAxis type="number" tick={{ fill: 'hsl(var(--muted-foreground))' }} allowDecimals={false} />
                 <YAxis
                   type="category"
                   dataKey="rule"
                   width={isRTL ? 100 : 140}
-                  tick={{ fill: 'currentColor', fontSize: 10 }}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
                 />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: 'hsl(var(--card))',
                     border: '1px solid hsl(var(--border))',
                     borderRadius: 'var(--radius)',
+                    color: 'hsl(var(--foreground))',
                   }}
                 />
                 <Bar dataKey="failures" name={t('overview.chartIssues')} fill="hsl(var(--destructive))" />

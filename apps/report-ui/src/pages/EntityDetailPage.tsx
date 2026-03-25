@@ -529,7 +529,7 @@ export default function EntityDetailPage() {
                   <p className="text-sm text-muted-foreground mb-1">{t('entities.totalProperties')}</p>
                   <p className="text-2xl font-bold">{entity._count.properties}</p>
                 </div>
-                <Globe className="w-8 h-8 text-blue-600" />
+                <Globe className="w-8 h-8 text-sky-400" />
               </div>
             </div>
             <div className="bg-card border border-border rounded-lg p-6">
@@ -1065,7 +1065,7 @@ export default function EntityDetailPage() {
 
           {/* Finding Details Drawer/Modal */}
           {showFindingDetails && selectedFinding && (
-            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowFindingDetails(false)}>
+            <div className="fixed inset-0 bg-black/55 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowFindingDetails(false)}>
               <div
                 className="bg-card border border-border rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
@@ -1488,7 +1488,7 @@ export default function EntityDetailPage() {
 
       {/* Add Property Modal */}
       {showAddProperty && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/55 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">{t('entities.addProperty')}</h2>
             <form onSubmit={handleAddProperty} className="space-y-4">
@@ -1563,7 +1563,7 @@ export default function EntityDetailPage() {
 
       {/* Edit Property Modal */}
       {editPropertyForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/55 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">{t('entities.editProperty')}</h2>
             <form onSubmit={handleUpdateProperty} className="space-y-4">
@@ -1646,7 +1646,7 @@ export default function EntityDetailPage() {
 
       {/* Scan Configuration Modal */}
       {showScanConfig && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/55 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md" dir={isRTL ? 'rtl' : 'ltr'}>
             <h2 className="text-xl font-bold mb-4">{t('scan.startScan') || 'Start Scan'}</h2>
             <form onSubmit={(e) => { e.preventDefault(); handleStartScan(); }} className="space-y-4">
@@ -1808,7 +1808,7 @@ export default function EntityDetailPage() {
 
       {/* Delete Scan Confirmation Modal */}
       {scanToDelete && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/55 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md" dir={isRTL ? 'rtl' : 'ltr'}>
             <h2 className="text-xl font-bold mb-4">{t('scans.deleteScan') || 'Delete Scan'}</h2>
             <p className="text-muted-foreground mb-6">
@@ -1852,7 +1852,7 @@ export default function EntityDetailPage() {
 
       {/* Add Contact Modal */}
       {showAddContact && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/55 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">{t('entities.addContact')}</h2>
             <form onSubmit={handleAddContact} className="space-y-4">

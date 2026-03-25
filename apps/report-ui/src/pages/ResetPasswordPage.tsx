@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../lib/api';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function ResetPasswordPage() {
   const { t } = useTranslation();
@@ -48,9 +49,10 @@ export default function ResetPasswordPage() {
 
   if (!token || !userId) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="relative min-h-screen flex items-center justify-center bg-background p-4">
+        <ThemeToggle className="absolute end-4 top-4" />
         <div className="w-full max-w-md">
-          <div className="bg-card border border-border rounded-lg shadow-lg p-8">
+          <div className="bg-card border border-border rounded-lg shadow-md p-8">
             <p className="text-destructive text-center mb-4">{error}</p>
             <Link to="/forgot-password" className="block text-center text-primary hover:underline">
               {t('auth.requestNewLink')}
@@ -62,9 +64,10 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="relative min-h-screen flex items-center justify-center bg-background p-4">
+      <ThemeToggle className="absolute end-4 top-4" />
       <div className="w-full max-w-md">
-        <div className="bg-card border border-border rounded-lg shadow-lg p-8">
+        <div className="bg-card border border-border rounded-lg shadow-md p-8">
           <div className="flex flex-col items-center mb-6">
             <img src="/dashboardlogo.png" alt="Raawi X Logo" className="h-16 w-auto mb-4" />
             <h1 className="text-2xl font-bold text-center mb-2">{t('auth.resetPasswordTitle')}</h1>
@@ -72,7 +75,7 @@ export default function ResetPasswordPage() {
           </div>
 
           {success ? (
-            <p className="text-center text-green-600">{t('auth.resetPasswordSuccess')}</p>
+            <p className="text-center text-emerald-600 dark:text-emerald-400">{t('auth.resetPasswordSuccess')}</p>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (

@@ -91,19 +91,19 @@ export default function ScansPage() {
   const getStatusColor = (status: Scan['status']) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+        return 'bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-500/25';
       case 'failed':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+        return 'bg-red-500/15 text-red-200 ring-1 ring-red-500/25';
       case 'running':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+        return 'bg-sky-500/15 text-sky-200 ring-1 ring-sky-500/25';
       case 'queued':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+        return 'bg-amber-500/15 text-amber-200 ring-1 ring-amber-500/25';
       case 'discovering':
-        return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
+        return 'bg-violet-500/15 text-violet-200 ring-1 ring-violet-500/25';
       case 'canceled':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+        return 'bg-muted text-muted-foreground ring-1 ring-border';
       default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+        return 'bg-muted text-muted-foreground ring-1 ring-border';
     }
   };
 
@@ -302,13 +302,13 @@ export default function ScansPage() {
 
       {/* Start Scan Modal */}
       {showStartScanModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/55 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">{t('scan.startScan')}</h2>
             <form onSubmit={handleStartScan} className="space-y-4">
               {availableEntities.length === 0 ? (
-                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md p-4 mb-4">
-                  <p className="text-sm text-yellow-800 dark:text-yellow-200 mb-2">
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-4 mb-4">
+                  <p className="text-sm text-amber-100 mb-2">
                     {t('entities.noEntities')}
                   </p>
                   <a

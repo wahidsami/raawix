@@ -30,7 +30,9 @@
     "selectLanguage": "Select Language",
     "english": "English",
     "arabic": "Arabic",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "themeSwitchToLight": "Switch to light mode",
+    "themeSwitchToDark": "Switch to dark mode"
   },
   "auth": {
     "login": "Login",

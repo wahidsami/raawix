@@ -95,8 +95,8 @@ export default function Sidebar() {
                       to={item.path}
                       className={({ isActive }) =>
                         `flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors ${isActive
-                          ? 'bg-green-600 text-white'
-                          : 'text-muted-foreground hover:bg-green-50 hover:text-foreground'
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                         }`
                       }
                     >

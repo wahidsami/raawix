@@ -207,11 +207,11 @@ export default function EntitiesPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
-        return 'bg-green-600 text-white';
+        return 'bg-emerald-600 text-white';
       case 'onboarding':
-        return 'bg-yellow-600 text-white';
+        return 'bg-amber-500 text-amber-950';
       case 'paused':
-        return 'bg-gray-600 text-white';
+        return 'bg-secondary text-secondary-foreground';
       default:
         return 'bg-muted text-muted-foreground';
     }
@@ -362,7 +362,7 @@ export default function EntitiesPage() {
 
       {/* Create/Edit Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/55 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">
               {editingEntity ? t('entities.editEntity') : t('entities.addEntity')}

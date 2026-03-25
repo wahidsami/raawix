@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
+import ThemeToggle from '../ThemeToggle';
 
 interface LoginFormProps {
   onSuccess?: () => void;
@@ -43,9 +44,10 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="relative min-h-screen flex items-center justify-center bg-background p-4">
+      <ThemeToggle className="absolute end-4 top-4" />
       <div className="w-full max-w-md">
-        <div className="bg-card border border-border rounded-lg shadow-lg p-8">
+        <div className="bg-card border border-border rounded-lg shadow-md p-8">
           <div className="flex flex-col items-center mb-6">
             <img 
               src="/dashboardlogo.png" 
@@ -58,7 +60,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {resetSuccess && (
-              <div className="bg-green-500/10 text-green-700 dark:text-green-400 p-3 rounded-md text-sm">
+              <div className="bg-emerald-500/10 text-emerald-200 border border-emerald-500/20 p-3 rounded-md text-sm">
                 {t('auth.resetSuccessMessage')}
               </div>
             )}

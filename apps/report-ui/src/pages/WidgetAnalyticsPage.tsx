@@ -82,7 +82,7 @@ export default function WidgetAnalyticsPage() {
               <p className="text-sm text-muted-foreground mb-1">{t('widget.uniqueSessions')}</p>
               <p className="text-2xl font-bold">{stats.uniqueSessions}</p>
             </div>
-            <Users className="w-8 h-8 text-blue-600" />
+            <Users className="w-8 h-8 text-sky-400" />
           </div>
         </div>
 
@@ -92,7 +92,7 @@ export default function WidgetAnalyticsPage() {
               <p className="text-sm text-muted-foreground mb-1">{t('widget.widgetOpens')}</p>
               <p className="text-2xl font-bold">{stats.widgetOpens}</p>
             </div>
-            <MousePointer className="w-8 h-8 text-green-600" />
+            <MousePointer className="w-8 h-8 text-emerald-400" />
           </div>
         </div>
 
@@ -102,7 +102,7 @@ export default function WidgetAnalyticsPage() {
               <p className="text-sm text-muted-foreground mb-1">{t('widget.voiceUsage')}</p>
               <p className="text-2xl font-bold">{stats.voiceUsage}%</p>
             </div>
-            <Mic className="w-8 h-8 text-purple-600" />
+            <Mic className="w-8 h-8 text-violet-400" />
           </div>
         </div>
 
@@ -112,7 +112,7 @@ export default function WidgetAnalyticsPage() {
               <p className="text-sm text-muted-foreground mb-1">{t('widget.topPages')}</p>
               <p className="text-2xl font-bold">{stats.topPages.length}</p>
             </div>
-            <BarChart3 className="w-8 h-8 text-orange-600" />
+            <BarChart3 className="w-8 h-8 text-orange-400" />
           </div>
         </div>
       </div>
@@ -167,22 +167,23 @@ export default function WidgetAnalyticsPage() {
           ) : (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={commandUsage} layout={isRTL ? 'vertical' : 'horizontal'}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.55} />
                 <XAxis
                   type={isRTL ? 'number' : 'category'}
                   dataKey={isRTL ? 'count' : 'command'}
-                  tick={{ fill: 'currentColor' }}
+                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
                 />
                 <YAxis
                   type={isRTL ? 'category' : 'number'}
                   dataKey={isRTL ? 'command' : 'count'}
-                  tick={{ fill: 'currentColor' }}
+                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
                 />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: 'hsl(var(--card))',
                     border: '1px solid hsl(var(--border))',
                     borderRadius: 'var(--radius)',
+                    color: 'hsl(var(--foreground))',
                   }}
                 />
                 <Bar dataKey="count" fill="hsl(var(--primary))" />

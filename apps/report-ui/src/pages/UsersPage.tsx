@@ -203,8 +203,8 @@ export default function UsersPage() {
       </div>
 
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-black/55 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-lg shadow-md w-full max-w-md p-6">
             <h2 className="text-lg font-semibold mb-4">{t('users.addUser')}</h2>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
@@ -261,8 +261,8 @@ export default function UsersPage() {
       )}
 
       {editingUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md p-6">
+        <div className="fixed inset-0 bg-black/55 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-lg shadow-md w-full max-w-md p-6">
             <h2 className="text-lg font-semibold mb-4">{t('users.editUser')} – {editingUser.email}</h2>
             <form onSubmit={handleUpdate} className="space-y-4">
               <div>

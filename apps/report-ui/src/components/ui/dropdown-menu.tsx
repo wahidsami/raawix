@@ -52,7 +52,7 @@ export function DropdownMenu({ trigger, children, align = 'right' }: DropdownMen
       </button>
       {isOpen && (
         <div
-          className={`absolute z-50 mt-2 w-56 rounded-md bg-card border border-border shadow-lg ${
+          className={`absolute z-50 mt-2 w-56 rounded-md bg-card border border-border shadow-md ${
             alignment === 'right' ? 'right-0' : 'left-0'
           }`}
           role="menu"

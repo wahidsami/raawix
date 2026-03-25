@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../lib/api';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function ForgotPasswordPage() {
   const { t } = useTranslation();
@@ -25,9 +26,10 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="relative min-h-screen flex items-center justify-center bg-background p-4">
+      <ThemeToggle className="absolute end-4 top-4" />
       <div className="w-full max-w-md">
-        <div className="bg-card border border-border rounded-lg shadow-lg p-8">
+        <div className="bg-card border border-border rounded-lg shadow-md p-8">
           <div className="flex flex-col items-center mb-6">
             <img src="/dashboardlogo.png" alt="Raawi X Logo" className="h-16 w-auto mb-4" />
             <h1 className="text-2xl font-bold text-center mb-2">{t('auth.forgotPasswordTitle')}</h1>

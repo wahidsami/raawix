@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import LanguageSwitcher from '../LanguageSwitcher';
+import ThemeToggle from '../ThemeToggle';
 import { useLanguage } from '../../hooks/useLanguage';
 import { getRouteTitle } from '../../utils/route-titles';
 import { DropdownMenu, DropdownMenuItem, DropdownMenuHeader, DropdownMenuSeparator } from '../ui/dropdown-menu';
@@ -40,6 +41,8 @@ export default function Header() {
             {currentDate}
           </div>
 
+          <ThemeToggle />
+
           {/* Language switcher */}
           <LanguageSwitcher />
 
@@ -48,7 +51,7 @@ export default function Header() {
             <DropdownMenu
               trigger={
                 <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
-                  <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center text-white text-sm font-medium">
+                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-medium">
                     {user.email.charAt(0).toUpperCase()}
                   </div>
                 </div>
