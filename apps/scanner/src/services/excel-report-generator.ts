@@ -1,10 +1,12 @@
 import ExcelJS from 'exceljs';
 import { scanRepository } from '../db/scan-repository.js';
 
+import { formatAgentConfidenceScore, agentSourceLabel, formatSuggestedWcagIds } from '../utils/agent-report-format.js';
+
 /**
  * Excel Report Generator
- * Generates professional WCAG 2.1 compliance audit reports in Excel format
- * ONLY includes Layer 1 (WCAG) findings - no Layer 2 (Vision) or Layer 3 (Assistive Map)
+ * Generates WCAG findings plus a dedicated Analysis AI agent sheet (keyboard + enrichment).
+ * Does not include Layer 2 (vision) or Layer 3 (assistive map) tables.
  */
 export class ExcelReportGenerator {
   /**
@@ -36,6 +38,9 @@ export class ExcelReportGenerator {
 
     // Add WCAG Findings Sheet
     await this.addFindingsSheet(workbook, wcagFindings, pages, locale);
+
+    const agentFindings = (scanData.agentFindings || []) as any[];
+    await this.addAnalysisAgentSheet(workbook, agentFindings, pages, locale);
 
     return workbook;
   }
@@ -115,6 +120,13 @@ export class ExcelReportGenerator {
     this.addInfoRow(sheet, t.important, importantCount.toString(), 'FFF97316');
     this.addInfoRow(sheet, t.minor, minorCount.toString(), 'FFEAB308');
     this.addInfoRow(sheet, t.needsReview, needsReviewCount.toString(), 'FF3B82F6');
+
+    sheet.addRow([]);
+    const agentSection = sheet.addRow([t.analysisAgentSection]);
+    agentSection.font = { size: 14, bold: true, color: { argb: 'FF1F2937' } };
+    sheet.mergeCells(`A${agentSection.number}:B${agentSection.number}`);
+    const agentCount = (scan.agentFindings || []).length;
+    this.addInfoRow(sheet, t.analysisAgentCount, agentCount.toString());
 
     // Column widths
     sheet.getColumn(1).width = 25;
@@ -217,6 +229,83 @@ export class ExcelReportGenerator {
     sheet.views = [
       { state: 'frozen', ySplit: 1, rightToLeft: locale === 'ar' },
     ];
+  }
+
+  /**
+   * Analysis AI agent findings (interaction + OpenAI enrichment)
+   */
+  private async addAnalysisAgentSheet(
+    workbook: ExcelJS.Workbook,
+    agentFindings: any[],
+    pages: any[],
+    locale: 'en' | 'ar'
+  ) {
+    const sheet = workbook.addWorksheet(locale === 'ar' ? 'وكيل التحليل' : 'Analysis AI agent');
+
+    const t = this.getTranslations(locale);
+
+    const headerRow = sheet.addRow([
+      t.agentPageUrl,
+      t.agentKind,
+      t.agentSource,
+      t.agentConfidence,
+      t.agentMessage,
+      t.agentHowToVerify,
+      t.agentSuggestedWcag,
+    ]);
+
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF059669' },
+    };
+    headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+    headerRow.height = 24;
+
+    for (const af of agentFindings) {
+      const page = pages.find((p) => p.id === af.pageId);
+      const pageUrl = page?.url || 'N/A';
+      const suggested = formatSuggestedWcagIds(
+        typeof af.suggestedWcagIdsJson === 'string'
+          ? (() => {
+              try {
+                return JSON.parse(af.suggestedWcagIdsJson);
+              } catch {
+                return af.suggestedWcagIdsJson;
+              }
+            })()
+          : af.suggestedWcagIdsJson
+      );
+
+      const row = sheet.addRow([
+        pageUrl,
+        af.kind || 'N/A',
+        agentSourceLabel(af.source, locale),
+        formatAgentConfidenceScore(af.confidence),
+        af.message || 'N/A',
+        af.howToVerify || 'N/A',
+        suggested,
+      ]);
+      row.alignment = { wrapText: true, vertical: 'top' };
+    }
+
+    if (agentFindings.length > 0) {
+      sheet.autoFilter = {
+        from: 'A1',
+        to: `G${agentFindings.length + 1}`,
+      };
+    }
+
+    sheet.getColumn(1).width = 40;
+    sheet.getColumn(2).width = 22;
+    sheet.getColumn(3).width = 22;
+    sheet.getColumn(4).width = 12;
+    sheet.getColumn(5).width = 45;
+    sheet.getColumn(6).width = 40;
+    sheet.getColumn(7).width = 28;
+
+    sheet.views = [{ state: 'frozen', ySplit: 1, rightToLeft: locale === 'ar' }];
   }
 
   /**
@@ -345,6 +434,15 @@ export class ExcelReportGenerator {
         pageUrl: 'رابط الصفحة',
         element: 'العنصر',
         recommendation: 'التوصية',
+        analysisAgentSection: 'وكيل التحليل بالذكاء الاصطناعي',
+        analysisAgentCount: 'عدد نتائج الوكيل',
+        agentPageUrl: 'رابط الصفحة',
+        agentKind: 'النوع',
+        agentSource: 'المصدر',
+        agentConfidence: 'الثقة',
+        agentMessage: 'الرسالة',
+        agentHowToVerify: 'كيفية التحقق',
+        agentSuggestedWcag: 'WCAG مقترحة',
       };
     }
 
@@ -372,6 +470,15 @@ export class ExcelReportGenerator {
       pageUrl: 'Page URL',
       element: 'Element',
       recommendation: 'Recommendation',
+      analysisAgentSection: 'Analysis AI agent',
+      analysisAgentCount: 'Agent findings count',
+      agentPageUrl: 'Page URL',
+      agentKind: 'Kind',
+      agentSource: 'Source',
+      agentConfidence: 'Confidence',
+      agentMessage: 'Message',
+      agentHowToVerify: 'How to verify',
+      agentSuggestedWcag: 'Suggested WCAG',
     };
   }
 }

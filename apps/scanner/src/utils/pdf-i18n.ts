@@ -35,6 +35,18 @@ export const pdfTranslations = {
       'Partial results — scan did not complete; findings reflect pages processed before stop or failure.',
     interimExportSubtitle:
       'Interim export — scan may still be running; includes only results saved in the database at export time.',
+    analysisAgentFindingsLabel: 'Analysis AI agent findings',
+    analysisAgentTitle: 'Analysis AI agent (keyboard & enrichment)',
+    analysisAgentIntro:
+      'Issues observed during keyboard-only simulation and optional AI enrichment. These complement automated WCAG checks.',
+    analysisAgentKindHeader: 'Kind',
+    analysisAgentSourceHeader: 'Source',
+    analysisAgentConfidenceHeader: 'Confidence',
+    analysisAgentMessageHeader: 'Message',
+    analysisAgentPageHeader: 'Page',
+    analysisAgentHowToHeader: 'How to verify',
+    analysisAgentWcagHeader: 'Suggested WCAG',
+    analysisAgentEmpty: 'No analysis AI agent findings for this scan.',
   },
   ar: {
     reportTitle: 'تقرير إمكانية الوصول - راوي إكس',
@@ -68,6 +80,18 @@ export const pdfTranslations = {
       'نتائج جزئية — لم يكتمل المسح؛ تعكس النتائج الصفحات التي تمت معالجتها قبل الإيقاف أو الفشل.',
     interimExportSubtitle:
       'تصدير مؤقت — قد يكون المسح لا يزال قيد التشغيل؛ يشمل فقط النتائج المحفوظة في قاعدة البيانات وقت التصدير.',
+    analysisAgentFindingsLabel: 'نتائج وكيل التحليل بالذكاء الاصطناعي',
+    analysisAgentTitle: 'وكيل التحليل (لوحة المفاتيح والإثراء)',
+    analysisAgentIntro:
+      'ملاحظات من محاكاة لوحة المفاتيح وإثراء اختياري بالذكاء الاصطناعي. تكمّل فحوصات WCAG الآلية.',
+    analysisAgentKindHeader: 'النوع',
+    analysisAgentSourceHeader: 'المصدر',
+    analysisAgentConfidenceHeader: 'الثقة',
+    analysisAgentMessageHeader: 'الرسالة',
+    analysisAgentPageHeader: 'الصفحة',
+    analysisAgentHowToHeader: 'كيفية التحقق',
+    analysisAgentWcagHeader: 'WCAG مقترحة',
+    analysisAgentEmpty: 'لا توجد نتائج من وكيل التحليل لهذا المسح.',
   },
 };
 

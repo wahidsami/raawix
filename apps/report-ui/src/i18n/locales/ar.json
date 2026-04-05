@@ -188,7 +188,17 @@
     "assistiveMapJson": "JSON للخريطة المساعدة",
     "mapSummary": "ملخص",
     "fullJson": "JSON الكامل",
-    "noDebugInfo": "لا توجد معلومات تصحيح متاحة"
+    "noDebugInfo": "لا توجد معلومات تصحيح متاحة",
+    "analysisAgentFindings": "وكيل التحليل",
+    "analysisAgentSectionTitle": "نتائج وكيل التحليل",
+    "analysisAgentSectionIntro": "محاكاة لوحة المفاتيح وإثراء اختياري بالذكاء الاصطناعي. يكمّل نتائج قواعد WCAG أعلاه.",
+    "analysisAgentColPage": "الصفحة",
+    "analysisAgentColKind": "النوع",
+    "analysisAgentColSource": "المصدر",
+    "analysisAgentColConfidence": "الثقة",
+    "analysisAgentColMessage": "الرسالة",
+    "analysisAgentSourceOpenai": "إثراء بالذكاء الاصطناعي",
+    "analysisAgentSourceAgent": "محاكاة لوحة المفاتيح"
   },
   "findings": {
     "title": "النتائج",

@@ -252,6 +252,19 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
       })
     );
 
+    const analysisAgentFindings = pagesDetail.flatMap((p) =>
+      (p.layerAgent?.findings || []).map((f: any) => ({
+        pageNumber: p.pageNumber,
+        pageUrl: p.url,
+        kind: f.kind,
+        message: f.message ?? '',
+        confidence: f.confidence,
+        source: f.source || 'agent',
+        howToVerify: f.howToVerify ?? '',
+        suggestedWcagIds: Array.isArray(f.suggestedWcagIds) ? f.suggestedWcagIds : [],
+      }))
+    );
+
     // Build response
     const response = {
       scanId: scan.scanId,
@@ -267,6 +280,10 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
         totalVisionFindings: scan._count.visionFindings,
         totalAgentFindings: scan._count.agentFindings,
         scores,
+      },
+      analysisAgent: {
+        count: analysisAgentFindings.length,
+        findings: analysisAgentFindings,
       },
       pages: pagesDetail,
       disclaimer: 'Scores reflect scanned pages and crawl scope; this is not a certification.',

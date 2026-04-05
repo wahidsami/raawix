@@ -188,7 +188,17 @@
     "assistiveMapJson": "Assistive Map JSON",
     "mapSummary": "Summary",
     "fullJson": "Full JSON",
-    "noDebugInfo": "No debug information available"
+    "noDebugInfo": "No debug information available",
+    "analysisAgentFindings": "Analysis AI agent",
+    "analysisAgentSectionTitle": "Analysis AI agent findings",
+    "analysisAgentSectionIntro": "Keyboard simulation and optional AI enrichment. Complements WCAG rule results above.",
+    "analysisAgentColPage": "Page",
+    "analysisAgentColKind": "Kind",
+    "analysisAgentColSource": "Source",
+    "analysisAgentColConfidence": "Confidence",
+    "analysisAgentColMessage": "Message",
+    "analysisAgentSourceOpenai": "AI enrichment",
+    "analysisAgentSourceAgent": "Keyboard simulation"
   },
   "findings": {
     "title": "Findings",

@@ -15,6 +15,12 @@ import { ReportContentGenerator, type ScanData } from '../services/report-conten
 import { PDFTemplateRenderer, type TemplateData } from '../services/pdf-template-renderer.js';
 import { loadLogoAsDataUrl, loadPoweredByLogoAsDataUrl, loadEntityLogoAsDataUrl } from '../utils/logo-loader.js';
 import { getPDFTranslation } from '../utils/pdf-i18n.js';
+import {
+  escapeHtml,
+  formatAgentConfidenceScore,
+  agentSourceLabel,
+  formatSuggestedWcagIds,
+} from '../utils/agent-report-format.js';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'; // Fallback
 
 const router: Router = Router();
@@ -71,11 +77,15 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
           },
           orderBy: { pageNumber: 'asc' },
         },
+        agentFindings: {
+          orderBy: { createdAt: 'asc' },
+        },
         _count: {
           select: {
             pages: true,
             findings: true,
             visionFindings: true,
+            agentFindings: true,
           },
         },
       },
@@ -85,7 +95,8 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Scan not found' });
     }
 
-    const hasExportableData = scan._count.pages > 0 || scan._count.findings > 0;
+    const hasExportableData =
+      scan._count.pages > 0 || scan._count.findings > 0 || scan._count.agentFindings > 0;
     /** DB often stays `queued` until saveReportResults; treat as in-flight until we have artifacts. */
     const inFlight = ['queued', 'running', 'discovering'].includes(scan.status);
 
@@ -216,6 +227,65 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       `;
     }).join('');
 
+    const pageUrlByPageId = new Map<string, string>();
+    for (const p of scan.pages as { id: string; url: string }[]) {
+      pageUrlByPageId.set(p.id, p.url);
+    }
+
+    const agentList = scan.agentFindings as Array<{
+      pageId: string | null;
+      kind: string;
+      message: string | null;
+      confidence: number;
+      source: string;
+      howToVerify: string | null;
+      suggestedWcagIdsJson: unknown;
+    }>;
+
+    const parseSuggestedWcag = (raw: unknown): unknown => {
+      if (raw == null) return null;
+      if (typeof raw === 'string') {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return raw;
+        }
+      }
+      return raw;
+    };
+
+    const analysisAgentTableOrEmpty =
+      !agentList?.length
+        ? `<p class="intro-content">${escapeHtml(getPDFTranslation('analysisAgentEmpty', locale))}</p>`
+        : `<table class="findings-table"><thead><tr>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentKindHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentSourceHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentConfidenceHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentMessageHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentHowToHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentWcagHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentPageHeader', locale))}</th>
+        </tr></thead><tbody>
+        ${agentList
+          .map((af) => {
+            const pageUrl = af.pageId ? pageUrlByPageId.get(af.pageId) || '—' : '—';
+            const msg = escapeHtml((af.message || '—').slice(0, 220));
+            const how = escapeHtml((af.howToVerify || '—').slice(0, 140));
+            const wcagRaw = parseSuggestedWcag(af.suggestedWcagIdsJson);
+            const wcag = escapeHtml(formatSuggestedWcagIds(wcagRaw).slice(0, 100));
+            return `<tr>
+            <td>${escapeHtml(af.kind)}</td>
+            <td>${escapeHtml(agentSourceLabel(af.source, locale))}</td>
+            <td>${escapeHtml(formatAgentConfidenceScore(af.confidence))}</td>
+            <td>${msg}</td>
+            <td>${how}</td>
+            <td>${wcag}</td>
+            <td style="font-size:9px;word-break:break-all;">${escapeHtml(pageUrl.slice(0, 100))}</td>
+          </tr>`;
+          })
+          .join('')}
+        </tbody></table>`;
+
     const templateData: TemplateData = {
       logoDataUrl,
       poweredByLogoDataUrl,
@@ -267,6 +337,11 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       descriptionHeader: getPDFTranslation('descriptionHeader', locale),
       pageHeader: getPDFTranslation('pageHeader', locale),
       findingsRows: findingsRows || '<tr><td colspan="5">No findings</td></tr>',
+      analysisAgentFindingsLabel: getPDFTranslation('analysisAgentFindingsLabel', locale),
+      totalAnalysisAgentFindings: String(scan._count.agentFindings),
+      analysisAgentTitle: getPDFTranslation('analysisAgentTitle', locale),
+      analysisAgentIntro: getPDFTranslation('analysisAgentIntro', locale),
+      analysisAgentTableOrEmpty,
       footerText: getPDFTranslation('footerText', locale),
       reportGeneratedBy: getPDFTranslation('reportGeneratedBy', locale),
       disclaimerText: getPDFTranslation('disclaimerText', locale),
@@ -364,6 +439,16 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       size: 12,
       font: font,
     });
+
+    summaryPage.drawText(
+      `${getPDFTranslation('analysisAgentFindingsLabel', locale)}: ${scan._count.agentFindings}`,
+      {
+        x: isRTL ? 595 - 250 : 50,
+        y: 630,
+        size: 12,
+        font: font,
+      }
+    );
 
     const pdfBytes = await pdfDoc.save();
 

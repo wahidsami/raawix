@@ -129,6 +129,7 @@ interface ScanDetail {
     totalPages: number;
     totalFindings: number;
     totalVisionFindings: number;
+    totalAgentFindings?: number;
     scores: {
       scoreA: number;
       scoreAA: number;
@@ -140,6 +141,19 @@ interface ScanDetail {
       aCounts?: { passed: number; failed: number; needsReview: number };
       aaCounts?: { passed: number; failed: number; needsReview: number };
     };
+  };
+  analysisAgent?: {
+    count: number;
+    findings: Array<{
+      pageNumber: number;
+      pageUrl: string;
+      kind: string;
+      message: string;
+      confidence?: number;
+      source: string;
+      howToVerify: string;
+      suggestedWcagIds: string[];
+    }>;
   };
   pages: Array<{
     pageNumber: number;
@@ -292,6 +306,8 @@ export default function ScanDetailPage() {
     ? scanDetail.pages.find((p) => p.pageNumber === selectedPage)
     : null;
 
+  const analysisAgentFindings = scanDetail.analysisAgent?.findings ?? [];
+
   return (
     <div className="space-y-6">
       {(scanDetail.status === 'canceled' || scanDetail.status === 'failed') && (
@@ -429,7 +445,7 @@ export default function ScanDetailPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-card border border-border rounded-lg p-4">
           <div className="text-sm text-muted-foreground">{t('scans.totalPages')}</div>
           <div className="text-2xl font-bold mt-1">{scanDetail.summary.totalPages}</div>
@@ -448,6 +464,15 @@ export default function ScanDetailPage() {
           <div className="text-sm text-muted-foreground">{t('scans.wcagAAScore') || 'WCAG AA Score'}</div>
           <div className="text-2xl font-bold mt-1">
             {scanDetail.summary.scores.scoreAA != null ? scanDetail.summary.scores.scoreAA.toFixed(1) : 'N/A'}%
+          </div>
+        </div>
+        <div className="bg-card border border-border rounded-lg p-4 sm:col-span-2 lg:col-span-1">
+          <div className="text-sm text-muted-foreground flex items-center gap-1">
+            <Bot className="w-3.5 h-3.5" />
+            {t('scans.analysisAgentFindings') || 'Analysis AI agent'}
+          </div>
+          <div className="text-2xl font-bold mt-1">
+            {scanDetail.summary.totalAgentFindings ?? scanDetail.analysisAgent?.count ?? 0}
           </div>
         </div>
       </div>
@@ -512,6 +537,66 @@ export default function ScanDetailPage() {
         </div>
         <p className="text-xs text-muted-foreground mt-4 italic">{t('scans.disclaimer')}</p>
       </div>
+
+      {/* Analysis AI agent — dedicated section */}
+      {analysisAgentFindings.length > 0 && (
+        <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <div className="p-4 border-b border-border flex items-center gap-2">
+            <Bot className="w-5 h-5 text-primary" />
+            <h2 className="text-xl font-bold">{t('scans.analysisAgentSectionTitle') || 'Analysis AI agent findings'}</h2>
+          </div>
+          <p className="px-4 pt-3 text-sm text-muted-foreground">
+            {t('scans.analysisAgentSectionIntro') ||
+              'Keyboard simulation and optional AI enrichment. Complements WCAG rule results above.'}
+          </p>
+          <div className="overflow-x-auto p-4 pt-2">
+            <table className="w-full text-sm">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">#</th>
+                  <th className="px-3 py-2 text-left font-medium">{t('scans.analysisAgentColPage') || 'Page'}</th>
+                  <th className="px-3 py-2 text-left font-medium">{t('scans.analysisAgentColKind') || 'Kind'}</th>
+                  <th className="px-3 py-2 text-left font-medium">{t('scans.analysisAgentColSource') || 'Source'}</th>
+                  <th className="px-3 py-2 text-left font-medium">{t('scans.analysisAgentColConfidence') || 'Confidence'}</th>
+                  <th className="px-3 py-2 text-left font-medium">{t('scans.analysisAgentColMessage') || 'Message'}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {analysisAgentFindings.map((f, idx) => (
+                  <tr key={`${f.pageNumber}-${idx}-${f.kind}`} className="hover:bg-muted/40 align-top">
+                    <td className="px-3 py-2 whitespace-nowrap">{f.pageNumber}</td>
+                    <td className="px-3 py-2 max-w-[200px]">
+                      <span className="break-all text-xs text-muted-foreground">{f.pageUrl}</span>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-xs">{f.kind}</td>
+                    <td className="px-3 py-2 text-xs">
+                      {f.source === 'openai'
+                        ? t('scans.analysisAgentSourceOpenai') || 'AI enrichment'
+                        : t('scans.analysisAgentSourceAgent') || 'Keyboard simulation'}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {typeof f.confidence === 'number' && !Number.isNaN(f.confidence)
+                        ? `${Math.round(f.confidence * 100)}%`
+                        : '—'}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="text-foreground">{f.message || '—'}</div>
+                      {f.howToVerify ? (
+                        <div className="text-xs text-muted-foreground mt-1">{f.howToVerify}</div>
+                      ) : null}
+                      {f.suggestedWcagIds?.length ? (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          WCAG: {f.suggestedWcagIds.join(', ')}
+                        </div>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Pages Table */}
       <div className="bg-card border border-border rounded-lg overflow-hidden">

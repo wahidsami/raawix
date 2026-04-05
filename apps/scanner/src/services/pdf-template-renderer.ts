@@ -76,6 +76,13 @@ export interface TemplateData {
   descriptionHeader: string;
   pageHeader: string;
   findingsRows: string;
+
+  /** Analysis AI agent (keyboard simulation + optional AI enrichment) */
+  analysisAgentFindingsLabel: string;
+  totalAnalysisAgentFindings: string;
+  analysisAgentTitle: string;
+  analysisAgentIntro: string;
+  analysisAgentTableOrEmpty: string;
   
   // Footer
   footerText: string;
