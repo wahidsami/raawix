@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/api';
-import { Search, ExternalLink, AlertTriangle, X } from 'lucide-react';
+import { Search, ExternalLink, AlertTriangle, X, FileText } from 'lucide-react';
 import GlobalEntityScopeBanner from '../components/GlobalEntityScopeBanner';
 import { getWCAGRuleTitle, getWCAGRuleDescription } from '../utils/wcag-rules';
 import { useClientPagination } from '../hooks/useClientPagination';
@@ -24,11 +25,15 @@ interface Finding {
 
 export default function FindingsPage() {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const currentLanguage = i18n.language === 'ar' ? 'ar' : 'en';
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null);
+  const [scansForFilter, setScansForFilter] = useState<
+    Array<{ scanId: string; hostname: string; startedAt: string }>
+  >([]);
   const [filters, setFilters] = useState({
     site: '',
     scan: '',
@@ -41,6 +46,39 @@ export default function FindingsPage() {
   useEffect(() => {
     fetchFindings();
   }, [filters]);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .getScans({ limit: 100 })
+      .then((res) => {
+        if (!cancelled) setScansForFilter(res.scans);
+      })
+      .catch(() => {
+        if (!cancelled) setScansForFilter([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const scanSelectOptions = useMemo(() => {
+    const byId = new Map<string, { scanId: string; hostname: string; startedAt: string }>();
+    for (const s of scansForFilter) {
+      byId.set(s.scanId, s);
+    }
+    if (filters.scan && !byId.has(filters.scan)) {
+      byId.set(filters.scan, { scanId: filters.scan, hostname: '—', startedAt: '' });
+    }
+    if (selectedFinding?.scanId && !byId.has(selectedFinding.scanId)) {
+      byId.set(selectedFinding.scanId, {
+        scanId: selectedFinding.scanId,
+        hostname: selectedFinding.site || '—',
+        startedAt: '',
+      });
+    }
+    return Array.from(byId.values());
+  }, [scansForFilter, filters.scan, selectedFinding?.scanId, selectedFinding?.site]);
 
   const findingsPaginationKey = useMemo(() => JSON.stringify(filters), [filters]);
   const {
@@ -147,6 +185,21 @@ export default function FindingsPage() {
                 className="w-full pl-10 pr-3 py-2 border border-input rounded-md bg-background"
               />
             </div>
+          </div>
+          <div>
+            <select
+              value={filters.scan}
+              onChange={(e) => setFilters({ ...filters, scan: e.target.value })}
+              className="px-3 py-2 border border-input rounded-md bg-background min-w-[200px] max-w-[280px]"
+              title={t('findings.filterByScan')}
+            >
+              <option value="">{t('findings.allScans')}</option>
+              {scanSelectOptions.map((s) => (
+                <option key={s.scanId} value={s.scanId}>
+                  {s.scanId.length > 28 ? `${s.scanId.slice(0, 14)}…${s.scanId.slice(-10)}` : s.scanId} · {s.hostname}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <select
@@ -293,6 +346,53 @@ export default function FindingsPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {(selectedFinding.scanId || selectedFinding.site) && (
+              <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3 mb-4">
+                <div className="text-sm space-y-1.5">
+                  {selectedFinding.scanId ? (
+                    <div>
+                      <span className="text-muted-foreground">{t('findings.scanContext')}</span>
+                      <div className="mt-1">
+                        <code className="text-xs bg-background border border-border px-2 py-1 rounded break-all">
+                          {selectedFinding.scanId}
+                        </code>
+                      </div>
+                    </div>
+                  ) : null}
+                  {selectedFinding.site ? (
+                    <div>
+                      <span className="text-muted-foreground">{t('findings.site')}: </span>
+                      <span className="text-foreground">{selectedFinding.site}</span>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {selectedFinding.scanId ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/scans/${encodeURIComponent(selectedFinding.scanId!)}`)}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
+                      >
+                        <FileText className="w-4 h-4 shrink-0" aria-hidden />
+                        {t('findings.openScanReport')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFindingPage(1);
+                          setFilters((f) => ({ ...f, scan: selectedFinding.scanId! }));
+                        }}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-background text-sm font-medium hover:bg-muted/80"
+                      >
+                        {t('findings.filterToThisScan')}
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-4">
               <div>

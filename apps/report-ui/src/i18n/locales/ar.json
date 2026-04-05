@@ -236,7 +236,12 @@
     "filterByLevel": "تصفية حسب المستوى",
     "searchPlaceholder": "البحث بالعنوان أو معرف WCAG أو الرابط",
     "heuristic": "استدلالي",
-    "review": "مراجعة"
+    "review": "مراجعة",
+    "scanContext": "المسح المصدر",
+    "openScanReport": "فتح تقرير المسح",
+    "filterToThisScan": "عرض نتائج هذا المسح فقط",
+    "allScans": "كل المسوحات",
+    "filterByScan": "تصفية حسب المسح"
   },
   "settings": {
     "title": "الإعدادات",

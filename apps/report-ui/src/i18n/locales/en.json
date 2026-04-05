@@ -236,7 +236,12 @@
     "filterByLevel": "Filter by Level",
     "searchPlaceholder": "Search by title, WCAG ID, or URL",
     "heuristic": "Heuristic",
-    "review": "Review"
+    "review": "Review",
+    "scanContext": "Source scan",
+    "openScanReport": "Open scan report",
+    "filterToThisScan": "Show only this scan",
+    "allScans": "All scans",
+    "filterByScan": "Filter by scan"
   },
   "settings": {
     "title": "Settings",
