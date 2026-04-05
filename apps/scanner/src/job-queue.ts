@@ -323,7 +323,7 @@ export class JobQueue {
       await this.reportGenerator.saveReport(scanId, scanRun);
       await this.storage.saveScanResult(scanId, scanRun);
       await scanRepository.saveReportResults(scanId, scanRun, {
-        runOpenAiAnalyst: pipeline.analysisAgent,
+        analysisAgent: pipeline.analysisAgent,
       });
       await scanRepository.updateScanStatus(scanId, 'canceled', new Date());
 
@@ -881,7 +881,7 @@ export class JobQueue {
         await this.reportGenerator.saveReport(scanId, finalScanRun);
         await this.storage.saveScanResult(scanId, finalScanRun);
         await scanRepository.saveReportResults(scanId, finalScanRun, {
-          runOpenAiAnalyst: pipeline.analysisAgent,
+          analysisAgent: pipeline.analysisAgent,
         });
         await scanRepository.updateScanStatus(scanId, 'canceled', new Date());
 
@@ -920,7 +920,7 @@ export class JobQueue {
 
       // Save to database
       await scanRepository.saveReportResults(scanId, finalScanRun, {
-        runOpenAiAnalyst: pipeline.analysisAgent,
+        analysisAgent: pipeline.analysisAgent,
       });
       await scanRepository.updateScanStatus(scanId, 'completed', new Date());
 

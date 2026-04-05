@@ -198,7 +198,10 @@
     "analysisAgentColConfidence": "Confidence",
     "analysisAgentColMessage": "Message",
     "analysisAgentSourceOpenai": "AI enrichment",
-    "analysisAgentSourceAgent": "Keyboard simulation"
+    "analysisAgentSourceAgent": "Keyboard simulation",
+    "analysisAgentRanNoFindingsDashboard": "The analysis AI agent ran for this scan. No issues were recorded from keyboard simulation or optional AI enrichment.",
+    "analysisAgentPagesWithTrace": "{{count}} page(s) include a saved keyboard interaction trace.",
+    "analysisAgentNotIncludedDashboard": "The analysis AI agent was not part of this scan (disabled in scan options or server settings)."
   },
   "findings": {
     "title": "Findings",
@@ -349,6 +352,7 @@
     "eventAgentStarted": "Starting keyboard simulation",
     "eventAgentProgress": "Keyboard simulation in progress",
     "eventAgentDone": "Finished keyboard simulation",
+    "eventAgentSkipped": "Analysis AI agent skipped (off for this scan)",
     "eventAnalystStarted": "AI analyst started",
     "eventAnalystDone": "AI analyst completed",
     "estimatedRemaining": "Estimated remaining",

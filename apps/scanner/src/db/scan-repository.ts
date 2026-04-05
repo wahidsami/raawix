@@ -215,9 +215,11 @@ export class ScanRepository {
   async saveReportResults(
     scanId: string,
     scanRun: ScanRun,
-    options?: { runOpenAiAnalyst?: boolean }
+    options?: { analysisAgent?: boolean; /** @deprecated prefer analysisAgent */ runOpenAiAnalyst?: boolean }
   ): Promise<void> {
-    const runOpenAiAnalyst = options?.runOpenAiAnalyst !== false;
+    /** When false: skip loading interaction.json, skip OpenAI analyst, and do not insert agent findings. */
+    const persistAnalysisAgent =
+      options?.analysisAgent !== false && options?.runOpenAiAnalyst !== false;
     const prisma = await getPrismaClient();
     if (!prisma) {
       return;
@@ -363,7 +365,7 @@ export class ScanRepository {
         }
       }
 
-      // Agent findings: load from each page's agentPath (interaction.json) if present
+      // Agent findings + OpenAI analyst (entire block off when scanPipeline.analysisAgent is false)
       const agentFindingsData: Array<{
         scanId: string;
         pageId: string | null;
@@ -382,70 +384,72 @@ export class ScanRepository {
         pageId: string | null;
       }> = [];
 
-      for (const page of scanRun.pages) {
-        if (!page.agentPath) continue;
-        try {
-          const { readFile } = await import('node:fs/promises');
-          const { validateAgentArtifact } = await import('../agent/interaction-agent.js');
-          const raw = await readFile(page.agentPath, 'utf-8');
-          let data: unknown;
+      if (persistAnalysisAgent) {
+        for (const page of scanRun.pages) {
+          if (!page.agentPath) continue;
           try {
-            data = JSON.parse(raw);
-          } catch (parseErr) {
-            this.logger.warn('Failed to parse agent artifact JSON', {
+            const { readFile } = await import('node:fs/promises');
+            const { validateAgentArtifact } = await import('../agent/interaction-agent.js');
+            const raw = await readFile(page.agentPath, 'utf-8');
+            let data: unknown;
+            try {
+              data = JSON.parse(raw);
+            } catch (parseErr) {
+              this.logger.warn('Failed to parse agent artifact JSON', {
+                scanId,
+                pageNumber: page.pageNumber,
+                error: parseErr instanceof Error ? parseErr.message : 'Unknown error',
+              });
+              continue;
+            }
+            const artifact = validateAgentArtifact(data);
+            if (!artifact) continue;
+            const issues = artifact.issues;
+            const pageId = pageIdMap.get(page.pageNumber) || null;
+            for (const issue of issues) {
+              if (!issue.kind) continue;
+              const confidenceNum =
+                typeof issue.confidence === 'number'
+                  ? issue.confidence
+                  : typeof issue.confidence === 'string'
+                    ? parseFloat(issue.confidence)
+                    : NaN;
+              const confidence = Number.isFinite(confidenceNum)
+                ? Math.max(0, Math.min(1, confidenceNum))
+                : 0.5;
+              agentFindingsData.push({
+                scanId: scan.id,
+                pageId,
+                kind: issue.kind,
+                message: issue.message ?? null,
+                confidence,
+                evidenceJson: issue.evidence ?? (issue as any).evidenceJson ?? {},
+                howToVerify: issue.howToVerify ?? null,
+                suggestedWcagIdsJson: issue.suggestedWcagIds ?? null,
+                source: 'agent',
+              });
+            }
+            const hasIssues = issues.length >= 1;
+            const hasProbesAttempted =
+              Array.isArray(artifact.probes) && artifact.probes.some((p) => p.attempted);
+            if (hasIssues || hasProbesAttempted) {
+              pagesForAnalyst.push({ page, artifact, pageId });
+            }
+          } catch (error) {
+            this.logger.warn('Failed to load agent findings for page', {
               scanId,
               pageNumber: page.pageNumber,
-              error: parseErr instanceof Error ? parseErr.message : 'Unknown error',
-            });
-            continue;
-          }
-          const artifact = validateAgentArtifact(data);
-          if (!artifact) continue;
-          const issues = artifact.issues;
-          const pageId = pageIdMap.get(page.pageNumber) || null;
-          for (const issue of issues) {
-            if (!issue.kind) continue;
-            const confidenceNum =
-              typeof issue.confidence === 'number'
-                ? issue.confidence
-                : typeof issue.confidence === 'string'
-                  ? parseFloat(issue.confidence)
-                  : NaN;
-            const confidence = Number.isFinite(confidenceNum)
-              ? Math.max(0, Math.min(1, confidenceNum))
-              : 0.5;
-            agentFindingsData.push({
-              scanId: scan.id,
-              pageId,
-              kind: issue.kind,
-              message: issue.message ?? null,
-              confidence,
-              evidenceJson: issue.evidence ?? (issue as any).evidenceJson ?? {},
-              howToVerify: issue.howToVerify ?? null,
-              suggestedWcagIdsJson: issue.suggestedWcagIds ?? null,
-              source: 'agent',
+              error: error instanceof Error ? error.message : 'Unknown error',
             });
           }
-          const hasIssues = issues.length >= 1;
-          const hasProbesAttempted =
-            Array.isArray(artifact.probes) && artifact.probes.some((p) => p.attempted);
-          if (hasIssues || hasProbesAttempted) {
-            pagesForAnalyst.push({ page, artifact, pageId });
-          }
-        } catch (error) {
-          this.logger.warn('Failed to load agent findings for page', {
-            scanId,
-            pageNumber: page.pageNumber,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          });
         }
       }
 
-      // OpenAI Analyst: enrich interaction artifacts (skipped when Analysis AI agent / pipeline disabled)
+      // OpenAI Analyst: enrich interaction artifacts (only when persistAnalysisAgent)
       try {
         const { config } = await import('../config.js');
         if (
-          runOpenAiAnalyst &&
+          persistAnalysisAgent &&
           config.openai?.enabled &&
           config.agentAnalyst?.enabled &&
           config.openai.apiKey

@@ -198,7 +198,10 @@
     "analysisAgentColConfidence": "الثقة",
     "analysisAgentColMessage": "الرسالة",
     "analysisAgentSourceOpenai": "إثراء بالذكاء الاصطناعي",
-    "analysisAgentSourceAgent": "محاكاة لوحة المفاتيح"
+    "analysisAgentSourceAgent": "محاكاة لوحة المفاتيح",
+    "analysisAgentRanNoFindingsDashboard": "شغّل وكيل التحليل لهذا المسح. لم تُسجَّل مشكلات من محاكاة لوحة المفاتيح أو الإثراء الاختياري.",
+    "analysisAgentPagesWithTrace": "{{count}} صفحة تتضمن أثر تفاعل لوحة مفاتيح محفوظ.",
+    "analysisAgentNotIncludedDashboard": "لم يُدرَج وكيل التحليل في هذا المسح (معطّل في خيارات المسح أو إعدادات الخادم)."
   },
   "findings": {
     "title": "النتائج",
@@ -349,6 +352,7 @@
     "eventAgentStarted": "بدء محاكاة لوحة المفاتيح",
     "eventAgentProgress": "محاكاة لوحة المفاتيح قيد التشغيل",
     "eventAgentDone": "انتهت محاكاة لوحة المفاتيح",
+    "eventAgentSkipped": "تم تخطي وكيل التحليل (معطّل لهذا المسح)",
     "eventAnalystStarted": "بدء محلّل الذكاء الاصطناعي",
     "eventAnalystDone": "اكتمل محلّل الذكاء الاصطناعي",
     "estimatedRemaining": "الوقت المتبقي المتوقع",

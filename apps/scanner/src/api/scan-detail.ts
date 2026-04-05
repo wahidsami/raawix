@@ -265,6 +265,12 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
       }))
     );
 
+    const pagesWithAgentArtifact = scan.pages.filter(
+      (p: { agentPath?: string | null }) => !!p.agentPath && String(p.agentPath).trim() !== ''
+    ).length;
+    const analysisAgentExecuted =
+      pagesWithAgentArtifact > 0 || scan._count.agentFindings > 0 || analysisAgentFindings.length > 0;
+
     // Build response
     const response = {
       scanId: scan.scanId,
@@ -284,6 +290,9 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
       analysisAgent: {
         count: analysisAgentFindings.length,
         findings: analysisAgentFindings,
+        /** Keyboard/interaction trace was produced for at least one page, and/or DB has agent findings */
+        executed: analysisAgentExecuted,
+        pagesWithArtifact: pagesWithAgentArtifact,
       },
       pages: pagesDetail,
       disclaimer: 'Scores reflect scanned pages and crawl scope; this is not a certification.',

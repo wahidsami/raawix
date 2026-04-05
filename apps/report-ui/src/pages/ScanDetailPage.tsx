@@ -154,6 +154,9 @@ interface ScanDetail {
       howToVerify: string;
       suggestedWcagIds: string[];
     }>;
+    /** Keyboard/interaction trace and/or stored agent findings */
+    executed?: boolean;
+    pagesWithArtifact?: number;
   };
   pages: Array<{
     pageNumber: number;
@@ -538,8 +541,8 @@ export default function ScanDetailPage() {
         <p className="text-xs text-muted-foreground mt-4 italic">{t('scans.disclaimer')}</p>
       </div>
 
-      {/* Analysis AI agent — dedicated section */}
-      {analysisAgentFindings.length > 0 && (
+      {/* Analysis AI agent — always shown; table only when there are rows */}
+      {scanDetail.analysisAgent != null && (
         <div className="bg-card border border-border rounded-lg overflow-hidden">
           <div className="p-4 border-b border-border flex items-center gap-2">
             <Bot className="w-5 h-5 text-primary" />
@@ -549,52 +552,69 @@ export default function ScanDetailPage() {
             {t('scans.analysisAgentSectionIntro') ||
               'Keyboard simulation and optional AI enrichment. Complements WCAG rule results above.'}
           </p>
-          <div className="overflow-x-auto p-4 pt-2">
-            <table className="w-full text-sm">
-              <thead className="bg-muted">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium">#</th>
-                  <th className="px-3 py-2 text-left font-medium">{t('scans.analysisAgentColPage') || 'Page'}</th>
-                  <th className="px-3 py-2 text-left font-medium">{t('scans.analysisAgentColKind') || 'Kind'}</th>
-                  <th className="px-3 py-2 text-left font-medium">{t('scans.analysisAgentColSource') || 'Source'}</th>
-                  <th className="px-3 py-2 text-left font-medium">{t('scans.analysisAgentColConfidence') || 'Confidence'}</th>
-                  <th className="px-3 py-2 text-left font-medium">{t('scans.analysisAgentColMessage') || 'Message'}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {analysisAgentFindings.map((f, idx) => (
-                  <tr key={`${f.pageNumber}-${idx}-${f.kind}`} className="hover:bg-muted/40 align-top">
-                    <td className="px-3 py-2 whitespace-nowrap">{f.pageNumber}</td>
-                    <td className="px-3 py-2 max-w-[200px]">
-                      <span className="break-all text-xs text-muted-foreground">{f.pageUrl}</span>
-                    </td>
-                    <td className="px-3 py-2 font-mono text-xs">{f.kind}</td>
-                    <td className="px-3 py-2 text-xs">
-                      {f.source === 'openai'
-                        ? t('scans.analysisAgentSourceOpenai') || 'AI enrichment'
-                        : t('scans.analysisAgentSourceAgent') || 'Keyboard simulation'}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      {typeof f.confidence === 'number' && !Number.isNaN(f.confidence)
-                        ? `${Math.round(f.confidence * 100)}%`
-                        : '—'}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="text-foreground">{f.message || '—'}</div>
-                      {f.howToVerify ? (
-                        <div className="text-xs text-muted-foreground mt-1">{f.howToVerify}</div>
-                      ) : null}
-                      {f.suggestedWcagIds?.length ? (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          WCAG: {f.suggestedWcagIds.join(', ')}
-                        </div>
-                      ) : null}
-                    </td>
+          {analysisAgentFindings.length > 0 ? (
+            <div className="overflow-x-auto p-4 pt-2">
+              <table className="w-full text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">#</th>
+                    <th className="px-3 py-2 text-left font-medium">{t('scans.analysisAgentColPage') || 'Page'}</th>
+                    <th className="px-3 py-2 text-left font-medium">{t('scans.analysisAgentColKind') || 'Kind'}</th>
+                    <th className="px-3 py-2 text-left font-medium">{t('scans.analysisAgentColSource') || 'Source'}</th>
+                    <th className="px-3 py-2 text-left font-medium">{t('scans.analysisAgentColConfidence') || 'Confidence'}</th>
+                    <th className="px-3 py-2 text-left font-medium">{t('scans.analysisAgentColMessage') || 'Message'}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {analysisAgentFindings.map((f, idx) => (
+                    <tr key={`${f.pageNumber}-${idx}-${f.kind}`} className="hover:bg-muted/40 align-top">
+                      <td className="px-3 py-2 whitespace-nowrap">{f.pageNumber}</td>
+                      <td className="px-3 py-2 max-w-[200px]">
+                        <span className="break-all text-xs text-muted-foreground">{f.pageUrl}</span>
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs">{f.kind}</td>
+                      <td className="px-3 py-2 text-xs">
+                        {f.source === 'openai'
+                          ? t('scans.analysisAgentSourceOpenai') || 'AI enrichment'
+                          : t('scans.analysisAgentSourceAgent') || 'Keyboard simulation'}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {typeof f.confidence === 'number' && !Number.isNaN(f.confidence)
+                          ? `${Math.round(f.confidence * 100)}%`
+                          : '—'}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="text-foreground">{f.message || '—'}</div>
+                        {f.howToVerify ? (
+                          <div className="text-xs text-muted-foreground mt-1">{f.howToVerify}</div>
+                        ) : null}
+                        {f.suggestedWcagIds?.length ? (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            WCAG: {f.suggestedWcagIds.join(', ')}
+                          </div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : scanDetail.analysisAgent?.executed ? (
+            <div className="px-4 pb-4 pt-2 text-sm text-muted-foreground space-y-2 border-t border-border/60">
+              <p>{t('scans.analysisAgentRanNoFindingsDashboard')}</p>
+              {(scanDetail.analysisAgent.pagesWithArtifact ?? 0) > 0 && (
+                <p>
+                  {t('scans.analysisAgentPagesWithTrace', {
+                    count: scanDetail.analysisAgent.pagesWithArtifact ?? 0,
+                  })}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="px-4 pb-4 pt-2 text-sm text-muted-foreground border-t border-border/60">
+              <p>{t('scans.analysisAgentNotIncludedDashboard')}</p>
+            </div>
+          )}
         </div>
       )}
 

@@ -126,7 +126,22 @@ export class ExcelReportGenerator {
     agentSection.font = { size: 14, bold: true, color: { argb: 'FF1F2937' } };
     sheet.mergeCells(`A${agentSection.number}:B${agentSection.number}`);
     const agentCount = (scan.agentFindings || []).length;
+    const pagesWithAgentArtifact = pages.filter((p: any) => p?.agentPath).length;
     this.addInfoRow(sheet, t.analysisAgentCount, agentCount.toString());
+    if (agentCount === 0) {
+      const note =
+        pagesWithAgentArtifact > 0
+          ? locale === 'ar'
+            ? `شغّل وكيل التحليل؛ لا توجد نتائج محفوظة. أثر تفاعل على ${pagesWithAgentArtifact} صفحة.`
+            : `Analysis AI agent ran; 0 findings stored. Interaction trace on ${pagesWithAgentArtifact} page(s).`
+          : locale === 'ar'
+            ? 'لم يُدرَج وكيل التحليل في هذا المسح.'
+            : 'Analysis AI agent was not included in this scan.';
+      const noteRow = sheet.addRow([note]);
+      sheet.mergeCells(`A${noteRow.number}:B${noteRow.number}`);
+      noteRow.getCell(1).font = { italic: true, color: { argb: 'FF6B7280' } };
+      noteRow.getCell(1).alignment = { wrapText: true, vertical: 'top' };
+    }
 
     // Column widths
     sheet.getColumn(1).width = 25;
@@ -262,6 +277,22 @@ export class ExcelReportGenerator {
     };
     headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
     headerRow.height = 24;
+
+    const pagesWithArtifact = pages.filter((p: any) => p?.agentPath).length;
+    if (agentFindings.length === 0) {
+      const note =
+        pagesWithArtifact > 0
+          ? locale === 'ar'
+            ? `شغّل الوكيل على ${pagesWithArtifact} صفحة؛ لا توجد نتائج مسجّلة في قاعدة البيانات.`
+            : `Agent ran on ${pagesWithArtifact} page(s); no findings were recorded in the database.`
+          : locale === 'ar'
+            ? 'وكيل التحليل لم يُدرَج في هذا المسح.'
+            : 'Analysis AI agent was not included in this scan.';
+      const noteRow = sheet.addRow([note, '', '', '', '', '', '']);
+      sheet.mergeCells(`A${noteRow.number}:G${noteRow.number}`);
+      noteRow.getCell(1).font = { italic: true, color: { argb: 'FF6B7280' } };
+      noteRow.getCell(1).alignment = { wrapText: true, vertical: 'top' };
+    }
 
     for (const af of agentFindings) {
       const page = pages.find((p) => p.id === af.pageId);

@@ -47,6 +47,10 @@ export const pdfTranslations = {
     analysisAgentHowToHeader: 'How to verify',
     analysisAgentWcagHeader: 'Suggested WCAG',
     analysisAgentEmpty: 'No analysis AI agent findings for this scan.',
+    analysisAgentRanNoFindings:
+      'The analysis AI agent ran for this scan. No issues were recorded from keyboard simulation or optional AI enrichment.',
+    analysisAgentNotIncluded:
+      'The analysis AI agent was not part of this scan (turned off in scan options or server settings).',
   },
   ar: {
     reportTitle: 'تقرير إمكانية الوصول - راوي إكس',
@@ -92,6 +96,10 @@ export const pdfTranslations = {
     analysisAgentHowToHeader: 'كيفية التحقق',
     analysisAgentWcagHeader: 'WCAG مقترحة',
     analysisAgentEmpty: 'لا توجد نتائج من وكيل التحليل لهذا المسح.',
+    analysisAgentRanNoFindings:
+      'شغّل وكيل التحليل لهذا المسح. لم تُسجَّل مشكلات من محاكاة لوحة المفاتيح أو الإثراء الاختياري بالذكاء الاصطناعي.',
+    analysisAgentNotIncluded:
+      'لم يُدرَج وكيل التحليل في هذا المسح (معطّل في خيارات المسح أو إعدادات الخادم).',
   },
 };
 

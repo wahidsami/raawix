@@ -288,6 +288,9 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         case 'agent_progress':
           return t('scanMonitor.eventAgentProgress') || 'Keyboard simulation in progress';
         case 'agent_done':
+          if ((event as { skipped?: boolean }).skipped) {
+            return t('scanMonitor.eventAgentSkipped') || 'Analysis AI agent skipped (off for this scan)';
+          }
           return t('scanMonitor.eventAgentDone') || 'Finished keyboard simulation';
         case 'analyst_started':
           return t('scanMonitor.eventAnalystStarted') || 'AI analyst started';
@@ -538,6 +541,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         break;
       }
       case 'agent_done': {
+        if ((event as { skipped?: boolean }).skipped) break;
         setSimulation((prev) => ({
           ...prev,
           status: 'done',

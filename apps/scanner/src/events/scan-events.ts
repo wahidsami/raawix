@@ -133,6 +133,8 @@ export interface AgentDoneEvent {
   url: string;
   pageNumber: number;
   issuesCount: number;
+  /** Set when scan options turned off the Analysis AI agent or AGENT_ENABLED=false */
+  skipped?: boolean;
   timestamp: string;
 }
 

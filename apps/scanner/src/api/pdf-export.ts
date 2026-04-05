@@ -254,10 +254,18 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       return raw;
     };
 
-    const analysisAgentTableOrEmpty =
-      !agentList?.length
-        ? `<p class="intro-content">${escapeHtml(getPDFTranslation('analysisAgentEmpty', locale))}</p>`
-        : `<table class="findings-table"><thead><tr>
+    const pagesWithAgentArtifact = (scan.pages as { agentPath?: string | null }[]).filter(
+      (p) => !!p.agentPath && String(p.agentPath).trim() !== ''
+    ).length;
+    const analysisAgentParticipated =
+      pagesWithAgentArtifact > 0 || (agentList?.length ?? 0) > 0;
+
+    let analysisAgentTableOrEmpty: string;
+    let analysisAgentNoRowsPlain: string;
+
+    if (agentList?.length) {
+      analysisAgentNoRowsPlain = '';
+      analysisAgentTableOrEmpty = `<table class="findings-table"><thead><tr>
           <th>${escapeHtml(getPDFTranslation('analysisAgentKindHeader', locale))}</th>
           <th>${escapeHtml(getPDFTranslation('analysisAgentSourceHeader', locale))}</th>
           <th>${escapeHtml(getPDFTranslation('analysisAgentConfidenceHeader', locale))}</th>
@@ -285,6 +293,20 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
           })
           .join('')}
         </tbody></table>`;
+    } else if (analysisAgentParticipated) {
+      const base = getPDFTranslation('analysisAgentRanNoFindings', locale);
+      const suffix =
+        pagesWithAgentArtifact > 0
+          ? locale === 'ar'
+            ? ` صفحات تتضمن أثر تفاعل: ${pagesWithAgentArtifact}.`
+            : ` Pages with interaction trace: ${pagesWithAgentArtifact}.`
+          : '';
+      analysisAgentNoRowsPlain = `${base}${suffix}`;
+      analysisAgentTableOrEmpty = `<p class="intro-content">${escapeHtml(base)}${escapeHtml(suffix)}</p>`;
+    } else {
+      analysisAgentNoRowsPlain = getPDFTranslation('analysisAgentNotIncluded', locale);
+      analysisAgentTableOrEmpty = `<p class="intro-content">${escapeHtml(analysisAgentNoRowsPlain)}</p>`;
+    }
 
     const findingsForFallback = reportFindings.map((f: any) => {
       const statusText =
@@ -454,7 +476,8 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
         findings: findingsForFallback,
         analysisAgentTitle: templateData.analysisAgentTitle,
         analysisAgentIntro: templateData.analysisAgentIntro,
-        analysisAgentEmpty: getPDFTranslation('analysisAgentEmpty', locale),
+        analysisAgentEmpty:
+          agentRowsForFallback.length > 0 ? '—' : analysisAgentNoRowsPlain,
         agentRows: agentRowsForFallback,
         footerText: templateData.footerText,
         reportGeneratedBy: templateData.reportGeneratedBy,

@@ -431,6 +431,16 @@ export class PageCapture {
         } catch (agentErr) {
           console.warn(`[Agent] Interaction agent failed for page ${pageNumber}:`, agentErr);
         }
+      } else if (this.scanId) {
+        scanEventEmitter.emitEvent(this.scanId, {
+          type: 'agent_done',
+          scanId: this.scanId,
+          url: finalUrl,
+          pageNumber,
+          issuesCount: 0,
+          skipped: true,
+          timestamp: new Date().toISOString(),
+        } as any);
       }
 
       // Save metadata
