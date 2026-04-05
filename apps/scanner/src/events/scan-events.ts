@@ -56,6 +56,8 @@ export interface LayerStatusEvent {
     title?: string;
     findingsCount?: number;
     visionCount?: number;
+    /** Layer was not run (operator disabled it in scan options). */
+    skipped?: boolean;
     assistiveCounts?: {
       images?: number;
       labels?: number;

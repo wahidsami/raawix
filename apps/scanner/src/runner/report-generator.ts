@@ -139,8 +139,10 @@ export class ReportGenerator {
     scanId: string,
     seedUrl: string,
     startedAt: string,
-    completedAt?: string
+    completedAt?: string,
+    options?: { generateAssistiveMap?: boolean }
   ): Promise<ScanRun> {
+    const generateAssistiveMap = options?.generateAssistiveMap !== false;
     // Load all page artifacts
     const pages = await this.loadPageArtifacts(scanId);
 
@@ -166,14 +168,16 @@ export class ReportGenerator {
         ruleResults: [...ruleResults, ...visionRuleResults],
       });
 
-      // Generate assistive map for this page (Third Layer)
-      // Check: no error, has canonicalUrl and pageFingerprint
+      // Generate assistive map for this page (Third Layer) — optional per scan
       let assistiveCounts = { images: 0, labels: 0, actions: 0 };
-      if (!page.error && page.canonicalUrl && page.pageFingerprint) {
+      if (
+        generateAssistiveMap &&
+        !page.error &&
+        page.canonicalUrl &&
+        page.pageFingerprint
+      ) {
         try {
           await this.generateAssistiveMapForPage(page, visionRuleResults, scanId, seedUrl);
-          // Get assistive map counts from the generated map
-          // These are logged in generateAssistiveMapForPage, but we need them for the event
           const scanDir = join(this.outputDir, scanId);
           const pageDir = join(scanDir, 'pages', String(page.pageNumber));
           const assistiveMapPath = join(pageDir, 'assistive-model.json');
@@ -189,11 +193,11 @@ export class ReportGenerator {
             // Assistive map not available, use defaults
           }
         } catch (error) {
-          // Non-fatal - continue with other pages
           console.warn(`Failed to generate assistive map for page ${page.pageNumber}:`, error);
         }
+      } else if (!generateAssistiveMap) {
+        // Layer 3 disabled for this scan (faster pipeline)
       } else {
-        // Log why Layer 3 was skipped
         if (!page.canonicalUrl) {
           console.warn(`[L3] Skipped: page ${page.pageNumber} missing canonicalUrl`);
         }

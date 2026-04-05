@@ -14,6 +14,7 @@ import { getHostname } from './crawler/url-utils.js';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { rm, readFile } from 'node:fs/promises';
+import { resolveScanPipeline, defaultScanPipeline } from './scan-pipeline.js';
 
 /**
  * Strict scan state machine: queued -> running -> completed|failed|canceled
@@ -54,6 +55,7 @@ export class JobQueue {
       maxDepth: Math.min(request.maxDepth || 2, 5),
       includePatterns: request.includePatterns,
       excludePatterns: request.excludePatterns,
+      scanPipeline: request.scanPipeline,
       // Keep legacy fields for compatibility
       url: request.url || request.seedUrl,
       options: request.options,
@@ -204,6 +206,7 @@ export class JobQueue {
       url: request.url || request.seedUrl,
       options: request.options,
       selectedUrls: (request as any).selectedUrls, // Include selectedUrls for sequential scanning
+      scanPipeline: request.scanPipeline,
     };
 
     // Validate seed URL
@@ -306,17 +309,22 @@ export class JobQueue {
   ): Promise<void> {
     try {
       logger.info('Generating partial report for canceled scan', { scanId });
+      const jobRef = this.getJob(scanId);
+      const pipeline = jobRef ? resolveScanPipeline(jobRef.request) : defaultScanPipeline();
       const scanRun = await this.reportGenerator.generateReport(
         scanId,
         seedUrl,
         startedAt,
-        new Date().toISOString()
+        new Date().toISOString(),
+        { generateAssistiveMap: pipeline.layer3 }
       );
       scanRun.completedAt = new Date().toISOString();
 
       await this.reportGenerator.saveReport(scanId, scanRun);
       await this.storage.saveScanResult(scanId, scanRun);
-      await scanRepository.saveReportResults(scanId, scanRun);
+      await scanRepository.saveReportResults(scanId, scanRun, {
+        runOpenAiAnalyst: pipeline.analysisAgent,
+      });
       await scanRepository.updateScanStatus(scanId, 'canceled', new Date());
 
       const { scanEventEmitter } = await import('./events/scan-events.js');
@@ -632,6 +640,20 @@ export class JobQueue {
         (crawlerRequest as any).authProfile = authProfile;
       }
 
+      const pipeline = resolveScanPipeline(job.request);
+      const pageCaptureBaseOpts = {
+        timeout: 20000,
+        waitForNetworkIdle: true,
+        stabilization: {
+          waitUntil: 'domcontentloaded' as const,
+          networkIdleMs: 800,
+          stableDomMs: 600,
+          maxWaitMs: 15000,
+          useReadyMarker: true,
+        },
+        pipeline,
+      };
+
       // Check if selectedUrls provided (Phase 3: Sequential scanning of selected pages)
       const selectedUrls = (job.request as any).selectedUrls as string[] | undefined;
 
@@ -706,51 +728,12 @@ export class JobQueue {
               timestamp: new Date().toISOString(),
             });
 
-            // Capture page (this does L1, L2, L3)
-            const pageResult = await pageCapture.capturePage(
-              url,
-              outputDir,
-              pageCounter,
-              {
-                timeout: 20000,
-                waitForNetworkIdle: true,
-                stabilization: {
-                  waitUntil: 'domcontentloaded',
-                  networkIdleMs: 800,
-                  stableDomMs: 600,
-                  maxWaitMs: 15000,
-                  useReadyMarker: true,
-                },
-              }
-            );
+            const pageResult = await pageCapture.capturePage(url, outputDir, pageCounter, pageCaptureBaseOpts);
 
             pages.push(pageResult);
 
-            // Emit L1 done
-            scanEventEmitter.emitEvent(scanId, {
-              type: 'layer_status',
-              scanId,
-              url,
-              pageNumber: pageCounter,
-              layer: 'L1',
-              status: 'done',
-              timestamp: new Date().toISOString(),
-            });
-
-            // Emit L2 done
-            scanEventEmitter.emitEvent(scanId, {
-              type: 'layer_status',
-              scanId,
-              url,
-              pageNumber: pageCounter,
-              layer: 'L2',
-              status: 'done',
-              timestamp: new Date().toISOString(),
-            });
-
-            // Note: L3 is NOT done yet! It's generated during report generation phase
-            // So we leave L3 as "pending" here. The report generator will emit "done" later
-            // (No need to emit L3 status here, it stays "pending" from earlier)
+            // L1/L2 completion (and L2 skipped when disabled) is emitted from page-capture
+            // L3 completes during report generation when assistive map is enabled
 
             // Save Page record to database
             if (scanId && pageResult.status === 'success') {
@@ -855,7 +838,8 @@ export class JobQueue {
         scanId,
         seedUrl,
         job.startedAt!,
-        new Date().toISOString()
+        new Date().toISOString(),
+        { generateAssistiveMap: pipeline.layer3 }
       );
 
       // Check if canceled before saving
@@ -868,7 +852,9 @@ export class JobQueue {
         finalScanRun.completedAt = new Date().toISOString();
         await this.reportGenerator.saveReport(scanId, finalScanRun);
         await this.storage.saveScanResult(scanId, finalScanRun);
-        await scanRepository.saveReportResults(scanId, finalScanRun);
+        await scanRepository.saveReportResults(scanId, finalScanRun, {
+          runOpenAiAnalyst: pipeline.analysisAgent,
+        });
         await scanRepository.updateScanStatus(scanId, 'canceled', new Date());
 
         const { scanEventEmitter } = await import('./events/scan-events.js');
@@ -905,7 +891,9 @@ export class JobQueue {
       await this.storage.saveScanResult(scanId, finalScanRun);
 
       // Save to database
-      await scanRepository.saveReportResults(scanId, finalScanRun);
+      await scanRepository.saveReportResults(scanId, finalScanRun, {
+        runOpenAiAnalyst: pipeline.analysisAgent,
+      });
       await scanRepository.updateScanStatus(scanId, 'completed', new Date());
 
       // Clean up pageCapture reference

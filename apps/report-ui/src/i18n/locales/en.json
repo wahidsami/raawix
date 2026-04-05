@@ -363,7 +363,18 @@
     "startScanning": "Start Scanning",
     "startScanError": "Failed to start scan. Please try again.",
     "selectionInstructions": "Select the pages you want to scan. Click 'Start Scanning' when ready.",
-    "discoveringPages": "Discovering pages..."
+    "discoveringPages": "Discovering pages...",
+    "scanPipelineTitle": "Scan options",
+    "scanPipelineIntro": "Turn off layers you do not need to speed up large scans.",
+    "scanPipelineNeedLayer12": "Enable page structure or screenshot & vision — at least one is required.",
+    "pipelineLayer1Label": "Page structure",
+    "pipelineLayer1Hint": "HTML, links, and accessibility snapshot",
+    "pipelineLayer2Label": "Screenshot & vision",
+    "pipelineLayer2Hint": "Full-page capture and AI vision review",
+    "pipelineLayer3Label": "Assistive map",
+    "pipelineLayer3Hint": "Built when the report is generated",
+    "pipelineAnalysisAgentLabel": "Analysis AI agent",
+    "pipelineAnalysisAgentHint": "Keyboard interaction simulation and post-scan AI enrichment"
   },
   "entities": {
     "title": "Entities",

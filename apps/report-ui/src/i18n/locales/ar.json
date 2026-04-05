@@ -363,7 +363,18 @@
     "startScanning": "بدء المسح",
     "startScanError": "فشل بدء المسح. يرجى المحاولة مرة أخرى.",
     "selectionInstructions": "اختر الصفحات التي تريد مسحها. انقر على 'بدء المسح' عندما تكون جاهزاً.",
-    "discoveringPages": "جارٍ اكتشاف الصفحات..."
+    "discoveringPages": "جارٍ اكتشاف الصفحات...",
+    "scanPipelineTitle": "خيارات المسح",
+    "scanPipelineIntro": "عطّل الطبقات غير الضرورية لتسريع المسوحات الكبيرة.",
+    "scanPipelineNeedLayer12": "فعّل بنية الصفحة أو لقطة الشاشة والرؤية — مطلوب أحدهما على الأقل.",
+    "pipelineLayer1Label": "بنية الصفحة",
+    "pipelineLayer1Hint": "HTML والروابط ولقطة إمكانية الوصول",
+    "pipelineLayer2Label": "لقطة الشاشة والرؤية",
+    "pipelineLayer2Hint": "التقاط كامل الصفحة ومراجعة الرؤية بالذكاء الاصطناعي",
+    "pipelineLayer3Label": "خريطة المساعدة",
+    "pipelineLayer3Hint": "تُبنى عند إنشاء التقرير",
+    "pipelineAnalysisAgentLabel": "وكيل تحليل بالذكاء الاصطناعي",
+    "pipelineAnalysisAgentHint": "محاكاة تفاعل لوحة المفاتيح وإثراء ما بعد المسح بالذكاء الاصطناعي"
   },
   "entities": {
     "title": "الكيانات",

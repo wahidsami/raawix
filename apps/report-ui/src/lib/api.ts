@@ -581,6 +581,12 @@ class ApiClient {
     seedUrl: string;
     maxPages: number;
     maxDepth: number;
+    scanPipeline?: {
+      layer1?: boolean;
+      layer2?: boolean;
+      layer3?: boolean;
+      analysisAgent?: boolean;
+    };
   }): Promise<{
     scanId: string;
     status: string;

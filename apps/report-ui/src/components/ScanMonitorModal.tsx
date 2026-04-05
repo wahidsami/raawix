@@ -92,6 +92,12 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   }, [phase, isScanning]);
 
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set());
+  /** Per-layer toggles (sent as scanPipeline on /api/scans/start). At least L1 or L2 required for sequential scans. */
+  const [pipelineLayer1, setPipelineLayer1] = useState(true);
+  const [pipelineLayer2, setPipelineLayer2] = useState(true);
+  const [pipelineLayer3, setPipelineLayer3] = useState(true);
+  const [pipelineAnalysisAgent, setPipelineAnalysisAgent] = useState(true);
+  const scanPipelineInvalid = !pipelineLayer1 && !pipelineLayer2;
   const [currentPage, setCurrentPage] = useState<string | null>(null);
   /** Scan output folder index — used to load screenshot.png while the scan runs */
   const [activeScanPageNumber, setActiveScanPageNumber] = useState<number | null>(null);
@@ -1540,6 +1546,13 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       setBanner({ tone: 'warning', message: t('scanMonitor.noPagesSelected') || 'Please select at least one page to scan.' });
       return;
     }
+    if (scanPipelineInvalid) {
+      setBanner({
+        tone: 'warning',
+        message: t('scanMonitor.scanPipelineNeedLayer12') || 'Enable page structure or vision — at least one is required.',
+      });
+      return;
+    }
 
     try {
       addDebugLog('info', `Starting scan of ${selectedUrls.size} selected pages`);
@@ -1588,6 +1601,12 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         selectedUrls: Array.from(selectedUrls),
         maxPages: selectedUrls.size,
         maxDepth: 3,
+        scanPipeline: {
+          layer1: pipelineLayer1,
+          layer2: pipelineLayer2,
+          layer3: pipelineLayer3,
+          analysisAgent: pipelineAnalysisAgent,
+        },
       };
 
       console.log('[FRONTEND] Calling /api/scans/start with:', requestPayload);
@@ -2169,9 +2188,86 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                     <span className="font-semibold">{stats.pagesDiscovered}</span> pages selected
                   </p>
                 </div>
+                <div
+                  className={`mb-4 p-4 rounded-lg border space-y-3 ${scanPipelineInvalid ? 'border-amber-500/40 bg-amber-500/5' : 'border-border bg-muted/20'}`}
+                  dir={isRTL ? 'rtl' : 'ltr'}
+                >
+                  <h4 className="text-sm font-semibold text-foreground">
+                    {t('scanMonitor.scanPipelineTitle') || 'Scan options'}
+                  </h4>
+                  <p className="text-xs text-muted-foreground">
+                    {t('scanMonitor.scanPipelineIntro') ||
+                      'Turn off layers you do not need to speed up large scans.'}
+                  </p>
+                  {scanPipelineInvalid && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      {t('scanMonitor.scanPipelineNeedLayer12') ||
+                        'Enable page structure or vision — at least one is required.'}
+                    </p>
+                  )}
+                  <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 rounded border-border"
+                      checked={pipelineLayer1}
+                      onChange={(e) => setPipelineLayer1(e.target.checked)}
+                    />
+                    <span>
+                      <span className="font-medium">{t('scanMonitor.pipelineLayer1Label') || 'Page structure'}</span>
+                      <span className="block text-xs text-muted-foreground font-normal">
+                        {t('scanMonitor.pipelineLayer1Hint') || 'HTML, links, and accessibility snapshot'}
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 rounded border-border"
+                      checked={pipelineLayer2}
+                      onChange={(e) => setPipelineLayer2(e.target.checked)}
+                    />
+                    <span>
+                      <span className="font-medium">{t('scanMonitor.pipelineLayer2Label') || 'Screenshot & vision'}</span>
+                      <span className="block text-xs text-muted-foreground font-normal">
+                        {t('scanMonitor.pipelineLayer2Hint') || 'Full-page capture and AI vision review'}
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 rounded border-border"
+                      checked={pipelineLayer3}
+                      onChange={(e) => setPipelineLayer3(e.target.checked)}
+                    />
+                    <span>
+                      <span className="font-medium">{t('scanMonitor.pipelineLayer3Label') || 'Assistive map'}</span>
+                      <span className="block text-xs text-muted-foreground font-normal">
+                        {t('scanMonitor.pipelineLayer3Hint') || 'Built when the report is generated'}
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 rounded border-border"
+                      checked={pipelineAnalysisAgent}
+                      onChange={(e) => setPipelineAnalysisAgent(e.target.checked)}
+                    />
+                    <span>
+                      <span className="font-medium">
+                        {t('scanMonitor.pipelineAnalysisAgentLabel') || 'Analysis AI agent'}
+                      </span>
+                      <span className="block text-xs text-muted-foreground font-normal">
+                        {t('scanMonitor.pipelineAnalysisAgentHint') ||
+                          'Keyboard interaction simulation and post-scan AI enrichment'}
+                      </span>
+                    </span>
+                  </label>
+                </div>
                 <button
                   onClick={handleStartScanning}
-                  disabled={selectedUrls.size === 0}
+                  disabled={selectedUrls.size === 0 || scanPipelineInvalid}
                   className="w-full px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:bg-muted disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                 >
                   {t('scanMonitor.startScanning') || `Start Scanning (${selectedUrls.size} pages)`}
@@ -2354,7 +2450,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                   </button>
                   <button
                     onClick={handleStartScanning}
-                    disabled={selectedUrls.size === 0}
+                    disabled={selectedUrls.size === 0 || scanPipelineInvalid}
                     className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {t('scanMonitor.startScanning') || `Start Scanning (${selectedUrls.size})`}

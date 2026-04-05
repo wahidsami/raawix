@@ -3,6 +3,15 @@ import { z } from 'zod';
 import { config } from '../config.js';
 import { sanitizePatterns } from '../utils/regex-sanitizer.js';
 
+const scanPipelineSchema = z
+  .object({
+    layer1: z.boolean().optional(),
+    layer2: z.boolean().optional(),
+    layer3: z.boolean().optional(),
+    analysisAgent: z.boolean().optional(),
+  })
+  .optional();
+
 const scanRequestSchema = z.object({
   // New format
   seedUrl: z.string().url('Invalid seedUrl format').optional(),
@@ -11,6 +20,7 @@ const scanRequestSchema = z.object({
   includePatterns: z.array(z.string().max(500)).max(20).optional(),
   excludePatterns: z.array(z.string().max(500)).max(20).optional(),
   dryRun: z.boolean().optional(),
+  scanPipeline: scanPipelineSchema,
   // Entity/Property linking
   entityId: z.string().uuid('Invalid entityId format').optional(),
   propertyId: z.string().uuid('Invalid propertyId format').optional(),
@@ -27,13 +37,29 @@ const scanRequestSchema = z.object({
       depth: z.number().int().nonnegative().optional(),
     })
     .optional(),
-}).refine(
-  (data) => data.seedUrl || data.url,
-  {
-    message: 'Either seedUrl or url must be provided',
-    path: ['seedUrl'],
-  }
-);
+})
+  .refine(
+    (data) => data.seedUrl || data.url,
+    {
+      message: 'Either seedUrl or url must be provided',
+      path: ['seedUrl'],
+    }
+  )
+  .refine(
+    (data) => {
+      const p = data.scanPipeline;
+      if (!p) return true;
+      const hasSelected = Array.isArray(data.selectedUrls) && data.selectedUrls.length > 0;
+      if (!hasSelected) return true;
+      const layer1On = p.layer1 !== false;
+      const layer2On = p.layer2 !== false;
+      return layer1On || layer2On;
+    },
+    {
+      message: 'For selected-url scans, enable at least Layer 1 (DOM) or Layer 2 (screenshot/vision).',
+      path: ['scanPipeline'],
+    }
+  );
 
 export function validateScanRequest(req: Request, res: Response, next: NextFunction): void {
   try {

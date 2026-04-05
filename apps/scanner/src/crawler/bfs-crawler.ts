@@ -13,6 +13,8 @@ import { auditLogger } from '../audit/logger.js';
 import { config } from '../config.js';
 import { resolve, normalize } from 'node:path';
 import { scanEventEmitter } from '../events/scan-events.js';
+import { resolveScanPipeline } from '../scan-pipeline.js';
+import type { ResolvedScanPipeline } from '@raawi-x/core';
 
 export interface CrawlResult {
   pages: PageScanResult[];
@@ -39,6 +41,7 @@ export class BFSCrawler {
   private scanMode: 'domain' | 'single'; // Scan mode: full domain or single page/section
   private seedUrl: string; // Store seed URL for single mode comparison
   private request: ScanRequest;
+  private pipeline: ResolvedScanPipeline;
 
   constructor(
     request: ScanRequest,
@@ -49,6 +52,7 @@ export class BFSCrawler {
     this.pageCapture = pageCapture;
     this.scanId = scanId;
     this.request = request; // Store request for async operations
+    this.pipeline = resolveScanPipeline(request);
 
     // SECURITY: Enforce hard caps regardless of user input
     this.maxPages = Math.min(request.maxPages || 25, config.quotas.maxPagesHardLimit);
@@ -480,6 +484,7 @@ export class BFSCrawler {
           maxWaitMs: 15000,
           useReadyMarker: true,
         },
+        pipeline: this.pipeline,
       }
     );
 

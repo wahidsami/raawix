@@ -1,5 +1,19 @@
 // Shared types and utilities
 
+/** Per-scan toggles for pipeline stages (all default true if omitted). */
+export interface ScanPipelineOptions {
+  /** DOM/structure: barriers, HTML snapshot, a11y.json (feeds WCAG rules). */
+  layer1?: boolean;
+  /** Screenshot + vision AI analysis. */
+  layer2?: boolean;
+  /** Assistive map generation during the report phase (Layer 3). */
+  layer3?: boolean;
+  /** Keyboard interaction trace + detectors (“Analysis AI agent”). */
+  analysisAgent?: boolean;
+}
+
+export type ResolvedScanPipeline = Required<ScanPipelineOptions>;
+
 export interface ScanRequest {
   seedUrl?: string;
   maxPages?: number;
@@ -13,6 +27,8 @@ export interface ScanRequest {
   // Two-phase workflow
   discoveryOnly?: boolean; // If true, only discover pages (no scanning)
   selectedUrls?: string[]; // URLs selected by user for scanning (after discovery)
+  /** Optional: disable layers to speed up scans (e.g. rules-only without vision). */
+  scanPipeline?: ScanPipelineOptions;
   // Legacy support
   url?: string;
   options?: ScanOptions;

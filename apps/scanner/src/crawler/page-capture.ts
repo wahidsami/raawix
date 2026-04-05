@@ -1,7 +1,7 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join, resolve, normalize } from 'node:path';
-import type { PageScanResult } from '@raawi-x/core';
+import type { PageScanResult, ResolvedScanPipeline } from '@raawi-x/core';
 import { validateUrl } from '../security/ssrf.js';
 import { checkUrlPolicy, checkRedirectSafety } from '../security/url-policy.js';
 import { config } from '../config.js';
@@ -15,6 +15,10 @@ export interface CaptureOptions {
   timeout?: number;
   waitForNetworkIdle?: boolean;
   stabilization?: StabilizationConfig;
+  /** Resolved per-scan pipeline; if omitted, full pipeline runs. */
+  pipeline?: ResolvedScanPipeline;
+  /** When true with pipeline.layer1 false, still write HTML + extract links (BFS crawl). */
+  crawlLinkDiscovery?: boolean;
 }
 
 export class PageCapture {
@@ -151,13 +155,26 @@ export class PageCapture {
       const html = await page.content();
       result.pageFingerprint = computePageFingerprint(result.title, html);
 
-      // LAYER 1: Detect Accessibility Barriers (disabled tools, blocked features)
-      console.log('[L1] Checking for accessibility barriers (disabled tools)...');
-      const { detectAccessibilityBarriers } = await import('../rules/accessibility-barriers.js');
-      const accessibilityBarriers = await detectAccessibilityBarriers(page);
-      if (accessibilityBarriers.length > 0) {
-        console.log(`[L1] Found ${accessibilityBarriers.length} accessibility barriers`);
-        (result as any).accessibilityBarriers = accessibilityBarriers;
+      const pl: ResolvedScanPipeline =
+        options.pipeline ?? {
+          layer1: true,
+          layer2: true,
+          layer3: true,
+          analysisAgent: true,
+        };
+      const crawlLinkDiscovery = options.crawlLinkDiscovery === true;
+      const writeDomArtifacts = pl.layer1 || crawlLinkDiscovery;
+      const titleForEvents = result.title?.trim() || undefined;
+
+      // LAYER 1 (optional): accessibility barriers
+      if (pl.layer1) {
+        console.log('[L1] Checking for accessibility barriers (disabled tools)...');
+        const { detectAccessibilityBarriers } = await import('../rules/accessibility-barriers.js');
+        const accessibilityBarriers = await detectAccessibilityBarriers(page);
+        if (accessibilityBarriers.length > 0) {
+          console.log(`[L1] Found ${accessibilityBarriers.length} accessibility barriers`);
+          (result as any).accessibilityBarriers = accessibilityBarriers;
+        }
       }
 
       // SECURITY: Ensure output directory path safety (no traversal)
@@ -176,113 +193,7 @@ export class PageCapture {
 
       await mkdir(pageDir, { recursive: true });
 
-      // A2) Capture screenshot after stabilization (same point as Layer1)
-      console.log('[L2] Screenshot start');
-
-      const titleForEvents = result.title?.trim() || undefined;
-
-      // B1) Emit L2 running status
-      if (this.scanId) {
-        scanEventEmitter.emitEvent(this.scanId, {
-          type: 'layer_status',
-          scanId: this.scanId,
-          url,
-          pageNumber,
-          layer: 'L2',
-          status: 'running',
-          ...(titleForEvents ? { meta: { title: titleForEvents } } : {}),
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      const screenshotPath = join(pageDir, 'screenshot.png');
-      await page.screenshot({
-        path: screenshotPath,
-        fullPage: true,
-      });
-      result.screenshotPath = screenshotPath;
-      console.log('[L2] Screenshot end');
-
-      if (this.scanId) {
-        scanEventEmitter.emitEvent(this.scanId, {
-          type: 'screenshot_ready',
-          scanId: this.scanId,
-          url,
-          pageNumber,
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      // A2) Capture HTML after stabilization
-      console.log('[L1] Capture start');
-
-      // B1) Emit L1 running status
-      if (this.scanId) {
-        scanEventEmitter.emitEvent(this.scanId, {
-          type: 'layer_status',
-          scanId: this.scanId,
-          url,
-          pageNumber,
-          layer: 'L1',
-          status: 'running',
-          ...(titleForEvents ? { meta: { title: titleForEvents } } : {}),
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      // Re-get HTML after stabilization to ensure it's the final rendered state
-      const finalHtml = await page.content();
-      const htmlPath = join(pageDir, 'page.html');
-      await writeFile(htmlPath, finalHtml, 'utf-8');
-      result.htmlPath = htmlPath;
-      // Update fingerprint with final HTML
-      result.pageFingerprint = computePageFingerprint(result.title, finalHtml);
-      console.log(`[L1] Capture end: DOM/HTML for page ${pageNumber}: ${url}`);
-
-      // Extract links from the live DOM (before closing page) - works for React Router too
-      try {
-        const extractedLinks = await page.evaluate((baseUrl) => {
-          const links: string[] = [];
-          const seen = new Set<string>();
-
-          // Get all <a> tags with href
-          const anchors = document.querySelectorAll('a[href]');
-          console.log(`[CRAWL-DOM] Found ${anchors.length} <a> tags with href in DOM`);
-
-          anchors.forEach((anchor) => {
-            const href = anchor.getAttribute('href');
-            if (href && !href.startsWith('#') && !href.startsWith('javascript:') && !href.startsWith('mailto:')) {
-              try {
-                // Resolve relative URLs
-                const absoluteUrl = new URL(href, baseUrl).toString();
-                if (!seen.has(absoluteUrl)) {
-                  links.push(absoluteUrl);
-                  seen.add(absoluteUrl);
-                  console.log(`[CRAWL-DOM] Found link: ${href} -> ${absoluteUrl}`);
-                }
-              } catch (e) {
-                console.log(`[CRAWL-DOM] Skipped invalid URL: ${href}`, e);
-              }
-            }
-          });
-
-          console.log(`[CRAWL-DOM] Total unique links extracted: ${links.length}`);
-          return links;
-        }, url);
-
-        // Store links in result for use by crawler
-        (result as any).extractedLinks = extractedLinks;
-        console.log(`[CRAWL] Extracted ${extractedLinks.length} links from live DOM for ${url}`);
-        if (extractedLinks.length > 0) {
-          console.log(`[CRAWL] Sample links: ${extractedLinks.slice(0, 5).join(', ')}`);
-        }
-      } catch (error) {
-        console.error(`[CRAWL] Failed to extract links from live DOM for ${url}:`, error);
-        (result as any).extractedLinks = [];
-      }
-
-      // B1) Emit L1 done status
-      if (this.scanId) {
+      if (!writeDomArtifacts && this.scanId) {
         scanEventEmitter.emitEvent(this.scanId, {
           type: 'layer_status',
           scanId: this.scanId,
@@ -290,70 +201,171 @@ export class PageCapture {
           pageNumber,
           layer: 'L1',
           status: 'done',
+          meta: { skipped: true },
           timestamp: new Date().toISOString(),
         });
       }
 
-      // Capture accessibility snapshot
-      try {
-        // Use evaluate to get accessibility tree
-        const a11ySnapshot = await page.evaluate(() => {
-          // Best-effort accessibility snapshot
-          const elements = document.querySelectorAll('*');
-          const a11yData: any[] = [];
-          elements.forEach((el) => {
-            const computed = window.getComputedStyle(el);
-            if (computed.display !== 'none' && computed.visibility !== 'hidden') {
-              a11yData.push({
-                tag: el.tagName,
-                id: el.id || undefined,
-                class: el.className || undefined,
-                role: el.getAttribute('role') || undefined,
-                ariaLabel: el.getAttribute('aria-label') || undefined,
-                ariaLabelledBy: el.getAttribute('aria-labelledby') || undefined,
-                text: el.textContent?.substring(0, 100) || undefined,
-              });
-            }
-          });
-          return a11yData;
-        });
-        const a11yPath = join(pageDir, 'a11y.json');
-        await writeFile(a11yPath, JSON.stringify(a11ySnapshot, null, 2), 'utf-8');
-        result.a11yPath = a11yPath;
-      } catch (error) {
-        // Accessibility snapshot is best-effort, don't fail if it errors
-        console.warn(`Failed to capture a11y snapshot for ${url}:`, error);
-      }
-
-      // VISION: Run vision analysis (while page context is available)
       let visionPath: string | undefined;
       let visionCount = 0;
-      if (config.vision.enabled) {
+
+      // LAYER 2: screenshot + vision (optional)
+      if (pl.layer2) {
+        console.log('[L2] Screenshot start');
+        if (this.scanId) {
+          scanEventEmitter.emitEvent(this.scanId, {
+            type: 'layer_status',
+            scanId: this.scanId,
+            url,
+            pageNumber,
+            layer: 'L2',
+            status: 'running',
+            ...(titleForEvents ? { meta: { title: titleForEvents } } : {}),
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        const screenshotPath = join(pageDir, 'screenshot.png');
+        await page.screenshot({
+          path: screenshotPath,
+          fullPage: true,
+        });
+        result.screenshotPath = screenshotPath;
+        console.log('[L2] Screenshot end');
+
+        if (this.scanId) {
+          scanEventEmitter.emitEvent(this.scanId, {
+            type: 'screenshot_ready',
+            scanId: this.scanId,
+            url,
+            pageNumber,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } else if (this.scanId) {
+        scanEventEmitter.emitEvent(this.scanId, {
+          type: 'layer_status',
+          scanId: this.scanId,
+          url,
+          pageNumber,
+          layer: 'L2',
+          status: 'done',
+          meta: { skipped: true, visionCount: 0 },
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // DOM/HTML + links + a11y (Layer 1 artifacts; required for crawl link discovery)
+      if (writeDomArtifacts) {
+        console.log('[L1] Capture start');
+        if (pl.layer1 && this.scanId) {
+          scanEventEmitter.emitEvent(this.scanId, {
+            type: 'layer_status',
+            scanId: this.scanId,
+            url,
+            pageNumber,
+            layer: 'L1',
+            status: 'running',
+            ...(titleForEvents ? { meta: { title: titleForEvents } } : {}),
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        const finalHtml = await page.content();
+        const htmlPath = join(pageDir, 'page.html');
+        await writeFile(htmlPath, finalHtml, 'utf-8');
+        result.htmlPath = htmlPath;
+        result.pageFingerprint = computePageFingerprint(result.title, finalHtml);
+        console.log(`[L1] Capture end: DOM/HTML for page ${pageNumber}: ${url}`);
+
+        try {
+          const extractedLinks = await page.evaluate((baseUrl) => {
+            const links: string[] = [];
+            const seen = new Set<string>();
+            const anchors = document.querySelectorAll('a[href]');
+            anchors.forEach((anchor) => {
+              const href = anchor.getAttribute('href');
+              if (href && !href.startsWith('#') && !href.startsWith('javascript:') && !href.startsWith('mailto:')) {
+                try {
+                  const absoluteUrl = new URL(href, baseUrl).toString();
+                  if (!seen.has(absoluteUrl)) {
+                    links.push(absoluteUrl);
+                    seen.add(absoluteUrl);
+                  }
+                } catch {
+                  /* skip */
+                }
+              }
+            });
+            return links;
+          }, url);
+          (result as any).extractedLinks = extractedLinks;
+          console.log(`[CRAWL] Extracted ${extractedLinks.length} links from live DOM for ${url}`);
+        } catch (error) {
+          console.error(`[CRAWL] Failed to extract links from live DOM for ${url}:`, error);
+          (result as any).extractedLinks = [];
+        }
+
+        if (pl.layer1 && this.scanId) {
+          scanEventEmitter.emitEvent(this.scanId, {
+            type: 'layer_status',
+            scanId: this.scanId,
+            url,
+            pageNumber,
+            layer: 'L1',
+            status: 'done',
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        if (pl.layer1) {
+          try {
+            const a11ySnapshot = await page.evaluate(() => {
+              const elements = document.querySelectorAll('*');
+              const a11yData: any[] = [];
+              elements.forEach((el) => {
+                const computed = window.getComputedStyle(el);
+                if (computed.display !== 'none' && computed.visibility !== 'hidden') {
+                  a11yData.push({
+                    tag: el.tagName,
+                    id: el.id || undefined,
+                    class: el.className || undefined,
+                    role: el.getAttribute('role') || undefined,
+                    ariaLabel: el.getAttribute('aria-label') || undefined,
+                    ariaLabelledBy: el.getAttribute('aria-labelledby') || undefined,
+                    text: el.textContent?.substring(0, 100) || undefined,
+                  });
+                }
+              });
+              return a11yData;
+            });
+            const a11yPath = join(pageDir, 'a11y.json');
+            await writeFile(a11yPath, JSON.stringify(a11ySnapshot, null, 2), 'utf-8');
+            result.a11yPath = a11yPath;
+          } catch (error) {
+            console.warn(`Failed to capture a11y snapshot for ${url}:`, error);
+          }
+        }
+      }
+
+      if (pl.layer2 && config.vision.enabled) {
         try {
           const visionAnalyzer = new VisionAnalyzer();
-          const visionFindings = await visionAnalyzer.analyzePage(
-            page,
-            pageNumber,
-            finalUrl,
-            outputDir
-          );
-
+          const visionFindings = await visionAnalyzer.analyzePage(page, pageNumber, finalUrl, outputDir);
           visionCount = visionFindings.length;
           if (visionFindings.length > 0) {
             visionPath = await visionAnalyzer.saveFindings(visionFindings, pageNumber, outputDir);
             result.visionPath = visionPath;
-            console.log(`[L2] Vision complete for page ${pageNumber}: ${visionFindings.length} findings, screenshot: ${result.screenshotPath}`);
+            console.log(`[L2] Vision complete for page ${pageNumber}: ${visionFindings.length} findings`);
           } else {
-            console.log(`[L2] Vision complete for page ${pageNumber}: 0 findings, screenshot: ${result.screenshotPath}`);
+            console.log(`[L2] Vision complete for page ${pageNumber}: 0 findings`);
           }
         } catch (error) {
-          // Vision analysis failure should not break page capture
           console.warn(`Vision analysis failed for page ${pageNumber}:`, error);
         }
       }
 
-      // B1) Emit L2 done status
-      if (this.scanId) {
+      if (pl.layer2 && this.scanId) {
         scanEventEmitter.emitEvent(this.scanId, {
           type: 'layer_status',
           scanId: this.scanId,
@@ -361,15 +373,13 @@ export class PageCapture {
           pageNumber,
           layer: 'L2',
           status: 'done',
-          meta: {
-            visionCount,
-          },
+          meta: { visionCount },
           timestamp: new Date().toISOString(),
         });
       }
 
-      // Interaction Agent v1: keyboard-only focus trace and detectors (best-effort, bounded)
-      if (config.agent.enabled) {
+      // Analysis AI agent (keyboard interaction trace) — optional per scan
+      if (pl.analysisAgent && config.agent.enabled) {
         try {
           const { runInteractionAgent } = await import('../agent/interaction-agent.js');
           if (this.scanId) {

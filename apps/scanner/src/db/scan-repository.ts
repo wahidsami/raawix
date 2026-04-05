@@ -214,8 +214,10 @@ export class ScanRepository {
    */
   async saveReportResults(
     scanId: string,
-    scanRun: ScanRun
+    scanRun: ScanRun,
+    options?: { runOpenAiAnalyst?: boolean }
   ): Promise<void> {
+    const runOpenAiAnalyst = options?.runOpenAiAnalyst !== false;
     const prisma = await getPrismaClient();
     if (!prisma) {
       return;
@@ -439,10 +441,15 @@ export class ScanRepository {
         }
       }
 
-      // OpenAI Analyst (Phase 3): enrich with AI findings when enabled
+      // OpenAI Analyst: enrich interaction artifacts (skipped when Analysis AI agent / pipeline disabled)
       try {
         const { config } = await import('../config.js');
-        if (config.openai?.enabled && config.agentAnalyst?.enabled && config.openai.apiKey) {
+        if (
+          runOpenAiAnalyst &&
+          config.openai?.enabled &&
+          config.agentAnalyst?.enabled &&
+          config.openai.apiKey
+        ) {
           try {
             const { scanEventEmitter } = await import('../events/scan-events.js');
             scanEventEmitter.emitEvent(scanId, {
