@@ -388,34 +388,7 @@ app.post('/api/scans/:scanId/discover', requireAuth, async (req, res) => {
   }
 });
 
-// Cancel scan endpoint (supports both /api/scans/:id/cancel and /api/scan/:id/cancel for compatibility)
-app.post('/api/scans/:id/cancel', requireAuth, async (req, res) => {
-  const scanId = req.params.id;
-
-  // Sanitize scanId
-  if (!/^scan_[a-zA-Z0-9_-]+$/.test(scanId)) {
-    res.status(400).json({ error: 'Invalid scan ID' });
-    return;
-  }
-
-  try {
-    const canceled = await jobQueue.cancelJob(scanId);
-
-    // Also update database status
-    const { scanRepository } = await import('./db/scan-repository.js');
-    await scanRepository.updateScanStatus(scanId, 'canceled', new Date());
-
-    if (canceled) {
-      res.json({ scanId, status: 'canceled', message: 'Scan canceled successfully' });
-    } else {
-      // Even if job not found in queue, mark as canceled in DB (might be in discovery phase)
-      res.json({ scanId, status: 'canceled', message: 'Scan marked as canceled' });
-    }
-  } catch (error) {
-    console.error('Error canceling scan:', error);
-    res.status(500).json({ error: 'Failed to cancel scan' });
-  }
-});
+// POST /api/scans/:scanId/cancel is handled by scan-detail router (updates DB + job queue).
 
 // Legacy cancel endpoint (for API key auth)
 app.post('/api/scan/:id/cancel', apiKeyAuth, async (req, res) => {

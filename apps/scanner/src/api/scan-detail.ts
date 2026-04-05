@@ -497,6 +497,11 @@ router.post('/:scanId/cancel', requireAuth, async (req: Request, res: Response) 
     const canceled = await jobQueue.cancelJob(scanId);
 
     if (canceled) {
+      // Persist terminal status immediately so dashboards and PDF export see "canceled"
+      // (this route is registered before index.ts duplicates; it is the canonical /api/scans/:id/cancel handler).
+      const { scanRepository } = await import('../db/scan-repository.js');
+      await scanRepository.updateScanStatus(scanId, 'canceled', new Date());
+
       // Emit cancel event
       const { scanEventEmitter } = await import('../events/scan-events.js');
       scanEventEmitter.emitEvent(scanId, {
