@@ -33,6 +33,8 @@ export const pdfTranslations = {
     disclaimerText: 'Scores reflect scanned pages and crawl scope; this is not a certification.',
     partialReportSubtitle:
       'Partial results — scan did not complete; findings reflect pages processed before stop or failure.',
+    interimExportSubtitle:
+      'Interim export — scan may still be running; includes only results saved in the database at export time.',
   },
   ar: {
     reportTitle: 'تقرير إمكانية الوصول - راوي إكس',
@@ -64,6 +66,8 @@ export const pdfTranslations = {
     disclaimerText: 'تعكس الدرجات الصفحات المفحوصة ونطاق الزحف؛ هذا ليس شهادة.',
     partialReportSubtitle:
       'نتائج جزئية — لم يكتمل المسح؛ تعكس النتائج الصفحات التي تمت معالجتها قبل الإيقاف أو الفشل.',
+    interimExportSubtitle:
+      'تصدير مؤقت — قد يكون المسح لا يزال قيد التشغيل؛ يشمل فقط النتائج المحفوظة في قاعدة البيانات وقت التصدير.',
   },
 };
 

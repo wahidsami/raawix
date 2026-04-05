@@ -85,14 +85,16 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Scan not found' });
     }
 
-    const nonTerminal = ['queued', 'running', 'discovering'].includes(scan.status);
-    if (nonTerminal) {
+    const hasExportableData = scan._count.pages > 0 || scan._count.findings > 0;
+    /** DB often stays `queued` until saveReportResults; treat as in-flight until we have artifacts. */
+    const inFlight = ['queued', 'running', 'discovering'].includes(scan.status);
+
+    if (inFlight && !hasExportableData) {
       return res.status(400).json({
         error: 'Scan is still in progress; wait until it finishes or is stopped to export.',
       });
     }
 
-    const hasExportableData = scan._count.pages > 0 || scan._count.findings > 0;
     const isPartialTerminal = scan.status === 'canceled' || scan.status === 'failed';
     if (isPartialTerminal && !hasExportableData) {
       return res.status(400).json({
@@ -100,7 +102,8 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       });
     }
 
-    const isPartialExport = isPartialTerminal && hasExportableData;
+    const isPartialExport =
+      (isPartialTerminal && hasExportableData) || (inFlight && hasExportableData);
 
     // Calculate compliance scores
     const allFindings = await prisma.finding.findMany({
@@ -220,7 +223,9 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       entityLogoDisplay: entityLogoDataUrl ? 'display: block;' : 'display: none;',
       reportTitle: getPDFTranslation('reportTitle', locale),
       subtitle: isPartialExport
-        ? getPDFTranslation('partialReportSubtitle', locale)
+        ? inFlight && hasExportableData && !isPartialTerminal
+          ? getPDFTranslation('interimExportSubtitle', locale)
+          : getPDFTranslation('partialReportSubtitle', locale)
         : getPDFTranslation('subtitle', locale),
       entityName,
       propertyName,

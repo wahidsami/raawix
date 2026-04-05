@@ -425,6 +425,14 @@ export class JobQueue {
     this.transitionState(pendingJob, 'running', logger);
     pendingJob.startedAt = new Date().toISOString();
 
+    // Keep Prisma row in sync (was often left `queued` until completion, which broke status-based UX)
+    void scanRepository.updateScanStatus(pendingJob.id, 'running', undefined).catch((err) => {
+      logger.warn('Failed to update scan status to running in database', {
+        scanId: pendingJob.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+
     // Log scan started
     const seedUrl = pendingJob.request.seedUrl || pendingJob.request.url || 'unknown';
     logger.info('Scan execution started', { scanId: pendingJob.id, seedUrl, maxPages: pendingJob.request.maxPages, maxDepth: pendingJob.request.maxDepth });
