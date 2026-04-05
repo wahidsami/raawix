@@ -85,9 +85,22 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Scan not found' });
     }
 
-    if (scan.status !== 'completed') {
-      return res.status(400).json({ error: 'Scan must be completed to generate PDF' });
+    const nonTerminal = ['queued', 'running', 'discovering'].includes(scan.status);
+    if (nonTerminal) {
+      return res.status(400).json({
+        error: 'Scan is still in progress; wait until it finishes or is stopped to export.',
+      });
     }
+
+    const hasExportableData = scan._count.pages > 0 || scan._count.findings > 0;
+    const isPartialTerminal = scan.status === 'canceled' || scan.status === 'failed';
+    if (isPartialTerminal && !hasExportableData) {
+      return res.status(400).json({
+        error: 'No scan results available to export. Complete at least one page or save findings first.',
+      });
+    }
+
+    const isPartialExport = isPartialTerminal && hasExportableData;
 
     // Calculate compliance scores
     const allFindings = await prisma.finding.findMany({
@@ -206,7 +219,9 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       entityLogoDataUrl,
       entityLogoDisplay: entityLogoDataUrl ? 'display: block;' : 'display: none;',
       reportTitle: getPDFTranslation('reportTitle', locale),
-      subtitle: getPDFTranslation('subtitle', locale),
+      subtitle: isPartialExport
+        ? getPDFTranslation('partialReportSubtitle', locale)
+        : getPDFTranslation('subtitle', locale),
       entityName,
       propertyName,
       scanDate,
