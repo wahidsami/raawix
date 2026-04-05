@@ -528,6 +528,7 @@ class ApiClient {
       displayNameEn?: string;
       displayNameAr?: string;
       isPrimary?: boolean;
+      defaultScanPipeline?: Record<string, unknown> | null;
     }
   ): Promise<{ property: any }> {
     return this.request(`/api/entities/${entityId}/properties/${propertyId}`, {
@@ -547,6 +548,7 @@ class ApiClient {
       displayNameEn?: string;
       displayNameAr?: string;
       isPrimary: boolean;
+      defaultScanPipeline?: unknown;
       entity: {
         id: string;
         nameEn: string;
@@ -586,6 +588,8 @@ class ApiClient {
       layer2?: boolean;
       layer3?: boolean;
       analysisAgent?: boolean;
+      screenshotMode?: 'none' | 'viewport' | 'full';
+      scanPreset?: 'full' | 'fast';
     };
   }): Promise<{
     scanId: string;

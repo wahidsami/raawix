@@ -97,7 +97,50 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   const [pipelineLayer2, setPipelineLayer2] = useState(true);
   const [pipelineLayer3, setPipelineLayer3] = useState(true);
   const [pipelineAnalysisAgent, setPipelineAnalysisAgent] = useState(true);
+  const [pipelineFastMode, setPipelineFastMode] = useState(false);
+  const [pipelineScreenshotMode, setPipelineScreenshotMode] = useState<'full' | 'viewport'>('full');
+  const propertyDefaultsAppliedRef = useRef(false);
   const scanPipelineInvalid = !pipelineLayer1 && !pipelineLayer2;
+
+  useEffect(() => {
+    propertyDefaultsAppliedRef.current = false;
+  }, [scanId]);
+
+  useEffect(() => {
+    if (!propertyId || !entityId || propertyDefaultsAppliedRef.current) return;
+    let cancelled = false;
+    apiClient
+      .getProperties({ entityId })
+      .then((res) => {
+        if (cancelled) return;
+        const prop = res.properties.find((p) => p.id === propertyId);
+        const raw = prop?.defaultScanPipeline;
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
+        const d = raw as Record<string, unknown>;
+        propertyDefaultsAppliedRef.current = true;
+        if (d.scanPreset === 'fast') {
+          setPipelineFastMode(true);
+          setPipelineLayer1(true);
+          setPipelineLayer2(false);
+          setPipelineLayer3(false);
+          setPipelineAnalysisAgent(false);
+          return;
+        }
+        setPipelineFastMode(false);
+        if (typeof d.layer1 === 'boolean') setPipelineLayer1(d.layer1);
+        if (typeof d.layer2 === 'boolean') setPipelineLayer2(d.layer2);
+        if (typeof d.layer3 === 'boolean') setPipelineLayer3(d.layer3);
+        if (typeof d.analysisAgent === 'boolean') setPipelineAnalysisAgent(d.analysisAgent);
+        if (d.screenshotMode === 'viewport' || d.screenshotMode === 'full') {
+          setPipelineScreenshotMode(d.screenshotMode);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId, entityId, scanId]);
+
   const [currentPage, setCurrentPage] = useState<string | null>(null);
   /** Scan output folder index — used to load screenshot.png while the scan runs */
   const [activeScanPageNumber, setActiveScanPageNumber] = useState<number | null>(null);
@@ -1605,12 +1648,15 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         selectedUrls: Array.from(selectedUrls),
         maxPages: selectedUrls.size,
         maxDepth: 3,
-        scanPipeline: {
-          layer1: pipelineLayer1,
-          layer2: pipelineLayer2,
-          layer3: pipelineLayer3,
-          analysisAgent: pipelineAnalysisAgent,
-        },
+        scanPipeline: pipelineFastMode
+          ? { scanPreset: 'fast' }
+          : {
+              layer1: pipelineLayer1,
+              layer2: pipelineLayer2,
+              layer3: pipelineLayer3,
+              analysisAgent: pipelineAnalysisAgent,
+              ...(pipelineLayer2 ? { screenshotMode: pipelineScreenshotMode } : {}),
+            },
       };
 
       console.log('[FRONTEND] Calling /api/scans/start with:', requestPayload);
@@ -2213,7 +2259,40 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                     <input
                       type="checkbox"
                       className="mt-0.5 rounded border-border"
+                      checked={pipelineFastMode}
+                      onChange={(e) => {
+                        const on = e.target.checked;
+                        setPipelineFastMode(on);
+                        if (on) {
+                          setPipelineLayer1(true);
+                          setPipelineLayer2(false);
+                          setPipelineLayer3(false);
+                          setPipelineAnalysisAgent(false);
+                        } else {
+                          setPipelineLayer1(true);
+                          setPipelineLayer2(true);
+                          setPipelineLayer3(true);
+                          setPipelineAnalysisAgent(true);
+                          setPipelineScreenshotMode('full');
+                        }
+                      }}
+                    />
+                    <span>
+                      <span className="font-medium">
+                        {t('scanMonitor.pipelineFastModeLabel') || 'Fast mode'}
+                      </span>
+                      <span className="block text-xs text-muted-foreground font-normal">
+                        {t('scanMonitor.pipelineFastModeHint') ||
+                          'DOM and rule checks only — no screenshots, vision, assistive map, or agent (fastest).'}
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 rounded border-border"
                       checked={pipelineLayer1}
+                      disabled={pipelineFastMode}
                       onChange={(e) => setPipelineLayer1(e.target.checked)}
                     />
                     <span>
@@ -2228,6 +2307,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                       type="checkbox"
                       className="mt-0.5 rounded border-border"
                       checked={pipelineLayer2}
+                      disabled={pipelineFastMode}
                       onChange={(e) => setPipelineLayer2(e.target.checked)}
                     />
                     <span>
@@ -2237,11 +2317,37 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                       </span>
                     </span>
                   </label>
+                  {pipelineLayer2 && !pipelineFastMode && (
+                    <div className="ms-6 space-y-1.5 text-xs text-foreground">
+                      <span className="font-medium block">
+                        {t('scanMonitor.screenshotModeTitle') || 'Screenshot area'}
+                      </span>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`screenshot-mode-${scanId}`}
+                          checked={pipelineScreenshotMode === 'full'}
+                          onChange={() => setPipelineScreenshotMode('full')}
+                        />
+                        {t('scanMonitor.screenshotModeFull') || 'Full page'}
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`screenshot-mode-${scanId}`}
+                          checked={pipelineScreenshotMode === 'viewport'}
+                          onChange={() => setPipelineScreenshotMode('viewport')}
+                        />
+                        {t('scanMonitor.screenshotModeViewport') || 'Viewport only'}
+                      </label>
+                    </div>
+                  )}
                   <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
                     <input
                       type="checkbox"
                       className="mt-0.5 rounded border-border"
                       checked={pipelineLayer3}
+                      disabled={pipelineFastMode}
                       onChange={(e) => setPipelineLayer3(e.target.checked)}
                     />
                     <span>
@@ -2256,6 +2362,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                       type="checkbox"
                       className="mt-0.5 rounded border-border"
                       checked={pipelineAnalysisAgent}
+                      disabled={pipelineFastMode}
                       onChange={(e) => setPipelineAnalysisAgent(e.target.checked)}
                     />
                     <span>

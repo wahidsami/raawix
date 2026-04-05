@@ -47,13 +47,15 @@ const updatePropertySchema = z
     displayNameEn: z.string().optional(),
     displayNameAr: z.string().optional(),
     isPrimary: z.boolean().optional(),
+    defaultScanPipeline: z.record(z.unknown()).nullable().optional(),
   })
   .refine(
     (d) =>
       d.domain !== undefined ||
       d.displayNameEn !== undefined ||
       d.displayNameAr !== undefined ||
-      d.isPrimary !== undefined,
+      d.isPrimary !== undefined ||
+      d.defaultScanPipeline !== undefined,
     { message: 'At least one field is required' }
   );
 
@@ -550,6 +552,12 @@ router.put('/:id/properties/:propertyId', requireAuth, async (req: Request, res:
               displayNameAr: data.displayNameAr || null,
             }),
             ...(data.isPrimary !== undefined && { isPrimary: data.isPrimary }),
+            ...(data.defaultScanPipeline !== undefined && {
+              defaultScanPipeline:
+                data.defaultScanPipeline === null
+                  ? null
+                  : (data.defaultScanPipeline as Prisma.InputJsonValue),
+            }),
           },
         });
 

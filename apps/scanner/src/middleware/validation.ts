@@ -9,6 +9,8 @@ const scanPipelineSchema = z
     layer2: z.boolean().optional(),
     layer3: z.boolean().optional(),
     analysisAgent: z.boolean().optional(),
+    screenshotMode: z.enum(['none', 'viewport', 'full']).optional(),
+    scanPreset: z.enum(['full', 'fast']).optional(),
   })
   .optional();
 

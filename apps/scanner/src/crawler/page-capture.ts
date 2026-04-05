@@ -161,6 +161,7 @@ export class PageCapture {
           layer2: true,
           layer3: true,
           analysisAgent: true,
+          screenshotMode: 'full',
         };
       const crawlLinkDiscovery = options.crawlLinkDiscovery === true;
       const writeDomArtifacts = pl.layer1 || crawlLinkDiscovery;
@@ -226,9 +227,10 @@ export class PageCapture {
         }
 
         const screenshotPath = join(pageDir, 'screenshot.png');
+        const fullPage = pl.screenshotMode === 'full';
         await page.screenshot({
           path: screenshotPath,
-          fullPage: true,
+          fullPage,
         });
         result.screenshotPath = screenshotPath;
         console.log('[L2] Screenshot end');

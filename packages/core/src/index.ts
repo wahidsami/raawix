@@ -1,5 +1,8 @@
 // Shared types and utilities
 
+/** Screenshot capture when Layer 2 is enabled. */
+export type ScreenshotCaptureMode = 'none' | 'viewport' | 'full';
+
 /** Per-scan toggles for pipeline stages (all default true if omitted). */
 export interface ScanPipelineOptions {
   /** DOM/structure: barriers, HTML snapshot, a11y.json (feeds WCAG rules). */
@@ -10,9 +13,26 @@ export interface ScanPipelineOptions {
   layer3?: boolean;
   /** Keyboard interaction trace + detectors (“Analysis AI agent”). */
   analysisAgent?: boolean;
+  /**
+   * When layer2 is on: full-page screenshot (default), viewport-only, or no capture.
+   * Resolver treats `none` as Layer 2 off (no screenshot, no vision).
+   */
+  screenshotMode?: ScreenshotCaptureMode;
+  /**
+   * Request-only hint: `fast` expands to DOM/rules-only (L1 on, L2/L3/agent off).
+   * Not present on the resolved pipeline; explicit layer flags override if both sent (preset applied first).
+   */
+  scanPreset?: 'full' | 'fast';
 }
 
-export type ResolvedScanPipeline = Required<ScanPipelineOptions>;
+/** Normalized pipeline after `resolveScanPipeline` (no scanPreset). */
+export interface ResolvedScanPipeline {
+  layer1: boolean;
+  layer2: boolean;
+  layer3: boolean;
+  analysisAgent: boolean;
+  screenshotMode: ScreenshotCaptureMode;
+}
 
 export interface ScanRequest {
   seedUrl?: string;

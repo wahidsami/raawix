@@ -129,6 +129,13 @@ export default function ScansPage() {
         seedUrl: scanFormData.seedUrl,
         maxPages: scanFormData.maxPages,
         maxDepth: scanFormData.maxDepth,
+        scanPipeline: {
+          layer1: true,
+          layer2: true,
+          layer3: true,
+          analysisAgent: true,
+          screenshotMode: 'full',
+        },
       });
       setShowStartScanModal(false);
       setScanFormData({
