@@ -228,7 +228,10 @@ router.get('/sites', requireAuth, async (req: Request, res: Response) => {
 /**
  * GET /api/findings
  * List all findings with optional filters
- * Query params: site, scanId, wcagId, status, confidence, limit, offset
+ * Query params: site, scanId, entityId, wcagId, status, confidence, limit, offset
+ *
+ * Ordering: newest scan first, then page number, then WCAG id / rule id (stable, readable).
+ * Previously: createdAt desc only — findings from different scans/pages were interleaved.
  */
 router.get('/findings', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -240,6 +243,7 @@ router.get('/findings', requireAuth, async (req: Request, res: Response) => {
     const {
       site,
       scanId,
+      entityId,
       wcagId,
       status,
       confidence,
@@ -248,28 +252,30 @@ router.get('/findings', requireAuth, async (req: Request, res: Response) => {
     } = req.query;
 
     const where: any = {};
+    const entityIdStr = typeof entityId === 'string' && entityId.length > 0 ? entityId : undefined;
 
     if (scanId) {
       const scan = await prisma.scan.findUnique({
         where: { scanId: scanId as string },
-        select: { id: true },
+        select: { id: true, entityId: true },
       });
-      if (scan) {
-        where.scanId = scan.id;
-      } else {
+      if (!scan) {
         return res.json({ findings: [], total: 0 });
       }
-    }
-
-    if (site) {
-      const scans = await prisma.scan.findMany({
-        where: { hostname: site as string },
-        select: { id: true },
-      });
-      if (scans.length > 0) {
-        where.scanId = { in: scans.map((s: any) => s.id) };
-      } else {
+      if (entityIdStr && scan.entityId !== entityIdStr) {
         return res.json({ findings: [], total: 0 });
+      }
+      where.scanId = scan.id;
+    } else {
+      const scanWhere: Record<string, unknown> = {};
+      if (entityIdStr) {
+        scanWhere.entityId = entityIdStr;
+      }
+      if (site) {
+        scanWhere.hostname = site as string;
+      }
+      if (Object.keys(scanWhere).length > 0) {
+        where.scan = scanWhere;
       }
     }
 
@@ -293,6 +299,7 @@ router.get('/findings', requireAuth, async (req: Request, res: Response) => {
             select: {
               scanId: true,
               hostname: true,
+              startedAt: true,
             },
           },
           page: {
@@ -302,7 +309,12 @@ router.get('/findings', requireAuth, async (req: Request, res: Response) => {
             },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [
+          { scan: { startedAt: 'desc' } },
+          { page: { pageNumber: 'asc' } },
+          { wcagId: 'asc' },
+          { ruleId: 'asc' },
+        ],
         take: parseInt(limit as string, 10),
         skip: parseInt(offset as string, 10),
       }),
