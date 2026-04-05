@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
-import { Globe, Database, Key, Trash2, ScanSearch, AlertCircle } from 'lucide-react';
+import { Globe, Database, Trash2, ScanSearch, AlertCircle } from 'lucide-react';
 import { apiClient } from '../lib/api';
 
 export default function SettingsPage() {
@@ -10,7 +10,6 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState({
     language: language,
     telemetryEnabled: true,
-    geminiEnabled: false,
     retentionDays: 7,
     // Scanner configuration
     maxPages: 200,
@@ -32,7 +31,6 @@ export default function SettingsPage() {
       setSettings({
         language: language,
         telemetryEnabled: data.telemetryEnabled ?? true,
-        geminiEnabled: data.geminiEnabled ?? false,
         retentionDays: data.retentionDays ?? 7,
         maxPages: data.maxPages ?? 200,
         maxDepth: data.maxDepth ?? 10,
@@ -219,48 +217,6 @@ export default function SettingsPage() {
                 <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-border after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
               </label>
             </div>
-          </div>
-        </div>
-
-        {/* Gemini Settings */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Key className="w-5 h-5" />
-            <h2 className="text-lg font-semibold">{t('settings.gemini')}</h2>
-          </div>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="block text-sm font-medium">{t('settings.geminiEnabled')}</label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Enable Gemini for translation and image description
-                </p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.geminiEnabled}
-                  onChange={(e) => setSettings({ ...settings, geminiEnabled: e.target.checked })}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-border after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-              </label>
-            </div>
-            {settings.geminiEnabled && (
-              <div>
-                <label className="block text-sm font-medium mb-2">{t('settings.apiKeys')}</label>
-                <input
-                  type="password"
-                  placeholder="API Key (masked)"
-                  value="••••••••••••••••"
-                  disabled
-                  className="w-full px-3 py-2 border border-input rounded-md bg-muted"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  API key is stored securely on the server
-                </p>
-              </div>
-            )}
           </div>
         </div>
 

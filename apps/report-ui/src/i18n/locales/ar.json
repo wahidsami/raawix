@@ -245,8 +245,6 @@
     "languageDefault": "اللغة الافتراضية",
     "telemetry": "البيانات عن بُعد",
     "telemetryOnOff": "تفعيل/تعطيل البيانات عن بُعد لكل موقع",
-    "gemini": "جيميني",
-    "geminiEnabled": "تفعيل/تعطيل جيميني",
     "retention": "الاحتفاظ",
     "retentionSettings": "إعدادات الاحتفاظ",
     "apiKeys": "مفاتيح API",

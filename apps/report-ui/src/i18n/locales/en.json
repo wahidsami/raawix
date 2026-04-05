@@ -245,8 +245,6 @@
     "languageDefault": "Default Language",
     "telemetry": "Telemetry",
     "telemetryOnOff": "Enable/Disable Telemetry per Site",
-    "gemini": "Gemini",
-    "geminiEnabled": "Gemini Enabled/Disabled",
     "retention": "Retention",
     "retentionSettings": "Retention Settings",
     "apiKeys": "API Keys",
