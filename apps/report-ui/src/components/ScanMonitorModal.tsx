@@ -186,7 +186,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   );
 
   useEffect(() => {
-    if (phase !== 'scanning' || !isScanning || activeScanPageNumber == null) {
+    if (phase !== 'scanning' || !isScanning || activeScanPageNumber == null || !pipelineLayer2) {
       setPagePreviewObjectUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev);
         return null;
@@ -222,7 +222,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         return null;
       });
     };
-  }, [scanId, activeScanPageNumber, phase, isScanning, fetchScreenshotPreview]);
+  }, [scanId, activeScanPageNumber, phase, isScanning, pipelineLayer2, fetchScreenshotPreview]);
   const [, setCurrentStep] = useState<string>('');
   const [currentActivity, setCurrentActivity] = useState<string>(''); // New: user-friendly activity description
   const [stats, setStats] = useState({
@@ -2082,6 +2082,12 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                                 alt=""
                                 className="w-full h-full max-h-[min(40vh,320px)] object-contain object-top bg-background"
                               />
+                            ) : !pipelineLayer2 ? (
+                              <div className="text-sm text-muted-foreground p-4 text-center">
+                                {pipelineFastMode
+                                  ? t('scanMonitor.pagePreviewFastMode')
+                                  : t('scanMonitor.pagePreviewNoLayer2')}
+                              </div>
                             ) : activeScanPageNumber != null ? (
                               <div className="text-sm text-muted-foreground p-4 text-center">
                                 {t('scanMonitor.pagePreviewWaiting') || 'Waiting for screenshot…'}
@@ -2483,6 +2489,12 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                             alt=""
                             className="w-full h-full max-h-[min(35vh,280px)] object-contain object-top"
                           />
+                        ) : !pipelineLayer2 ? (
+                          <div className="text-sm text-muted-foreground p-4 text-center">
+                            {pipelineFastMode
+                              ? t('scanMonitor.pagePreviewFastMode')
+                              : t('scanMonitor.pagePreviewNoLayer2')}
+                          </div>
                         ) : activeScanPageNumber != null ? (
                           <div className="text-sm text-muted-foreground p-4 text-center">
                             {t('scanMonitor.pagePreviewWaiting') || 'Waiting for screenshot…'}

@@ -300,6 +300,8 @@
     "pagePreviewTitle": "معاينة الصفحة المباشرة",
     "pagePreviewSubtitle": "لقطة كاملة الصفحة من الماسح (تُحدَّث مع كل صفحة).",
     "pagePreviewWaiting": "في انتظار لقطة الشاشة…",
+    "pagePreviewFastMode": "لا معاينة في الوضع السريع",
+    "pagePreviewNoLayer2": "لا معاينة للقطة (الطبقة 2 معطّلة).",
     "pagePreviewUnavailable": "ستظهر المعاينة قريباً بعد تحميل الصفحة.",
     "pagePreviewTitlePending": "جاري جلب عنوان الصفحة…",
     "activityLabel": "النشاط",

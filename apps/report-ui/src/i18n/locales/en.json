@@ -300,6 +300,8 @@
     "pagePreviewTitle": "Live page preview",
     "pagePreviewSubtitle": "Full-page capture from the scanner (updates as each page is processed).",
     "pagePreviewWaiting": "Waiting for screenshot…",
+    "pagePreviewFastMode": "No preview for fast mode",
+    "pagePreviewNoLayer2": "No screenshot preview (Layer 2 off).",
     "pagePreviewUnavailable": "Preview will appear shortly after the page loads.",
     "pagePreviewTitlePending": "Getting page title…",
     "activityLabel": "Activity",
