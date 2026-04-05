@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { getPrismaClient } from '../db/client.js';
 import { requireAuth } from '../middleware/auth.js';
 import { z } from 'zod';
@@ -555,7 +555,7 @@ router.put('/:id/properties/:propertyId', requireAuth, async (req: Request, res:
             ...(data.defaultScanPipeline !== undefined && {
               defaultScanPipeline:
                 data.defaultScanPipeline === null
-                  ? null
+                  ? Prisma.DbNull
                   : (data.defaultScanPipeline as Prisma.InputJsonValue),
             }),
           },
