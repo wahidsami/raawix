@@ -479,7 +479,9 @@
     "domain": "Domain",
     "pageUrl": "Page URL",
     "generatedAt": "Generated At",
-    "confidence": "Confidence"
+    "confidence": "Confidence",
+    "viewLivePage": "Open page",
+    "viewOpensLivePage": "Opens the live page URL in a new tab. Full assistive map JSON appears on the scan report for that page."
   }
 }
 

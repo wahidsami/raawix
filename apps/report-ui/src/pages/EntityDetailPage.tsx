@@ -1347,13 +1347,15 @@ export default function EntityDetailPage() {
                       </td>
                       <td className="px-6 py-4">
                         <button
-                          onClick={() => {
-                            // Navigate to assistive maps page or show details
-                            navigate(`/assistive-maps?mapId=${map.id}`);
-                          }}
+                          type="button"
+                          title={
+                            t('assistiveMaps.viewOpensLivePage') ||
+                            'Opens the live page URL in a new tab (same as the Page URL link). Map JSON is available on the scan report for that page.'
+                          }
+                          onClick={() => window.open(map.canonicalUrl, '_blank', 'noopener,noreferrer')}
                           className="text-primary hover:underline text-sm flex items-center gap-1"
                         >
-                          {t('common.view') || 'View'}
+                          {t('assistiveMaps.viewLivePage') || 'Open page'}
                           <ExternalLink className="w-3 h-3" />
                         </button>
                       </td>

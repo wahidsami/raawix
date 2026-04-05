@@ -147,10 +147,12 @@ export default function AssistiveMapsPage() {
                   </td>
                   <td className="px-6 py-4">
                     <button
-                      onClick={() => window.open(map.canonicalUrl, '_blank')}
+                      type="button"
+                      title={t('assistiveMaps.viewOpensLivePage')}
+                      onClick={() => window.open(map.canonicalUrl, '_blank', 'noopener,noreferrer')}
                       className="text-primary hover:underline text-sm flex items-center gap-1"
                     >
-                      {t('common.view')}
+                      {t('assistiveMaps.viewLivePage')}
                       <ExternalLink className="w-3 h-3" />
                     </button>
                   </td>
