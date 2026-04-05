@@ -4,7 +4,7 @@ FROM node:20-bookworm-slim AS build
 # Cache apt metadata/packages between builds (BuildKit)
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+    apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates fonts-noto-core \
     && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 WORKDIR /app

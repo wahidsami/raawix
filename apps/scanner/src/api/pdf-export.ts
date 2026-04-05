@@ -21,7 +21,7 @@ import {
   agentSourceLabel,
   formatSuggestedWcagIds,
 } from '../utils/agent-report-format.js';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'; // Fallback
+import { renderFallbackScanPdf } from '../utils/pdf-lib-fallback-report.js';
 
 const router: Router = Router();
 
@@ -286,6 +286,52 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
           .join('')}
         </tbody></table>`;
 
+    const findingsForFallback = reportFindings.map((f: any) => {
+      const statusText =
+        locale === 'ar'
+          ? f.status === 'fail'
+            ? 'فشل'
+            : f.status === 'needs_review'
+              ? 'يحتاج مراجعة'
+              : f.status === 'pass'
+                ? 'نجح'
+                : 'غير قابل'
+          : f.status === 'fail'
+            ? 'Fail'
+            : f.status === 'needs_review'
+              ? 'Needs review'
+              : f.status === 'pass'
+                ? 'Pass'
+                : 'N/A';
+      return {
+        wcagId: f.wcagId,
+        level: f.level,
+        statusText,
+        message: f.message,
+        pageUrl: f.pageUrl,
+      };
+    });
+
+    const agentRowsForFallback = (agentList || []).map((af) => {
+      const pageUrl = af.pageId ? pageUrlByPageId.get(af.pageId) || '—' : '—';
+      const wcagRaw = parseSuggestedWcag(af.suggestedWcagIdsJson);
+      return {
+        kind: af.kind,
+        source: agentSourceLabel(af.source, locale),
+        confidence: formatAgentConfidenceScore(af.confidence),
+        message: af.message || '—',
+        howToVerify: af.howToVerify || '—',
+        suggestedWcag: formatSuggestedWcagIds(wcagRaw) || '—',
+        pageUrl,
+      };
+    });
+
+    const fallbackSubtitle = isPartialExport
+      ? inFlight && hasExportableData && !isPartialTerminal
+        ? getPDFTranslation('interimExportSubtitle', locale)
+        : getPDFTranslation('partialReportSubtitle', locale)
+      : undefined;
+
     const templateData: TemplateData = {
       logoDataUrl,
       poweredByLogoDataUrl,
@@ -362,101 +408,66 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       res.send(pdfBuffer);
       return;
     } catch (templateError) {
-      console.error('[PDF-EXPORT] Template rendering failed, using fallback:', templateError);
-      // Fall through to fallback
+      console.error(
+        '[PDF-EXPORT] Template rendering failed; using embedded-font text fallback PDF:',
+        templateError instanceof Error ? templateError.message : templateError
+      );
     }
 
-    // FALLBACK: Use old pdf-lib method
-    console.log('[PDF-EXPORT] Using fallback pdf-lib method');
-    const pdfDoc = await PDFDocument.create();
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    try {
+      const pdfBytes = await renderFallbackScanPdf({
+        reportTitle: templateData.reportTitle,
+        subtitleLine: fallbackSubtitle,
+        entityName: templateData.entityName,
+        propertyLabel: templateData.propertyLabel,
+        propertyName: templateData.propertyName,
+        scanDateLabel: templateData.scanDateLabel,
+        scanDate: templateData.scanDate,
+        entityCodeLabel: templateData.entityCodeLabel,
+        entityCode: templateData.entityCode,
+        reportGeneratedOn: templateData.reportGeneratedOn,
+        generationDate: templateData.generationDate,
+        introductionTitle: templateData.introductionTitle,
+        introductionHtml: templateData.introductionContent,
+        executiveSummaryTitle: templateData.executiveSummaryTitle,
+        wcagALabel: templateData.wcagALabel,
+        scoreA: templateData.scoreA,
+        wcagAALabel: templateData.wcagAALabel,
+        scoreAA: templateData.scoreAA,
+        needsReviewLabel: templateData.needsReviewLabel,
+        needsReviewRate: templateData.needsReviewRate,
+        scanStatisticsTitle: templateData.scanStatisticsTitle,
+        totalPagesLabel: templateData.totalPagesLabel,
+        totalPages: scan._count.pages,
+        totalFindingsLabel: templateData.totalFindingsLabel,
+        totalFindings: scan._count.findings,
+        failedRulesLabel: templateData.failedRulesLabel,
+        failedRules: scores.failedRules,
+        needsReviewRulesLabel: templateData.needsReviewRulesLabel,
+        needsReviewRules: scores.needsReviewRules,
+        analysisAgentFindingsLabel: templateData.analysisAgentFindingsLabel,
+        agentFindingsCount: scan._count.agentFindings,
+        disclaimerText: templateData.disclaimerText,
+        keyFindingsTitle: templateData.keyFindingsTitle,
+        keyFindingsHtml: templateData.keyFindingsContent,
+        topFindingsTitle: templateData.topFindingsTitle,
+        findings: findingsForFallback,
+        analysisAgentTitle: templateData.analysisAgentTitle,
+        analysisAgentIntro: templateData.analysisAgentIntro,
+        analysisAgentEmpty: getPDFTranslation('analysisAgentEmpty', locale),
+        agentRows: agentRowsForFallback,
+        footerText: templateData.footerText,
+        reportGeneratedBy: templateData.reportGeneratedBy,
+      });
 
-    const coverPage = pdfDoc.addPage([595, 842]);
-    const coverWidth = coverPage.getWidth();
-    const coverHeight = coverPage.getHeight();
-
-    coverPage.drawText(getPDFTranslation('reportTitle', locale), {
-      x: isRTL ? coverWidth - 250 : 50,
-      y: coverHeight - 100,
-      size: 24,
-      font: fontBold,
-    });
-
-    coverPage.drawText(entityName, {
-      x: isRTL ? coverWidth - 250 : 50,
-      y: coverHeight - 150,
-      size: 18,
-      font: font,
-    });
-
-    coverPage.drawText(`${getPDFTranslation('propertyLabel', locale)}: ${propertyName}`, {
-      x: isRTL ? coverWidth - 250 : 50,
-      y: coverHeight - 180,
-      size: 14,
-      font: font,
-    });
-
-    coverPage.drawText(`${getPDFTranslation('scanDateLabel', locale)}: ${scanDate}`, {
-      x: isRTL ? coverWidth - 250 : 50,
-      y: coverHeight - 210,
-      size: 12,
-      font: font,
-    });
-
-    const summaryPage = pdfDoc.addPage([595, 842]);
-    summaryPage.drawText(getPDFTranslation('executiveSummaryTitle', locale), {
-      x: isRTL ? 595 - 200 : 50,
-      y: 800,
-      size: 20,
-      font: fontBold,
-    });
-
-    summaryPage.drawText(`${getPDFTranslation('wcagALabel', locale)}: ${scoreAText}`, {
-      x: isRTL ? 595 - 250 : 50,
-      y: 750,
-      size: 14,
-      font: font,
-    });
-
-    summaryPage.drawText(`${getPDFTranslation('wcagAALabel', locale)}: ${scoreAAText}`, {
-      x: isRTL ? 595 - 250 : 50,
-      y: 720,
-      size: 14,
-      font: font,
-    });
-
-    summaryPage.drawText(`${getPDFTranslation('totalPagesLabel', locale)}: ${scan._count.pages}`, {
-      x: isRTL ? 595 - 250 : 50,
-      y: 690,
-      size: 12,
-      font: font,
-    });
-
-    summaryPage.drawText(`${getPDFTranslation('totalFindingsLabel', locale)}: ${scan._count.findings}`, {
-      x: isRTL ? 595 - 250 : 50,
-      y: 660,
-      size: 12,
-      font: font,
-    });
-
-    summaryPage.drawText(
-      `${getPDFTranslation('analysisAgentFindingsLabel', locale)}: ${scan._count.agentFindings}`,
-      {
-        x: isRTL ? 595 - 250 : 50,
-        y: 630,
-        size: 12,
-        font: font,
-      }
-    );
-
-    const pdfBytes = await pdfDoc.save();
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="raawi-x-report-${scanId}-${locale}.pdf"`);
-    res.setHeader('Content-Length', pdfBytes.length.toString());
-
-    res.send(Buffer.from(pdfBytes));
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="raawi-x-report-${scanId}-${locale}.pdf"`);
+      res.setHeader('Content-Length', pdfBytes.length.toString());
+      res.send(Buffer.from(pdfBytes));
+    } catch (fallbackError) {
+      console.error('[PDF-EXPORT] Fallback PDF generation failed:', fallbackError);
+      throw fallbackError;
+    }
 
   } catch (error) {
     if (error instanceof z.ZodError) {

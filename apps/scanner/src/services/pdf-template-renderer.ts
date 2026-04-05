@@ -125,11 +125,17 @@ export class PDFTemplateRenderer {
     if (!this.browser) {
       this.browser = await chromium.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+        ],
       });
     }
 
     const page = await this.browser.newPage();
+    page.setDefaultTimeout(90_000);
     
     try {
       // Load template
@@ -142,16 +148,18 @@ export class PDFTemplateRenderer {
         template = template.replace(regex, String(value || ''));
       });
       
-      // Ensure Cairo font is loaded and used for Arabic
-      // The CSS already has the @import and RTL selector, but we ensure it's applied
-      if (data.locale === 'ar' && !template.includes('fonts.googleapis.com/css2?family=Cairo')) {
-        // Add Cairo font import if not present
-        const cairoImport = '<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">';
-        template = template.replace('</head>', `  ${cairoImport}\n</head>`);
-      }
-      
       // Set content
-      await page.setContent(template, { waitUntil: 'networkidle' });
+      // Avoid networkidle: Google Fonts / external assets can prevent idle and hang PDF export.
+      await page.setContent(template, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+      await page
+        .evaluate(async () => {
+          try {
+            await document.fonts?.ready;
+          } catch {
+            /* ignore */
+          }
+        })
+        .catch(() => undefined);
       
       // Generate PDF
       const pdfBuffer = await page.pdf({

@@ -1,0 +1,3 @@
+NotoNaskhArabic-Regular.ttf — Noto Naskh Arabic (SIL Open Font License 1.1).
+Bundled for PDF text fallback when HTML/Chromium rendering is unavailable.
+Project: https://github.com/notofonts/arabic — License: https://github.com/notofonts/arabic/blob/main/OFL.txt

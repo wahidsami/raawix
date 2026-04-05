@@ -5,8 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Raawi X Accessibility Report</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
-    
+    /* Offline-first: avoid @import network fonts so Playwright PDF export does not hang on networkidle. */
     * {
       margin: 0;
       padding: 0;
@@ -23,7 +22,7 @@
     /* Force Cairo font for Arabic */
     [dir="rtl"],
     [dir="rtl"] * {
-      font-family: 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+      font-family: 'Noto Sans Arabic', 'Noto Naskh Arabic', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
     }
     
     [dir="rtl"] {
