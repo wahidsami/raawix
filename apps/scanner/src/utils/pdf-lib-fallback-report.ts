@@ -11,6 +11,7 @@ import { PDFDocument, rgb, type PDFFont } from 'pdf-lib';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+/** Noto Naskh Arabic covers Latin + Arabic for a single pdf-lib font. */
 function notoFontPath(): string {
   return join(__dirname, '..', '..', 'assets', 'fonts', 'NotoNaskhArabic-Regular.ttf');
 }
@@ -144,7 +145,8 @@ export async function renderFallbackScanPdf(params: FallbackScanPdfParams): Prom
   pdfDoc.registerFontkit(fontkit);
 
   const fontBytes = await readFile(notoFontPath());
-  const font = await pdfDoc.embedFont(fontBytes, { subset: true });
+  /* subset:true has caused missing Latin glyphs in some viewers; full embed is safer for short reports */
+  const font = await pdfDoc.embedFont(fontBytes, { subset: false });
 
   const W = 595;
   const H = 842;

@@ -10,8 +10,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'url';
 import { Browser, chromium } from 'playwright';
 import { PDFDocument } from 'pdf-lib';
-import { config } from '../config.js';
 import { StructuredLogger } from '../utils/logger.js';
+import { buildEmbeddedPdfFontFaces } from '../utils/pdf-embedded-fonts.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -141,6 +141,9 @@ export class PDFTemplateRenderer {
       // Load template
       const templatePath = join(__dirname, '../templates/report-template.html');
       let template = await readFile(templatePath, 'utf-8');
+
+      const embeddedFonts = await buildEmbeddedPdfFontFaces();
+      template = template.replace('</title>', `</title>\n${embeddedFonts}`);
       
       // Replace all template variables
       Object.entries(data).forEach(([key, value]) => {
