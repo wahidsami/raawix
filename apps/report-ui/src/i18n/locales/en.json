@@ -240,7 +240,7 @@
   },
   "settings": {
     "title": "Settings",
-    "subtitle": "Configure scanner behavior, language, and integrations",
+    "subtitle": "Configure scanner limits and language",
     "language": "Language",
     "languageDefault": "Default Language",
     "telemetry": "Telemetry",

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
-import { Globe, Database, Trash2, ScanSearch, AlertCircle } from 'lucide-react';
+import { Globe, ScanSearch, AlertCircle } from 'lucide-react';
 import { apiClient } from '../lib/api';
 
 export default function SettingsPage() {
@@ -9,8 +9,6 @@ export default function SettingsPage() {
   const { language, changeLanguage } = useLanguage();
   const [settings, setSettings] = useState({
     language: language,
-    telemetryEnabled: true,
-    retentionDays: 7,
     // Scanner configuration
     maxPages: 200,
     maxDepth: 10,
@@ -30,8 +28,6 @@ export default function SettingsPage() {
       const data = await apiClient.get<any>('/api/settings');
       setSettings({
         language: language,
-        telemetryEnabled: data.telemetryEnabled ?? true,
-        retentionDays: data.retentionDays ?? 7,
         maxPages: data.maxPages ?? 200,
         maxDepth: data.maxDepth ?? 10,
         maxRuntimeMinutes: Math.round((data.maxRuntimeMs ?? 600000) / 60000), // Convert ms to minutes
@@ -76,7 +72,7 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-3xl font-bold">{t('nav.settings')}</h1>
         <p className="text-muted-foreground mt-1">
-          {t('settings.subtitle') || 'Configure scanner behavior, language, and integrations'}
+          {t('settings.subtitle') || 'Configure scanner limits and language'}
         </p>
       </div>
 
@@ -189,60 +185,6 @@ export default function SettingsPage() {
                 <option value="en">English</option>
                 <option value="ar">العربية</option>
               </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Telemetry Settings */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Database className="w-5 h-5" />
-            <h2 className="text-lg font-semibold">{t('settings.telemetry')}</h2>
-          </div>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="block text-sm font-medium">{t('settings.telemetryOnOff')}</label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {t('settings.telemetryOnOff')} - Privacy-safe usage analytics
-                </p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.telemetryEnabled}
-                  onChange={(e) => setSettings({ ...settings, telemetryEnabled: e.target.checked })}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-border after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* Retention Settings */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Trash2 className="w-5 h-5" />
-            <h2 className="text-lg font-semibold">{t('settings.retention')}</h2>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">{t('settings.retentionSettings')}</label>
-              <div className="flex items-center gap-4">
-                <input
-                  type="number"
-                  min="1"
-                  max="365"
-                  value={settings.retentionDays}
-                  onChange={(e) => setSettings({ ...settings, retentionDays: parseInt(e.target.value) || 7 })}
-                  className="w-24 px-3 py-2 border border-input rounded-md bg-background"
-                />
-                <span className="text-sm text-muted-foreground">days</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Scans older than this will be automatically deleted
-              </p>
             </div>
           </div>
         </div>
