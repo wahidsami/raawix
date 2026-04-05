@@ -1377,10 +1377,20 @@ export default function EntityDetailPage() {
               <p className="text-muted-foreground">{t('entities.noScansForReports') || 'No scans available for report generation.'}</p>
             ) : (
               <div className="space-y-2">
-                {entityScans.filter((s: any) => s.status === 'completed').slice(0, 10).map((scan: any) => (
+                {entityScans
+                  .filter((s: any) => ['completed', 'canceled', 'failed'].includes(s.status))
+                  .slice(0, 10)
+                  .map((scan: any) => (
                   <div key={scan.scanId} className="flex items-center justify-between p-3 border border-border rounded">
                     <div>
-                      <div className="font-medium">{scan.scanId}</div>
+                      <div className="font-medium flex items-center gap-2 flex-wrap">
+                        {scan.scanId}
+                        {scan.status === 'canceled' && (
+                          <span className="text-xs font-normal px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400">
+                            {t('scans.partial') || 'Partial'}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-sm text-muted-foreground">{scan.seedUrl}</div>
                     </div>
                     <div className="flex gap-2">

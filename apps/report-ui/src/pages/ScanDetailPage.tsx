@@ -294,6 +294,12 @@ export default function ScanDetailPage() {
 
   return (
     <div className="space-y-6">
+      {(scanDetail.status === 'canceled' || scanDetail.status === 'failed') && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-foreground">
+          {t('scans.partialReportBanner') ||
+            'This scan did not run to completion. Figures below reflect only pages and results saved up to the stop or failure.'}
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

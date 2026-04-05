@@ -8,7 +8,11 @@ import { Router, Request, Response } from 'express';
 import { getPrismaClient } from '../db/client.js';
 import { requireAuth } from '../middleware/auth.js';
 import { dbScanToApiResponse } from './db-adapter.js';
-import { calculateComplianceScores } from '../utils/compliance-scoring.js';
+import {
+  calculateComplianceScores,
+  complianceScoresFromScanRunSummary,
+} from '../utils/compliance-scoring.js';
+import type { ScanRunSummary } from '@raawi-x/core';
 import { getFindingLevel } from '../utils/wcag-rule-registry.js';
 import { config } from '../config.js';
 import { join, resolve } from 'node:path';
@@ -119,7 +123,34 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
         };
       })
     );
-    const scores = calculateComplianceScores(ruleResults);
+    let scores = calculateComplianceScores(ruleResults);
+
+    if (ruleResults.length === 0 && scan.summaryJson) {
+      try {
+        const sj = scan.summaryJson as unknown as ScanRunSummary;
+        if (sj?.byLevel?.A && sj?.byLevel?.AA) {
+          scores = complianceScoresFromScanRunSummary(sj);
+        }
+      } catch {
+        // keep scores from empty rule set
+      }
+    }
+
+    if (scan.scoreA != null) scores.scoreA = scan.scoreA;
+    if (scan.scoreAA != null) scores.scoreAA = scan.scoreAA;
+    if (scan.needsReviewRate != null) scores.needsReviewRate = scan.needsReviewRate;
+
+    const storedSummary = scan.summaryJson as unknown as ScanRunSummary | null;
+    const totalPagesDisplay = Math.max(
+      scan._count.pages,
+      storedSummary && typeof storedSummary.totalPages === 'number' ? storedSummary.totalPages : 0
+    );
+    const totalFindingsDisplay =
+      scan._count.findings > 0
+        ? scan._count.findings
+        : storedSummary && typeof storedSummary.totalRules === 'number'
+          ? storedSummary.totalRules
+          : 0;
 
     // Build pages with Layer 1/2/3 breakdown
     const pagesDetail = await Promise.all(
@@ -231,8 +262,8 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
       entity: scan.entity,
       property: scan.property,
       summary: {
-        totalPages: scan._count.pages,
-        totalFindings: scan._count.findings,
+        totalPages: totalPagesDisplay,
+        totalFindings: totalFindingsDisplay,
         totalVisionFindings: scan._count.visionFindings,
         totalAgentFindings: scan._count.agentFindings,
         scores,

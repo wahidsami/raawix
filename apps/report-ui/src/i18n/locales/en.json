@@ -159,6 +159,9 @@
     "running": "Running",
     "completed": "Completed",
     "failed": "Failed",
+    "partial": "Partial",
+    "partialReportBanner":
+      "This scan did not run to completion. Figures below reflect only pages and results saved up to the stop or failure.",
     "noScans": "No scans found",
     "scanDetails": "Scan Details",
     "pageList": "Page List",

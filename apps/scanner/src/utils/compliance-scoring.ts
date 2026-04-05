@@ -8,6 +8,8 @@
  * - N/A = excluded from calculation
  */
 
+import type { ScanRunSummary } from '@raawi-x/core';
+
 export interface ComplianceScores {
   scoreA: number | null; // WCAG A compliance score (0-100) or null if no applicable findings
   scoreAA: number | null; // WCAG AA compliance score (0-100) or null if no applicable findings
@@ -27,6 +29,22 @@ export interface RuleResult {
 }
 
 const NEEDS_REVIEW_WEIGHT = 0.5; // Configurable weight for needs_review
+
+/**
+ * Rebuild compliance scores from a persisted ScanRun summary (e.g. partial/canceled scan
+ * when Finding rows are missing but summaryJson was saved).
+ */
+export function complianceScoresFromScanRunSummary(summary: ScanRunSummary): ComplianceScores {
+  const rules: RuleResult[] = [];
+  for (const level of ['A', 'AA'] as const) {
+    const ls = summary.byLevel[level];
+    for (let i = 0; i < ls.pass; i++) rules.push({ level, status: 'pass' });
+    for (let i = 0; i < ls.fail; i++) rules.push({ level, status: 'fail' });
+    for (let i = 0; i < ls.needs_review; i++) rules.push({ level, status: 'needs_review' });
+    for (let i = 0; i < ls.na; i++) rules.push({ level, status: 'na' });
+  }
+  return calculateComplianceScores(rules);
+}
 
 /**
  * Calculate compliance scores from rule results

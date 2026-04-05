@@ -365,10 +365,37 @@ export class JobQueue {
   }
 
   /**
+   * Close browser if needed, then write report.json + findings/summary to DB (partial/canceled).
+   */
+  private async flushPartialResultsAfterCancel(
+    scanId: string,
+    seedUrl: string,
+    startedAt: string | undefined,
+    logger: StructuredLogger,
+    pageCapture: PageCapture | null
+  ): Promise<void> {
+    if (pageCapture) {
+      try {
+        await pageCapture.close();
+      } catch {
+        // ignore
+      }
+      this.activePageCaptures.delete(scanId);
+    }
+    const started = startedAt ?? new Date().toISOString();
+    await this.persistPartialReportForCanceledScan(scanId, seedUrl, started, logger);
+  }
+
+  /**
    * Strict state machine transition
    */
   private transitionState(job: Job, newStatus: ScanStatus, logger: StructuredLogger): void {
     const oldStatus = job.status;
+
+    if (oldStatus === newStatus) {
+      logger.info('State transition no-op (already)', { scanId: job.id, status: newStatus });
+      return;
+    }
 
     // Validate state transition
     const validTransitions: Record<ScanStatus, ScanStatus[]> = {
@@ -485,6 +512,7 @@ export class JobQueue {
       this.transitionState(job, 'canceled', logger);
       job.canceledAt = new Date().toISOString();
       this.running.delete(scanId);
+      await this.flushPartialResultsAfterCancel(scanId, seedUrl, job.startedAt, logger, null);
       return;
     }
 
@@ -562,6 +590,7 @@ export class JobQueue {
         this.transitionState(job, 'canceled', logger);
         job.canceledAt = new Date().toISOString();
         this.running.delete(scanId);
+        await this.flushPartialResultsAfterCancel(scanId, seedUrl, job.startedAt, logger, null);
         return;
       }
 
@@ -824,16 +853,7 @@ export class JobQueue {
         this.transitionState(job, 'canceled', logger);
         job.canceledAt = new Date().toISOString();
         this.running.delete(scanId);
-        // Close pageCapture
-        if (pageCapture) {
-          try {
-            await pageCapture.close();
-          } catch (error) {
-            logger.warn('Error closing pageCapture during cancel', { scanId, error: error instanceof Error ? error.message : 'Unknown' });
-          }
-        }
-        this.activePageCaptures.delete(scanId);
-        await this.persistPartialReportForCanceledScan(scanId, seedUrl, job.startedAt!, logger);
+        await this.flushPartialResultsAfterCancel(scanId, seedUrl, job.startedAt, logger, pageCapture);
         return;
       }
 
@@ -939,9 +959,13 @@ export class JobQueue {
       // Check if canceled
       if (this.canceled.has(scanId)) {
         logger.info('Job canceled during execution', { scanId });
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
         this.transitionState(job, 'canceled', logger);
         job.canceledAt = new Date().toISOString();
         this.running.delete(scanId);
+        await this.flushPartialResultsAfterCancel(scanId, seedUrl, job.startedAt, logger, pageCapture);
         return;
       }
 
@@ -962,8 +986,7 @@ export class JobQueue {
         this.transitionState(job, 'canceled', logger);
         job.canceledAt = new Date().toISOString();
         this.running.delete(scanId);
-        // Clean up pageCapture reference
-        this.activePageCaptures.delete(scanId);
+        await this.flushPartialResultsAfterCancel(scanId, seedUrl, job.startedAt, logger, pageCapture);
         return;
       }
 
