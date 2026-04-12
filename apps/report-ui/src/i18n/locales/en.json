@@ -393,6 +393,14 @@
     "auditModeClassicHint": "Current layered scan: page structure, vision, assistive map, and optional interaction trace.",
     "auditModeRaawiAgentLabel": "Raawi agent",
     "auditModeRaawiAgentHint": "Runs the full layered scan and marks the report for the Raawi agent methodology.",
+    "raawiScanTitle": "Raawi agent scan in progress",
+    "raawiScanSubtitle": "Raawi is combining page structure, visual review, assistive mapping, and keyboard interaction trace.",
+    "raawiIncludedTitle": "Raawi agent includes",
+    "raawiIncludedDom": "DOM rules, accessible names, landmarks, forms, links, and WCAG checks.",
+    "raawiIncludedVision": "Full-page screenshots for visual and content interpretation.",
+    "raawiIncludedMap": "Assistive map generation for navigation and widget guidance.",
+    "raawiTraceTitle": "Raawi interaction trace",
+    "raawiIncludedKeyboard": "Keyboard navigation simulation and optional AI enrichment are included in this mode.",
     "scanPipelineNeedLayer12": "Enable page structure or screenshot & vision — at least one is required.",
     "pipelineFastModeLabel": "Fast mode",
     "pipelineFastModeHint": "DOM and rule checks only — no screenshots, vision, assistive map, or agent (fastest).",
@@ -405,7 +413,7 @@
     "pipelineLayer2Hint": "Full-page capture and AI vision review",
     "pipelineLayer3Label": "Assistive map",
     "pipelineLayer3Hint": "Built when the report is generated",
-    "pipelineAnalysisAgentLabel": "Analysis AI agent",
+    "pipelineAnalysisAgentLabel": "Interaction trace",
     "pipelineAnalysisAgentHint": "Keyboard interaction simulation and post-scan AI enrichment"
   },
   "entities": {

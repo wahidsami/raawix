@@ -393,6 +393,14 @@
     "auditModeClassicHint": "المسح الحالي متعدد الطبقات: بنية الصفحة والرؤية وخريطة المساعدة وتتبع التفاعل الاختياري.",
     "auditModeRaawiAgentLabel": "وكيل راوي",
     "auditModeRaawiAgentHint": "يشغّل المسح الكامل متعدد الطبقات ويعلّم التقرير بمنهجية وكيل راوي.",
+    "raawiScanTitle": "مسح وكيل راوي قيد التنفيذ",
+    "raawiScanSubtitle": "يجمع راوي بين بنية الصفحة والمراجعة المرئية وخريطة المساعدة وتتبع التفاعل بلوحة المفاتيح.",
+    "raawiIncludedTitle": "يتضمن وكيل راوي",
+    "raawiIncludedDom": "قواعد DOM والأسماء المتاحة والمعالم والنماذج والروابط وفحوصات WCAG.",
+    "raawiIncludedVision": "لقطات كاملة للصفحة للمراجعة البصرية وفهم المحتوى.",
+    "raawiIncludedMap": "إنشاء خريطة مساعدة للتنقل وإرشاد الودجت.",
+    "raawiTraceTitle": "تتبع تفاعل راوي",
+    "raawiIncludedKeyboard": "محاكاة التنقل بلوحة المفاتيح والإثراء الاختياري بالذكاء الاصطناعي مضمّنان في هذا الوضع.",
     "scanPipelineNeedLayer12": "فعّل بنية الصفحة أو لقطة الشاشة والرؤية — مطلوب أحدهما على الأقل.",
     "pipelineFastModeLabel": "الوضع السريع",
     "pipelineFastModeHint": "بنية الصفحة والقواعد فقط — بدون لقطات شاشة أو رؤية أو خريطة مساعدة أو وكيل (الأسرع).",
@@ -405,7 +413,7 @@
     "pipelineLayer2Hint": "التقاط كامل الصفحة ومراجعة الرؤية بالذكاء الاصطناعي",
     "pipelineLayer3Label": "خريطة المساعدة",
     "pipelineLayer3Hint": "تُبنى عند إنشاء التقرير",
-    "pipelineAnalysisAgentLabel": "وكيل تحليل بالذكاء الاصطناعي",
+    "pipelineAnalysisAgentLabel": "تتبع التفاعل",
     "pipelineAnalysisAgentHint": "محاكاة تفاعل لوحة المفاتيح وإثراء ما بعد المسح بالذكاء الاصطناعي"
   },
   "entities": {

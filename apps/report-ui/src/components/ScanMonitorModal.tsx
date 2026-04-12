@@ -100,6 +100,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   const [pipelineFastMode, setPipelineFastMode] = useState(false);
   const [pipelineScreenshotMode, setPipelineScreenshotMode] = useState<'full' | 'viewport'>('full');
   const [auditMode, setAuditMode] = useState<'classic' | 'raawi-agent'>('classic');
+  const isRaawiAgentMode = auditMode === 'raawi-agent';
   const propertyDefaultsAppliedRef = useRef(false);
   const scanPipelineInvalid = !pipelineLayer1 && !pipelineLayer2;
 
@@ -1652,7 +1653,15 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         maxPages: selectedUrls.size,
         maxDepth: 3,
         auditMode,
-        scanPipeline: pipelineFastMode
+        scanPipeline: isRaawiAgentMode
+          ? {
+              layer1: true,
+              layer2: true,
+              layer3: true,
+              analysisAgent: true,
+              screenshotMode: 'full' as const,
+            }
+          : pipelineFastMode
           ? { scanPreset: 'fast' }
           : {
               layer1: pipelineLayer1,
@@ -1998,8 +2007,17 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                 <div className="flex-1 overflow-y-auto p-6">
                   <div className="max-w-[900px] mx-auto space-y-6">
                     <div>
-                      <div className="text-lg font-semibold text-foreground">{t('scanMonitor.summaryTitle') || 'Scan progress'}</div>
-                      <div className="text-sm text-muted-foreground">{t('scanMonitor.summarySubtitle') || 'We’ll update this in real time as pages are processed.'}</div>
+                      <div className="text-lg font-semibold text-foreground">
+                        {isRaawiAgentMode
+                          ? (t('scanMonitor.raawiScanTitle') || 'Raawi agent scan in progress')
+                          : (t('scanMonitor.summaryTitle') || 'Scan progress')}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {isRaawiAgentMode
+                          ? (t('scanMonitor.raawiScanSubtitle') ||
+                            'Raawi is combining page structure, visual review, assistive mapping, and keyboard interaction trace.')
+                          : (t('scanMonitor.summarySubtitle') || 'We’ll update this in real time as pages are processed.')}
+                      </div>
                     </div>
 
                     {/* Primary metrics */}
@@ -2107,12 +2125,14 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                       </div>
                     )}
 
-                    {/* Accessibility simulation (keyboard user) */}
+                    {/* Raawi agent / interaction trace */}
                     <div className="p-4 rounded-lg border border-border bg-card space-y-2">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="text-sm font-semibold text-foreground">
-                            {t('scanMonitor.simulationTitle') || 'Accessibility simulation (keyboard user)'}
+                            {isRaawiAgentMode
+                              ? (t('scanMonitor.raawiTraceTitle') || 'Raawi interaction trace')
+                              : (t('scanMonitor.simulationTitle') || 'Accessibility simulation (keyboard user)')}
                           </div>
                           <div className="text-sm text-muted-foreground mt-1">
                             {simulation.status === 'running'
@@ -2308,136 +2328,160 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                       </span>
                     </label>
                   </div>
-                  {scanPipelineInvalid && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      {t('scanMonitor.scanPipelineNeedLayer12') ||
-                        'Enable page structure or vision — at least one is required.'}
-                    </p>
-                  )}
-                  <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 rounded border-border"
-                      checked={pipelineFastMode}
-                      disabled={auditMode === 'raawi-agent'}
-                      onChange={(e) => {
-                        if (auditMode === 'raawi-agent') return;
-                        const on = e.target.checked;
-                        setPipelineFastMode(on);
-                        if (on) {
-                          setPipelineLayer1(true);
-                          setPipelineLayer2(false);
-                          setPipelineLayer3(false);
-                          setPipelineAnalysisAgent(false);
-                        } else {
-                          setPipelineLayer1(true);
-                          setPipelineLayer2(true);
-                          setPipelineLayer3(true);
-                          setPipelineAnalysisAgent(true);
-                          setPipelineScreenshotMode('full');
-                        }
-                      }}
-                    />
-                    <span>
-                      <span className="font-medium">
-                        {t('scanMonitor.pipelineFastModeLabel') || 'Fast mode'}
-                      </span>
-                      <span className="block text-xs text-muted-foreground font-normal">
-                        {t('scanMonitor.pipelineFastModeHint') ||
-                          'DOM and rule checks only — no screenshots, vision, assistive map, or agent (fastest).'}
-                      </span>
-                    </span>
-                  </label>
-                  <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 rounded border-border"
-                      checked={pipelineLayer1}
-                      disabled={pipelineFastMode || auditMode === 'raawi-agent'}
-                      onChange={(e) => setPipelineLayer1(e.target.checked)}
-                    />
-                    <span>
-                      <span className="font-medium">{t('scanMonitor.pipelineLayer1Label') || 'Page structure'}</span>
-                      <span className="block text-xs text-muted-foreground font-normal">
-                        {t('scanMonitor.pipelineLayer1Hint') || 'HTML, links, and accessibility snapshot'}
-                      </span>
-                    </span>
-                  </label>
-                  <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 rounded border-border"
-                      checked={pipelineLayer2}
-                      disabled={pipelineFastMode || auditMode === 'raawi-agent'}
-                      onChange={(e) => setPipelineLayer2(e.target.checked)}
-                    />
-                    <span>
-                      <span className="font-medium">{t('scanMonitor.pipelineLayer2Label') || 'Screenshot & vision'}</span>
-                      <span className="block text-xs text-muted-foreground font-normal">
-                        {t('scanMonitor.pipelineLayer2Hint') || 'Full-page capture and AI vision review'}
-                      </span>
-                    </span>
-                  </label>
-                  {pipelineLayer2 && !pipelineFastMode && (
-                    <div className="ms-6 space-y-1.5 text-xs text-foreground">
-                      <span className="font-medium block">
-                        {t('scanMonitor.screenshotModeTitle') || 'Screenshot area'}
-                      </span>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name={`screenshot-mode-${scanId}`}
-                          checked={pipelineScreenshotMode === 'full'}
-                          disabled={auditMode === 'raawi-agent'}
-                          onChange={() => setPipelineScreenshotMode('full')}
-                        />
-                        {t('scanMonitor.screenshotModeFull') || 'Full page'}
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name={`screenshot-mode-${scanId}`}
-                          checked={pipelineScreenshotMode === 'viewport'}
-                          disabled={auditMode === 'raawi-agent'}
-                          onChange={() => setPipelineScreenshotMode('viewport')}
-                        />
-                        {t('scanMonitor.screenshotModeViewport') || 'Viewport only'}
-                      </label>
+                  {isRaawiAgentMode ? (
+                    <div className="rounded-md border border-emerald-500/25 bg-emerald-500/5 p-3">
+                      <div className="text-sm font-semibold text-foreground">
+                        {t('scanMonitor.raawiIncludedTitle') || 'Raawi agent includes'}
+                      </div>
+                      <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-muted-foreground">
+                        <div className="rounded border border-border bg-background/70 p-2">
+                          <span className="font-medium text-foreground">{t('scanMonitor.pipelineLayer1Label') || 'Page structure'}</span>
+                          <span className="block">{t('scanMonitor.raawiIncludedDom') || 'DOM rules, accessible names, landmarks, forms, links, and WCAG checks.'}</span>
+                        </div>
+                        <div className="rounded border border-border bg-background/70 p-2">
+                          <span className="font-medium text-foreground">{t('scanMonitor.pipelineLayer2Label') || 'Screenshot & vision'}</span>
+                          <span className="block">{t('scanMonitor.raawiIncludedVision') || 'Full-page screenshots for visual and content interpretation.'}</span>
+                        </div>
+                        <div className="rounded border border-border bg-background/70 p-2">
+                          <span className="font-medium text-foreground">{t('scanMonitor.pipelineLayer3Label') || 'Assistive map'}</span>
+                          <span className="block">{t('scanMonitor.raawiIncludedMap') || 'Assistive map generation for navigation and widget guidance.'}</span>
+                        </div>
+                        <div className="rounded border border-border bg-background/70 p-2">
+                          <span className="font-medium text-foreground">{t('scanMonitor.raawiTraceTitle') || 'Raawi interaction trace'}</span>
+                          <span className="block">{t('scanMonitor.raawiIncludedKeyboard') || 'Keyboard navigation simulation and optional AI enrichment are included in this mode.'}</span>
+                        </div>
+                      </div>
                     </div>
+                  ) : (
+                    <>
+                      {scanPipelineInvalid && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                          {t('scanMonitor.scanPipelineNeedLayer12') ||
+                            'Enable page structure or vision — at least one is required.'}
+                        </p>
+                      )}
+                      <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 rounded border-border"
+                          checked={pipelineFastMode}
+                          onChange={(e) => {
+                            const on = e.target.checked;
+                            setPipelineFastMode(on);
+                            if (on) {
+                              setPipelineLayer1(true);
+                              setPipelineLayer2(false);
+                              setPipelineLayer3(false);
+                              setPipelineAnalysisAgent(false);
+                            } else {
+                              setPipelineLayer1(true);
+                              setPipelineLayer2(true);
+                              setPipelineLayer3(true);
+                              setPipelineAnalysisAgent(true);
+                              setPipelineScreenshotMode('full');
+                            }
+                          }}
+                        />
+                        <span>
+                          <span className="font-medium">
+                            {t('scanMonitor.pipelineFastModeLabel') || 'Fast mode'}
+                          </span>
+                          <span className="block text-xs text-muted-foreground font-normal">
+                            {t('scanMonitor.pipelineFastModeHint') ||
+                              'DOM and rule checks only — no screenshots, vision, assistive map, or agent (fastest).'}
+                          </span>
+                        </span>
+                      </label>
+                      <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 rounded border-border"
+                          checked={pipelineLayer1}
+                          disabled={pipelineFastMode}
+                          onChange={(e) => setPipelineLayer1(e.target.checked)}
+                        />
+                        <span>
+                          <span className="font-medium">{t('scanMonitor.pipelineLayer1Label') || 'Page structure'}</span>
+                          <span className="block text-xs text-muted-foreground font-normal">
+                            {t('scanMonitor.pipelineLayer1Hint') || 'HTML, links, and accessibility snapshot'}
+                          </span>
+                        </span>
+                      </label>
+                      <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 rounded border-border"
+                          checked={pipelineLayer2}
+                          disabled={pipelineFastMode}
+                          onChange={(e) => setPipelineLayer2(e.target.checked)}
+                        />
+                        <span>
+                          <span className="font-medium">{t('scanMonitor.pipelineLayer2Label') || 'Screenshot & vision'}</span>
+                          <span className="block text-xs text-muted-foreground font-normal">
+                            {t('scanMonitor.pipelineLayer2Hint') || 'Full-page capture and AI vision review'}
+                          </span>
+                        </span>
+                      </label>
+                      {pipelineLayer2 && !pipelineFastMode && (
+                        <div className="ms-6 space-y-1.5 text-xs text-foreground">
+                          <span className="font-medium block">
+                            {t('scanMonitor.screenshotModeTitle') || 'Screenshot area'}
+                          </span>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`screenshot-mode-${scanId}`}
+                              checked={pipelineScreenshotMode === 'full'}
+                              onChange={() => setPipelineScreenshotMode('full')}
+                            />
+                            {t('scanMonitor.screenshotModeFull') || 'Full page'}
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`screenshot-mode-${scanId}`}
+                              checked={pipelineScreenshotMode === 'viewport'}
+                              onChange={() => setPipelineScreenshotMode('viewport')}
+                            />
+                            {t('scanMonitor.screenshotModeViewport') || 'Viewport only'}
+                          </label>
+                        </div>
+                      )}
+                      <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 rounded border-border"
+                          checked={pipelineLayer3}
+                          disabled={pipelineFastMode}
+                          onChange={(e) => setPipelineLayer3(e.target.checked)}
+                        />
+                        <span>
+                          <span className="font-medium">{t('scanMonitor.pipelineLayer3Label') || 'Assistive map'}</span>
+                          <span className="block text-xs text-muted-foreground font-normal">
+                            {t('scanMonitor.pipelineLayer3Hint') || 'Built when the report is generated'}
+                          </span>
+                        </span>
+                      </label>
+                      <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 rounded border-border"
+                          checked={pipelineAnalysisAgent}
+                          disabled={pipelineFastMode}
+                          onChange={(e) => setPipelineAnalysisAgent(e.target.checked)}
+                        />
+                        <span>
+                          <span className="font-medium">
+                            {t('scanMonitor.pipelineAnalysisAgentLabel') || 'Interaction trace'}
+                          </span>
+                          <span className="block text-xs text-muted-foreground font-normal">
+                            {t('scanMonitor.pipelineAnalysisAgentHint') ||
+                              'Keyboard interaction simulation and post-scan AI enrichment'}
+                          </span>
+                        </span>
+                      </label>
+                    </>
                   )}
-                  <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 rounded border-border"
-                      checked={pipelineLayer3}
-                      disabled={pipelineFastMode || auditMode === 'raawi-agent'}
-                      onChange={(e) => setPipelineLayer3(e.target.checked)}
-                    />
-                    <span>
-                      <span className="font-medium">{t('scanMonitor.pipelineLayer3Label') || 'Assistive map'}</span>
-                      <span className="block text-xs text-muted-foreground font-normal">
-                        {t('scanMonitor.pipelineLayer3Hint') || 'Built when the report is generated'}
-                      </span>
-                    </span>
-                  </label>
-                  <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 rounded border-border"
-                      checked={pipelineAnalysisAgent}
-                      disabled={pipelineFastMode || auditMode === 'raawi-agent'}
-                      onChange={(e) => setPipelineAnalysisAgent(e.target.checked)}
-                    />
-                    <span>
-                      <span className="font-medium">
-                        {t('scanMonitor.pipelineAnalysisAgentLabel') || 'Analysis AI agent'}
-                      </span>
-                      <span className="block text-xs text-muted-foreground font-normal">
-                        {t('scanMonitor.pipelineAnalysisAgentHint') ||
-                          'Keyboard interaction simulation and post-scan AI enrichment'}
-                      </span>
-                    </span>
-                  </label>
                 </div>
                 <button
                   onClick={handleStartScanning}
@@ -2449,7 +2493,20 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
               </>
                   ) : (
               <>
-                <h3 className="font-semibold mb-4 text-foreground">{t('scanMonitor.nowScanning')}</h3>
+                <h3 className="font-semibold mb-4 text-foreground">
+                  {isRaawiAgentMode
+                    ? (t('scanMonitor.raawiScanTitle') || 'Raawi agent scan in progress')
+                    : t('scanMonitor.nowScanning')}
+                </h3>
+                {isRaawiAgentMode && (
+                  <div className="mb-4 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-4 text-sm text-foreground">
+                    <div className="font-semibold">{t('scanMonitor.raawiIncludedTitle') || 'Raawi agent includes'}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {t('scanMonitor.raawiScanSubtitle') ||
+                        'Raawi is combining page structure, visual review, assistive mapping, and keyboard interaction trace.'}
+                    </div>
+                  </div>
+                )}
 
                 {/* Debug Panel */}
                 {showDebug && (
