@@ -70,15 +70,19 @@ app.set('trust proxy', 1);
 // Security middleware
 app.use(helmet());
 
-// CORS - allow widget origins (configurable)
-const allowedOrigins = process.env.WIDGET_ORIGINS
-  ? process.env.WIDGET_ORIGINS.split(',').map((s) => s.trim())
-  : [
-    config.reportUiOrigin,
-    'http://localhost:4173', // test-sites default port
-    'http://localhost:4175', // test-sites alternate port
-    'http://localhost:3000', // common dev port
-  ];
+// CORS - allow the report UI plus optional widget origins.
+// Keep REPORT_UI_ORIGIN in the allow-list even when WIDGET_ORIGINS is configured.
+const allowedOrigins = Array.from(
+  new Set(
+    [
+      config.reportUiOrigin,
+      ...(process.env.WIDGET_ORIGINS ? process.env.WIDGET_ORIGINS.split(',').map((s) => s.trim()) : []),
+      'http://localhost:4173', // test-sites default port
+      'http://localhost:4175', // test-sites alternate port
+      'http://localhost:3000', // common dev port
+    ].filter(Boolean)
+  )
+);
 
 app.use(
   cors({
