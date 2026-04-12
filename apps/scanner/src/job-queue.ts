@@ -786,6 +786,7 @@ export class JobQueue {
                   htmlPath: pageResult.htmlPath,
                   a11yPath: pageResult.a11yPath,
                   visionPath: pageResult.visionPath,
+                  agentPath: pageResult.agentPath,
                   error: pageResult.error,
                 });
               } catch (error) {
