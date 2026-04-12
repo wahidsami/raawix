@@ -329,6 +329,7 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
     const response = {
       scanId: scan.scanId,
       seedUrl: scan.seedUrl,
+      auditMode: (scan as any).auditMode === 'raawi-agent' ? 'raawi-agent' : 'classic',
       status: scan.status,
       startedAt: scan.startedAt.toISOString(),
       completedAt: scan.completedAt?.toISOString(),

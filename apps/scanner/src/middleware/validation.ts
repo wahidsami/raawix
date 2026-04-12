@@ -30,6 +30,7 @@ const scanRequestSchema = z.object({
   scanId: z.string().optional(), // Allow passing existing scan ID
   selectedUrls: z.array(z.string().url('Invalid URL in selectedUrls')).optional(), // Allow passing selected URLs
   scanMode: z.enum(['domain', 'single']).optional(), // Scan mode: full domain or single page/section
+  auditMode: z.enum(['classic', 'raawi-agent']).optional(), // Audit methodology/report mode
   // Legacy format support
   url: z.string().url('Invalid URL format').optional(),
   options: z

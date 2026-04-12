@@ -208,6 +208,8 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
     const propertyName = scanData.propertyName;
     const scanDate = scanData.scanDate;
     const entityCode = scan.entity?.code || 'N/A';
+    const auditMode = (scan as any).auditMode === 'raawi-agent' ? 'raawi-agent' : 'classic';
+    const auditModeText = getPDFTranslation(auditMode === 'raawi-agent' ? 'auditModeRaawiAgent' : 'auditModeClassic', locale);
 
     const scoreAText = scores.scoreA !== null ? `${scores.scoreA.toFixed(1)}%` : 'N/A';
     const scoreAAText = scores.scoreAA !== null ? `${scores.scoreAA.toFixed(1)}%` : 'N/A';
@@ -496,6 +498,8 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       propertyName,
       scanDate,
       entityCode,
+      auditModeLabel: getPDFTranslation('auditModeLabel', locale),
+      auditModeText,
       entityLabel: getPDFTranslation('entityLabel', locale),
       propertyLabel: getPDFTranslation('propertyLabel', locale),
       scanDateLabel: getPDFTranslation('scanDateLabel', locale),
@@ -578,6 +582,8 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
         scanDate: templateData.scanDate,
         entityCodeLabel: templateData.entityCodeLabel,
         entityCode: templateData.entityCode,
+        auditModeLabel: templateData.auditModeLabel,
+        auditModeText: templateData.auditModeText,
         reportGeneratedOn: templateData.reportGeneratedOn,
         generationDate: templateData.generationDate,
         introductionTitle: templateData.introductionTitle,

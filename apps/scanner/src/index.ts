@@ -233,7 +233,11 @@ app.post('/api/scans/start', requireAuth, validateScanRequest, async (req, res) 
         // Update scan status to queued
         await prisma.scan.update({
           where: { scanId },
-          data: { status: 'queued', updatedAt: new Date() },
+          data: {
+            status: 'queued',
+            auditMode: requestBody.auditMode === 'raawi-agent' ? 'raawi-agent' : 'classic',
+            updatedAt: new Date(),
+          },
         });
       }
 
@@ -280,7 +284,7 @@ app.post('/api/scan', apiKeyAuth, validateScanRequest, async (req, res) => {
 app.post('/api/scans/:scanId/init', requireAuth, async (req, res) => {
   try {
     const { scanId } = req.params;
-    const { seedUrl, entityId, propertyId, maxPages = 25, maxDepth = 5 } = req.body;
+    const { seedUrl, entityId, propertyId, maxPages = 25, maxDepth = 5, auditMode = 'classic' } = req.body;
 
     if (!seedUrl) {
       res.status(400).json({ error: 'seedUrl is required' });
@@ -302,7 +306,8 @@ app.post('/api/scans/:scanId/init', requireAuth, async (req, res) => {
         boundedMaxDepth,
         hostname,
         entityId,
-        propertyId
+        propertyId,
+        auditMode === 'raawi-agent' ? 'raawi-agent' : 'classic'
       );
     } catch (createError: any) {
       // Idempotency: if the same scanId is initialized twice, continue with existing record.
@@ -1073,4 +1078,3 @@ app.listen(config.port, () => {
     });
   }
 });
-

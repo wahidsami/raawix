@@ -110,6 +110,7 @@ function VisionFindingImage({
 interface ScanDetail {
   scanId: string;
   seedUrl: string;
+  auditMode?: 'classic' | 'raawi-agent';
   status: string;
   startedAt: string;
   completedAt?: string;
@@ -375,6 +376,10 @@ export default function ScanDetailPage() {
   const analysisAgentFindings = scanDetail.analysisAgent?.findings ?? [];
   const analysisAgentTrace = scanDetail.analysisAgent?.trace ?? [];
   const analysisAgentSummary = scanDetail.analysisAgent?.summary;
+  const auditModeLabel =
+    scanDetail.auditMode === 'raawi-agent'
+      ? (t('scanMonitor.auditModeRaawiAgentLabel') || 'Raawi agent')
+      : (t('scanMonitor.auditModeClassicLabel') || 'Classic audit');
   const getAnalysisAgentStatusLabel = (status: 'pass' | 'fail' | 'not_run') => {
     if (status === 'pass') return 'Pass';
     if (status === 'fail') return 'Not pass';
@@ -411,6 +416,9 @@ export default function ScanDetailPage() {
           <div>
             <p className="text-muted-foreground text-sm mt-1">
               {scanDetail.scanId}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {t('scanMonitor.auditModeTitle') || 'Audit mode'}: <span className="font-medium text-foreground">{auditModeLabel}</span>
             </p>
           </div>
         </div>
@@ -560,7 +568,7 @@ export default function ScanDetailPage() {
       </div>
 
       <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-xl font-bold mb-4">DOM scan vs AI blind assistant</h2>
+        <h2 className="text-xl font-bold mb-4">DOM scan vs Raawi agent</h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="rounded-lg border border-border bg-muted/30 p-4">
             <div className="text-sm text-muted-foreground mb-2">Normal DOM / WCAG scan</div>
@@ -590,7 +598,7 @@ export default function ScanDetailPage() {
             </div>
           </div>
           <div className="rounded-lg border border-border bg-muted/30 p-4">
-            <div className="text-sm text-muted-foreground mb-2">AI blind assistant</div>
+            <div className="text-sm text-muted-foreground mb-2">Raawi agent</div>
             <div className="text-3xl font-bold">{analysisAgentSummary?.pagesWithTrace ?? scanDetail.analysisAgent?.pagesWithArtifact ?? 0}</div>
             <div className="text-sm text-muted-foreground mt-1">
               pages with trace · {analysisAgentSummary?.totalIssues ?? 0} issue(s)

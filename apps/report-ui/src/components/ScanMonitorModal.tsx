@@ -99,6 +99,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   const [pipelineAnalysisAgent, setPipelineAnalysisAgent] = useState(true);
   const [pipelineFastMode, setPipelineFastMode] = useState(false);
   const [pipelineScreenshotMode, setPipelineScreenshotMode] = useState<'full' | 'viewport'>('full');
+  const [auditMode, setAuditMode] = useState<'classic' | 'raawi-agent'>('classic');
   const propertyDefaultsAppliedRef = useRef(false);
   const scanPipelineInvalid = !pipelineLayer1 && !pipelineLayer2;
 
@@ -431,6 +432,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
               maxPages: maxPages || 50,
               maxDepth: maxDepth || 3,
               scanMode, // Pass scan mode to backend
+              auditMode,
             }),
           });
 
@@ -448,7 +450,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
       startDiscovery();
     }
-  }, [phase, scanId, seedUrl, scanRecordReady, maxPages, maxDepth, scanMode]);
+  }, [phase, scanId, seedUrl, scanRecordReady, maxPages, maxDepth, scanMode, auditMode]);
 
   useEffect(() => {
     // Connect to SSE endpoint
@@ -1627,6 +1629,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
             maxPages: selectedUrls.size,
             maxDepth: maxDepth || 3,
             scanMode, // Pass scan mode to backend
+            auditMode,
             entityId, // Pass entity ID for proper report generation
             propertyId, // Pass property ID for proper report generation
           }),
@@ -1648,6 +1651,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         selectedUrls: Array.from(selectedUrls),
         maxPages: selectedUrls.size,
         maxDepth: 3,
+        auditMode,
         scanPipeline: pipelineFastMode
           ? { scanPreset: 'fast' }
           : {
@@ -2255,6 +2259,55 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                     {t('scanMonitor.scanPipelineIntro') ||
                       'Turn off layers you do not need to speed up large scans.'}
                   </p>
+                  <div className="space-y-2 rounded-md border border-border bg-background/60 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {t('scanMonitor.auditModeTitle') || 'Audit mode'}
+                    </div>
+                    <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`audit-mode-${scanId}`}
+                        className="mt-1"
+                        checked={auditMode === 'classic'}
+                        onChange={() => setAuditMode('classic')}
+                      />
+                      <span>
+                        <span className="font-medium">
+                          {t('scanMonitor.auditModeClassicLabel') || 'Classic audit'}
+                        </span>
+                        <span className="block text-xs text-muted-foreground font-normal">
+                          {t('scanMonitor.auditModeClassicHint') ||
+                            'Current layered scan: page structure, vision, assistive map, and optional interaction trace.'}
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`audit-mode-${scanId}`}
+                        className="mt-1"
+                        checked={auditMode === 'raawi-agent'}
+                        onChange={() => {
+                          setAuditMode('raawi-agent');
+                          setPipelineFastMode(false);
+                          setPipelineLayer1(true);
+                          setPipelineLayer2(true);
+                          setPipelineLayer3(true);
+                          setPipelineAnalysisAgent(true);
+                          setPipelineScreenshotMode('full');
+                        }}
+                      />
+                      <span>
+                        <span className="font-medium">
+                          {t('scanMonitor.auditModeRaawiAgentLabel') || 'Raawi agent'}
+                        </span>
+                        <span className="block text-xs text-muted-foreground font-normal">
+                          {t('scanMonitor.auditModeRaawiAgentHint') ||
+                            'Runs the full layered scan and marks the report for the Raawi agent methodology.'}
+                        </span>
+                      </span>
+                    </label>
+                  </div>
                   {scanPipelineInvalid && (
                     <p className="text-xs text-amber-600 dark:text-amber-400">
                       {t('scanMonitor.scanPipelineNeedLayer12') ||
@@ -2266,7 +2319,9 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                       type="checkbox"
                       className="mt-0.5 rounded border-border"
                       checked={pipelineFastMode}
+                      disabled={auditMode === 'raawi-agent'}
                       onChange={(e) => {
+                        if (auditMode === 'raawi-agent') return;
                         const on = e.target.checked;
                         setPipelineFastMode(on);
                         if (on) {
@@ -2298,7 +2353,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                       type="checkbox"
                       className="mt-0.5 rounded border-border"
                       checked={pipelineLayer1}
-                      disabled={pipelineFastMode}
+                      disabled={pipelineFastMode || auditMode === 'raawi-agent'}
                       onChange={(e) => setPipelineLayer1(e.target.checked)}
                     />
                     <span>
@@ -2313,7 +2368,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                       type="checkbox"
                       className="mt-0.5 rounded border-border"
                       checked={pipelineLayer2}
-                      disabled={pipelineFastMode}
+                      disabled={pipelineFastMode || auditMode === 'raawi-agent'}
                       onChange={(e) => setPipelineLayer2(e.target.checked)}
                     />
                     <span>
@@ -2333,6 +2388,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                           type="radio"
                           name={`screenshot-mode-${scanId}`}
                           checked={pipelineScreenshotMode === 'full'}
+                          disabled={auditMode === 'raawi-agent'}
                           onChange={() => setPipelineScreenshotMode('full')}
                         />
                         {t('scanMonitor.screenshotModeFull') || 'Full page'}
@@ -2342,6 +2398,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                           type="radio"
                           name={`screenshot-mode-${scanId}`}
                           checked={pipelineScreenshotMode === 'viewport'}
+                          disabled={auditMode === 'raawi-agent'}
                           onChange={() => setPipelineScreenshotMode('viewport')}
                         />
                         {t('scanMonitor.screenshotModeViewport') || 'Viewport only'}
@@ -2353,7 +2410,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                       type="checkbox"
                       className="mt-0.5 rounded border-border"
                       checked={pipelineLayer3}
-                      disabled={pipelineFastMode}
+                      disabled={pipelineFastMode || auditMode === 'raawi-agent'}
                       onChange={(e) => setPipelineLayer3(e.target.checked)}
                     />
                     <span>
@@ -2368,7 +2425,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                       type="checkbox"
                       className="mt-0.5 rounded border-border"
                       checked={pipelineAnalysisAgent}
-                      disabled={pipelineFastMode}
+                      disabled={pipelineFastMode || auditMode === 'raawi-agent'}
                       onChange={(e) => setPipelineAnalysisAgent(e.target.checked)}
                     />
                     <span>

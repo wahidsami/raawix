@@ -2,6 +2,8 @@ import type { ScanRun, PageArtifact, RuleResult, VisionFinding } from '@raawi-x/
 import { getPrismaClient } from './client.js';
 import { StructuredLogger } from '../utils/logger.js';
 
+type AuditMode = 'classic' | 'raawi-agent';
+
 /**
  * Repository for scan persistence
  */
@@ -22,7 +24,8 @@ export class ScanRepository {
     maxDepth: number,
     hostname: string,
     entityId?: string,
-    propertyId?: string
+    propertyId?: string,
+    auditMode: AuditMode = 'classic'
   ): Promise<void> {
     const prisma = await getPrismaClient();
     if (!prisma) {
@@ -40,6 +43,7 @@ export class ScanRepository {
           maxPages,
           maxDepth,
           hostname,
+          auditMode,
           entityId: entityId || null,
           propertyId: propertyId || null,
         },
@@ -48,11 +52,12 @@ export class ScanRepository {
           maxPages,
           maxDepth,
           hostname,
+          auditMode,
           entityId: entityId || null,
           propertyId: propertyId || null,
         },
       });
-      this.logger.info('Scan record ensured in database', { scanId, entityId, propertyId });
+      this.logger.info('Scan record ensured in database', { scanId, entityId, propertyId, auditMode });
     } catch (error) {
       this.logger.error('Failed to upsert scan in database', {
         scanId,
@@ -104,7 +109,8 @@ export class ScanRepository {
     maxDepth: number,
     hostname: string,
     entityId?: string,
-    propertyId?: string
+    propertyId?: string,
+    auditMode: AuditMode = 'classic'
   ): Promise<string | null> {
     const prisma = await getPrismaClient();
     if (!prisma) {
@@ -119,7 +125,7 @@ export class ScanRepository {
 
       if (!scan) {
         // Create scan if it doesn't exist
-        await this.createScan(scanId, seedUrl, maxPages, maxDepth, hostname, entityId, propertyId);
+        await this.createScan(scanId, seedUrl, maxPages, maxDepth, hostname, entityId, propertyId, auditMode);
         scan = await prisma.scan.findUnique({
           where: { scanId },
           select: { id: true },
@@ -685,4 +691,3 @@ export class ScanRepository {
 }
 
 export const scanRepository = new ScanRepository();
-

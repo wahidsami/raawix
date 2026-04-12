@@ -90,6 +90,7 @@ export class ExcelReportGenerator {
     this.addInfoRow(sheet, t.entity, entity.name || 'N/A');
     this.addInfoRow(sheet, t.website, scan.seedUrl);
     this.addInfoRow(sheet, t.auditDate, new Date(scan.createdAt).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US'));
+    this.addInfoRow(sheet, t.auditMode, scan.auditMode === 'raawi-agent' ? t.auditModeRaawiAgent : t.auditModeClassic);
     this.addInfoRow(sheet, t.pagesAudited, pages.length.toString());
 
     // Empty row
@@ -548,6 +549,9 @@ export class ExcelReportGenerator {
         entity: 'الجهة',
         website: 'الموقع الإلكتروني',
         auditDate: 'تاريخ التدقيق',
+        auditMode: 'وضع التدقيق',
+        auditModeClassic: 'التدقيق الكلاسيكي',
+        auditModeRaawiAgent: 'وكيل راوي',
         pagesAudited: 'الصفحات المدققة',
         complianceScores: 'درجات الامتثال WCAG 2.1',
         levelA: 'المستوى A',
@@ -584,6 +588,9 @@ export class ExcelReportGenerator {
       entity: 'Entity',
       website: 'Website',
       auditDate: 'Audit Date',
+      auditMode: 'Audit Mode',
+      auditModeClassic: 'Classic audit',
+      auditModeRaawiAgent: 'Raawi agent',
       pagesAudited: 'Pages Audited',
       complianceScores: 'WCAG 2.1 Compliance Scores',
       levelA: 'Level A',

@@ -138,6 +138,7 @@ model Scan {
   maxPages   Int
   maxDepth   Int
   hostname   String
+  auditMode  String   @default("classic") // classic | raawi-agent
   summaryJson Json?   // ScanRunSummary as JSON
   // WCAG Compliance Scores (calculated from findings)
   scoreA     Float?   // WCAG Level A compliance score (0-100)
@@ -160,6 +161,7 @@ model Scan {
   @@index([scanId])
   @@index([hostname, completedAt])
   @@index([status])
+  @@index([auditMode])
   @@index([entityId])
   @@index([propertyId])
   @@schema("public")

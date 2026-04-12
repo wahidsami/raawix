@@ -34,10 +34,15 @@ export interface ResolvedScanPipeline {
   screenshotMode: ScreenshotCaptureMode;
 }
 
+/** Report methodology selected for the scan. */
+export type AuditMode = 'classic' | 'raawi-agent';
+
 export interface ScanRequest {
   seedUrl?: string;
   maxPages?: number;
   maxDepth?: number;
+  /** Distinguishes the current layered audit from the future Raawi agent methodology. */
+  auditMode?: AuditMode;
   includePatterns?: string[];
   excludePatterns?: string[];
   // Authenticated scanning

@@ -53,6 +53,7 @@ export class JobQueue {
       seedUrl: request.seedUrl || request.url || '',
       maxPages: Math.min(request.maxPages || 25, config.quotas.maxPagesHardLimit),
       maxDepth: Math.min(request.maxDepth || 2, 5),
+      auditMode: request.auditMode || 'classic',
       includePatterns: request.includePatterns,
       excludePatterns: request.excludePatterns,
       scanPipeline: request.scanPipeline,
@@ -133,11 +134,12 @@ export class JobQueue {
       normalizedRequest.maxDepth!,
       hostname,
       entityId,
-      propertyId
+      propertyId,
+      normalizedRequest.auditMode
     );
 
     // Log scan created
-    logger.info('Scan job created', { scanId, seedUrl, maxPages: normalizedRequest.maxPages, maxDepth: normalizedRequest.maxDepth, entityId, propertyId });
+    logger.info('Scan job created', { scanId, seedUrl, maxPages: normalizedRequest.maxPages, maxDepth: normalizedRequest.maxDepth, auditMode: normalizedRequest.auditMode, entityId, propertyId });
     auditLogger.logScanCreated(scanId, seedUrl, {
       maxPages: normalizedRequest.maxPages,
       maxDepth: normalizedRequest.maxDepth,
@@ -201,6 +203,7 @@ export class JobQueue {
       seedUrl: request.seedUrl || request.url || '',
       maxPages: Math.min(request.maxPages || 25, config.quotas.maxPagesHardLimit),
       maxDepth: Math.min(request.maxDepth || 2, 5),
+      auditMode: request.auditMode || 'classic',
       includePatterns: request.includePatterns,
       excludePatterns: request.excludePatterns,
       url: request.url || request.seedUrl,
@@ -235,7 +238,7 @@ export class JobQueue {
 
     this.queue.push(job);
 
-    logger.info('Job added for existing scan', { scanId, selectedUrls: normalizedRequest.selectedUrls?.length || 0 });
+    logger.info('Job added for existing scan', { scanId, selectedUrls: normalizedRequest.selectedUrls?.length || 0, auditMode: normalizedRequest.auditMode });
 
     // Process queue to start the job
     this.processQueue();

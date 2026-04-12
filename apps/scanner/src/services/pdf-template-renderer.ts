@@ -30,6 +30,8 @@ export interface TemplateData {
   propertyName: string;
   scanDate: string;
   entityCode: string;
+  auditModeLabel: string;
+  auditModeText: string;
   
   // Labels (i18n)
   entityLabel: string;

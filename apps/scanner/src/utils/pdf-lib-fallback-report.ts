@@ -118,6 +118,8 @@ export interface FallbackScanPdfParams {
   scanDate: string;
   entityCodeLabel: string;
   entityCode: string;
+  auditModeLabel: string;
+  auditModeText: string;
   reportGeneratedOn: string;
   generationDate: string;
   introductionTitle: string;
@@ -224,6 +226,7 @@ export async function renderFallbackScanPdf(params: FallbackScanPdfParams): Prom
   drawLines(`${params.propertyLabel}: ${params.propertyName}`, bodySize, 4);
   drawLines(`${params.scanDateLabel}: ${params.scanDate}`, bodySize, 4);
   drawLines(`${params.entityCodeLabel}: ${params.entityCode}`, bodySize, 4);
+  drawLines(`${params.auditModeLabel}: ${params.auditModeText}`, bodySize, 4);
 
   // —— Introduction & executive summary
   page = pdfDoc.addPage([W, H]);
