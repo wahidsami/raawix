@@ -60,6 +60,7 @@ export const config = {
   vision: {
     enabled: process.env.VISION_ENABLED !== 'false', // Default enabled
     ocrEnabled: process.env.VISION_OCR_ENABLED === 'true', // Default disabled
+    maxCandidatesPerPage: parseInt(process.env.VISION_MAX_CANDIDATES_PER_PAGE || '80', 10),
   },
   gemini: {
     enabled: process.env.GEMINI_ENABLED === 'true', // Default disabled
@@ -85,6 +86,8 @@ export const config = {
     maxChars: parseInt(process.env.OPENAI_MAX_CHARS || '4000', 10),
     maxImageBytes: parseInt(process.env.OPENAI_MAX_IMAGE_BYTES || '10485760', 10),
     maxImagesPerScan: parseInt(process.env.OPENAI_MAX_IMAGES_PER_SCAN || '50', 10),
+    requestTimeoutMs: parseInt(process.env.OPENAI_REQUEST_TIMEOUT_MS || '15000', 10),
+    visionElementEnrichment: process.env.OPENAI_VISION_ELEMENT_ENRICHMENT === 'true', // Default off; per-element calls can be slow.
   },
   agentAnalyst: {
     enabled: process.env.AGENT_ANALYST_ENABLED !== 'false', // Default enabled
@@ -97,4 +100,3 @@ export const config = {
     enabled: !!process.env.DATABASE_URL, // Only enabled if DATABASE_URL is set
   },
 };
-

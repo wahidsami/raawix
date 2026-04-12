@@ -20,8 +20,9 @@ export class VisionAnalyzer {
     this.scanId = scanId;
     this.logger = new StructuredLogger(scanId);
 
-    // Initialize vision provider if enabled
-    if (OpenAIVisionProvider.isEnabled()) {
+    // Optional per-element AI vision enrichment. Keep off by default because it can
+    // turn large pages into many sequential external model calls.
+    if (OpenAIVisionProvider.isEnabled() && config.openai.visionElementEnrichment) {
       this.geminiProvider = new OpenAIVisionProvider();
       this.logger.info('OpenAI Vision provider enabled');
     }
@@ -44,11 +45,14 @@ export class VisionAnalyzer {
       this.logger.info('Starting vision analysis', { pageNumber, url: pageUrl });
 
       // Collect candidate interactive elements
-      const candidates = await this.collectInteractiveElements(page);
+      const allCandidates = await this.collectInteractiveElements(page);
+      const candidates = allCandidates.slice(0, config.vision.maxCandidatesPerPage);
 
       this.logger.info('Collected interactive candidates', {
         pageNumber,
-        count: candidates.length,
+        count: allCandidates.length,
+        analyzedCount: candidates.length,
+        maxCandidatesPerPage: config.vision.maxCandidatesPerPage,
       });
 
       const findings: VisionFinding[] = [];

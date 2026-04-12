@@ -26,18 +26,21 @@ export class OpenAIVisionProvider {
         return { text: null, rawResponse: { error: 'Image exceeds maximum size limit' } };
       }
       const imageBase64 = imageBuffer.toString('base64');
-      const response = await this.client.responses.create({
-        model: this.model,
-        input: [
-          {
-            role: 'user',
-            content: [
-              { type: 'input_text', text: 'Extract all visible text from this image. Return only the text content.' },
-              { type: 'input_image', image_url: `data:image/png;base64,${imageBase64}`, detail: 'low' },
-            ],
-          },
-        ],
-      });
+      const response = await this.client.responses.create(
+        {
+          model: this.model,
+          input: [
+            {
+              role: 'user',
+              content: [
+                { type: 'input_text', text: 'Extract all visible text from this image. Return only the text content.' },
+                { type: 'input_image', image_url: `data:image/png;base64,${imageBase64}`, detail: 'low' },
+              ],
+            },
+          ],
+        },
+        { timeout: config.openai.requestTimeoutMs }
+      );
       const text = response.output_text?.trim() || null;
       return { text, rawResponse: response };
     } catch (error) {
@@ -66,18 +69,21 @@ export class OpenAIVisionProvider {
       if (context) prompt += `Context: ${context.substring(0, 100)}. `;
       prompt += 'Return only the description.';
 
-      const response = await this.client.responses.create({
-        model: this.model,
-        input: [
-          {
-            role: 'user',
-            content: [
-              { type: 'input_text', text: prompt },
-              { type: 'input_image', image_url: `data:image/png;base64,${imageBase64}`, detail: 'low' },
-            ],
-          },
-        ],
-      });
+      const response = await this.client.responses.create(
+        {
+          model: this.model,
+          input: [
+            {
+              role: 'user',
+              content: [
+                { type: 'input_text', text: prompt },
+                { type: 'input_image', image_url: `data:image/png;base64,${imageBase64}`, detail: 'low' },
+              ],
+            },
+          ],
+        },
+        { timeout: config.openai.requestTimeoutMs }
+      );
 
       let description = response.output_text?.trim() || null;
       if (description) {
