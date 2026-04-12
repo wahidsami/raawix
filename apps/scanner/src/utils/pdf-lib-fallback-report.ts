@@ -96,6 +96,8 @@ export interface FallbackAgentRow {
 }
 
 export interface FallbackScanPdfParams {
+  logoDataUrl?: string;
+  poweredByLogoDataUrl?: string;
   reportTitle: string;
   subtitleLine?: string;
   entityName: string;
@@ -176,6 +178,19 @@ export async function renderFallbackScanPdf(params: FallbackScanPdfParams): Prom
     }
   };
 
+  const drawCenteredLine = (text: string, size: number, color = rgb(0.03, 0.6, 0.41)) => {
+    const width = font.widthOfTextAtSize(text, size);
+    ensureSpace(size + 8);
+    page.drawText(text, {
+      x: Math.max(M, (W - width) / 2),
+      y,
+      size,
+      font,
+      color,
+    });
+    y -= size + 8;
+  };
+
   const drawHeading = (text: string) => {
     y -= 6;
     drawLines(text, sectionSize, 6);
@@ -183,6 +198,8 @@ export async function renderFallbackScanPdf(params: FallbackScanPdfParams): Prom
   };
 
   // —— Cover
+  drawCenteredLine('Raawi X', 28);
+
   drawLines(params.reportTitle, titleSize, 8);
   if (params.subtitleLine?.trim()) {
     drawLines(params.subtitleLine, bodySize, 4);

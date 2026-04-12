@@ -309,6 +309,31 @@ export default function ScanDetailPage() {
     ? scanDetail.pages.find((p) => p.pageNumber === selectedPage)
     : null;
 
+  const allLayer1Findings = scanDetail.pages.flatMap((page) =>
+    page.layer1.findings.map((finding, idx) => ({
+      key: `${page.pageNumber}-l1-${idx}-${finding.wcagId || 'unknown'}`,
+      pageNumber: page.pageNumber,
+      pageUrl: page.url,
+      wcagId: finding.wcagId || 'Unknown',
+      level: finding.level || 'N/A',
+      status: finding.status,
+      confidence: finding.confidence,
+      message: finding.message || '—',
+    }))
+  );
+
+  const allLayer2Findings = scanDetail.pages.flatMap((page) =>
+    page.layer2.findings.map((finding, idx) => ({
+      key: `${page.pageNumber}-l2-${idx}-${finding.kind || 'unknown'}`,
+      pageNumber: page.pageNumber,
+      pageUrl: page.url,
+      kind: finding.kind || 'Unknown',
+      confidence: finding.confidence || '—',
+      description: finding.description || '',
+      detectedText: finding.detectedText || '',
+    }))
+  );
+
   const analysisAgentFindings = scanDetail.analysisAgent?.findings ?? [];
 
   return (
@@ -539,6 +564,108 @@ export default function ScanDetailPage() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground mt-4 italic">{t('scans.disclaimer')}</p>
+      </div>
+
+      {/* All Findings */}
+      <div className="bg-card border border-border rounded-lg p-6 space-y-6">
+        <div>
+          <h2 className="text-xl font-bold">{t('scans.allFindings') || 'All scan findings'}</h2>
+          <p className="text-sm text-muted-foreground mt-2">
+            {t('scans.allFindingsIntro') ||
+              'These tables aggregate results across every scanned page so nothing is hidden behind page selection.'}
+          </p>
+        </div>
+
+        <div>
+          <h3 className="font-semibold mb-3 flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Layer 1: WCAG Findings ({allLayer1Findings.length})
+          </h3>
+          {allLayer1Findings.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="px-4 py-2 text-left font-medium">Page</th>
+                    <th className="px-4 py-2 text-left font-medium">WCAG ID</th>
+                    <th className="px-4 py-2 text-left font-medium">Level</th>
+                    <th className="px-4 py-2 text-left font-medium">Status</th>
+                    <th className="px-4 py-2 text-left font-medium">Message</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {allLayer1Findings.map((finding) => (
+                    <tr key={finding.key} className="hover:bg-muted/40 align-top">
+                      <td className="px-4 py-2 whitespace-nowrap">{finding.pageNumber}</td>
+                      <td className="px-4 py-2 font-medium">{finding.wcagId}</td>
+                      <td className="px-4 py-2 whitespace-nowrap">{finding.level}</td>
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          {finding.status === 'pass' && <CheckCircle className="w-4 h-4 text-green-600" />}
+                          {finding.status === 'fail' && <XCircle className="w-4 h-4 text-destructive" />}
+                          {finding.status === 'needs_review' && <AlertCircle className="w-4 h-4 text-yellow-600" />}
+                          <span>{finding.status}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-muted-foreground max-w-[48rem]">
+                        <div className="break-words">{finding.message}</div>
+                        <a
+                          href={finding.pageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline break-all"
+                        >
+                          {finding.pageUrl}
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No WCAG findings recorded for this scan.</p>
+          )}
+        </div>
+
+        <div>
+          <h3 className="font-semibold mb-3 flex items-center gap-2">
+            <Eye className="w-4 h-4" />
+            Layer 2: Vision Findings ({allLayer2Findings.length})
+          </h3>
+          {allLayer2Findings.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="px-4 py-2 text-left font-medium">Page</th>
+                    <th className="px-4 py-2 text-left font-medium">Kind</th>
+                    <th className="px-4 py-2 text-left font-medium">Confidence</th>
+                    <th className="px-4 py-2 text-left font-medium">Detected Text</th>
+                    <th className="px-4 py-2 text-left font-medium">Description</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {allLayer2Findings.map((finding) => (
+                    <tr key={finding.key} className="hover:bg-muted/40 align-top">
+                      <td className="px-4 py-2 whitespace-nowrap">{finding.pageNumber}</td>
+                      <td className="px-4 py-2 font-medium">{finding.kind}</td>
+                      <td className="px-4 py-2 whitespace-nowrap">{finding.confidence}</td>
+                      <td className="px-4 py-2 text-xs text-muted-foreground break-words">
+                        {finding.detectedText || '—'}
+                      </td>
+                      <td className="px-4 py-2 text-muted-foreground break-words">
+                        {finding.description || '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No vision findings recorded for this scan.</p>
+          )}
+        </div>
       </div>
 
       {/* Analysis AI agent — always shown; table only when there are rows */}
@@ -906,4 +1033,3 @@ export default function ScanDetailPage() {
     </div>
   );
 }
-
