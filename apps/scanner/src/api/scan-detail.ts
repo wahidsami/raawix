@@ -20,6 +20,10 @@ import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { getHostname } from '../crawler/url-utils.js';
 import * as AMG from '../assistive/assistive-map-generator.js';
+import {
+  formatAnalysisAgentPageStatus,
+  loadAnalysisAgentPageSummaries,
+} from '../utils/analysis-agent-summary.js';
 
 const router: Router = Router();
 
@@ -252,6 +256,56 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
       })
     );
 
+    const analysisAgentTraceSummaries = await loadAnalysisAgentPageSummaries(
+      scan.pages.map((page: any) => ({
+        pageNumber: page.pageNumber,
+        pageUrl: page.url,
+        agentPath: page.agentPath,
+        findingsCount: page.agentFindings?.length ?? 0,
+      }))
+    );
+
+    const analysisAgentTraceSummary = analysisAgentTraceSummaries.reduce(
+      (acc, summary) => {
+        acc.pagesWithTrace += summary.executed ? 1 : 0;
+        acc.passPages += summary.status === 'pass' ? 1 : 0;
+        acc.failPages += summary.status === 'fail' ? 1 : 0;
+        acc.notRunPages += summary.status === 'not_run' ? 1 : 0;
+        acc.totalSteps += summary.stepCount;
+        acc.totalProbeAttempts += summary.probeAttemptCount;
+        acc.totalProbeSuccesses += summary.probeSuccessCount;
+        acc.totalIssues += summary.issueCount;
+        return acc;
+      },
+      {
+        pagesWithTrace: 0,
+        passPages: 0,
+        failPages: 0,
+        notRunPages: 0,
+        totalSteps: 0,
+        totalProbeAttempts: 0,
+        totalProbeSuccesses: 0,
+        totalIssues: 0,
+      }
+    );
+
+    const pageTraceByNumber = new Map(
+      analysisAgentTraceSummaries.map((summary) => [summary.pageNumber, summary])
+    );
+
+    for (const page of pagesDetail as any[]) {
+      const trace = pageTraceByNumber.get(page.pageNumber);
+      if (trace) {
+        page.layerAgent = {
+          ...(page.layerAgent || {}),
+          trace: {
+            ...trace,
+            statusLabel: formatAnalysisAgentPageStatus(trace.status),
+          },
+        };
+      }
+    }
+
     const analysisAgentFindings = pagesDetail.flatMap((p) =>
       (p.layerAgent?.findings || []).map((f: any) => ({
         pageNumber: p.pageNumber,
@@ -293,6 +347,8 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
         /** Keyboard/interaction trace was produced for at least one page, and/or DB has agent findings */
         executed: analysisAgentExecuted,
         pagesWithArtifact: pagesWithAgentArtifact,
+        trace: analysisAgentTraceSummaries,
+        summary: analysisAgentTraceSummary,
       },
       pages: pagesDetail,
       disclaimer: 'Scores reflect scanned pages and crawl scope; this is not a certification.',
@@ -717,4 +773,3 @@ router.delete('/:scanId', requireAuth, async (req: Request, res: Response) => {
 });
 
 export default router;
-

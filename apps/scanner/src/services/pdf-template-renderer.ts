@@ -82,6 +82,10 @@ export interface TemplateData {
   totalAnalysisAgentFindings: string;
   analysisAgentTitle: string;
   analysisAgentIntro: string;
+  analysisAgentTraceTitle: string;
+  analysisAgentTraceIntro: string;
+  analysisAgentTraceSummaryText: string;
+  analysisAgentTraceTableOrEmpty: string;
   analysisAgentTableOrEmpty: string;
   
   // Footer

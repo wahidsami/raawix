@@ -2,6 +2,10 @@ import ExcelJS from 'exceljs';
 import { scanRepository } from '../db/scan-repository.js';
 
 import { formatAgentConfidenceScore, agentSourceLabel, formatSuggestedWcagIds } from '../utils/agent-report-format.js';
+import {
+  formatAnalysisAgentPageStatus,
+  loadAnalysisAgentPageSummaries,
+} from '../utils/analysis-agent-summary.js';
 
 /**
  * Excel Report Generator
@@ -41,6 +45,7 @@ export class ExcelReportGenerator {
 
     const agentFindings = (scanData.agentFindings || []) as any[];
     await this.addAnalysisAgentSheet(workbook, agentFindings, pages, locale);
+    await this.addAnalysisTraceSheet(workbook, pages, locale);
 
     return workbook;
   }
@@ -337,6 +342,102 @@ export class ExcelReportGenerator {
     sheet.getColumn(7).width = 28;
 
     sheet.views = [{ state: 'frozen', ySplit: 1, rightToLeft: locale === 'ar' }];
+  }
+
+  /**
+   * Add Analysis Trace Sheet
+   */
+  private async addAnalysisTraceSheet(
+    workbook: ExcelJS.Workbook,
+    pages: any[],
+    locale: 'en' | 'ar'
+  ) {
+    const sheet = workbook.addWorksheet(locale === 'ar' ? 'تتبّع الوكيل' : 'Analysis Trace');
+    if (locale === 'ar') {
+      sheet.views = [{ rightToLeft: true }];
+    }
+
+    const summaries = await loadAnalysisAgentPageSummaries(
+      pages.map((page: any) => ({
+        pageNumber: page.pageNumber,
+        pageUrl: page.url,
+        agentPath: page.agentPath,
+        findingsCount: page.agentFindings?.length ?? 0,
+      }))
+    );
+
+    const summaryRow = sheet.addRow([
+      locale === 'ar'
+        ? 'صف واحد لكل صفحة يوضح حالة مساعد لوحة المفاتيح'
+        : 'One row per page showing the keyboard assistant status',
+    ]);
+    sheet.mergeCells(`A${summaryRow.number}:H${summaryRow.number}`);
+    summaryRow.font = { italic: true, color: { argb: 'FF6B7280' } };
+    summaryRow.alignment = { wrapText: true, vertical: 'top' };
+
+    const headerRow = sheet.addRow([
+      '#',
+      locale === 'ar' ? 'الصفحة' : 'Page',
+      locale === 'ar' ? 'الحالة' : 'Status',
+      locale === 'ar' ? 'الخطوات' : 'Steps',
+      locale === 'ar' ? 'الاختبارات المطلوبة' : 'Probes attempted',
+      locale === 'ar' ? 'الاختبارات الناجحة' : 'Probes passed',
+      locale === 'ar' ? 'المشكلات' : 'Issues',
+      locale === 'ar' ? 'ملخص التتبّع' : 'Trace summary',
+    ]);
+
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF0F766E' },
+    };
+    headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+
+    if (summaries.length === 0) {
+      const note = sheet.addRow([
+        locale === 'ar'
+          ? 'لم يتم تسجيل أي تتبّع للوكيل في هذا المسح.'
+          : 'No agent trace rows were recorded for this scan.',
+      ]);
+      sheet.mergeCells(`A${note.number}:H${note.number}`);
+      note.getCell(1).font = { italic: true, color: { argb: 'FF6B7280' } };
+      note.getCell(1).alignment = { wrapText: true, vertical: 'top' };
+    } else {
+      for (const summary of summaries) {
+        const row = sheet.addRow([
+          summary.pageNumber,
+          summary.pageUrl,
+          locale === 'ar'
+            ? summary.status === 'pass'
+              ? 'نجح'
+              : summary.status === 'fail'
+                ? 'لم ينجح'
+                : 'لم يعمل'
+            : formatAnalysisAgentPageStatus(summary.status),
+          summary.stepCount,
+          summary.probeAttemptCount,
+          summary.probeSuccessCount,
+          summary.issueCount,
+          summary.traceSummary,
+        ]);
+        row.alignment = { wrapText: true, vertical: 'top' };
+      }
+      sheet.autoFilter = {
+        from: 'A2',
+        to: `H${summaries.length + 2}`,
+      };
+    }
+
+    sheet.getColumn(1).width = 6;
+    sheet.getColumn(2).width = 40;
+    sheet.getColumn(3).width = 14;
+    sheet.getColumn(4).width = 10;
+    sheet.getColumn(5).width = 18;
+    sheet.getColumn(6).width = 16;
+    sheet.getColumn(7).width = 10;
+    sheet.getColumn(8).width = 55;
+    sheet.views = [{ state: 'frozen', ySplit: 2, rightToLeft: locale === 'ar' }];
   }
 
   /**

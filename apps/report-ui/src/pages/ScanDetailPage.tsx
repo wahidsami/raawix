@@ -157,6 +157,30 @@ interface ScanDetail {
     /** Keyboard/interaction trace and/or stored agent findings */
     executed?: boolean;
     pagesWithArtifact?: number;
+    trace?: Array<{
+      pageNumber: number;
+      pageUrl: string;
+      executed: boolean;
+      status: 'pass' | 'fail' | 'not_run';
+      statusLabel?: string;
+      stepCount: number;
+      probeAttemptCount: number;
+      probeSuccessCount: number;
+      issueCount: number;
+      issueKinds: string[];
+      issueMessages: string[];
+      traceSummary: string;
+    }>;
+    summary?: {
+      pagesWithTrace: number;
+      passPages: number;
+      failPages: number;
+      notRunPages: number;
+      totalSteps: number;
+      totalProbeAttempts: number;
+      totalProbeSuccesses: number;
+      totalIssues: number;
+    };
   };
   pages: Array<{
     pageNumber: number;
@@ -182,6 +206,20 @@ interface ScanDetail {
     layerAgent?: {
       findings: any[];
       count: number;
+      trace?: {
+        pageNumber: number;
+        pageUrl: string;
+        executed: boolean;
+        status: 'pass' | 'fail' | 'not_run';
+        statusLabel?: string;
+        stepCount: number;
+        probeAttemptCount: number;
+        probeSuccessCount: number;
+        issueCount: number;
+        issueKinds: string[];
+        issueMessages: string[];
+        traceSummary: string;
+      };
     };
     layer3: {
       assistiveMap: any;
@@ -335,6 +373,22 @@ export default function ScanDetailPage() {
   );
 
   const analysisAgentFindings = scanDetail.analysisAgent?.findings ?? [];
+  const analysisAgentTrace = scanDetail.analysisAgent?.trace ?? [];
+  const analysisAgentSummary = scanDetail.analysisAgent?.summary;
+  const getAnalysisAgentStatusLabel = (status: 'pass' | 'fail' | 'not_run') => {
+    if (status === 'pass') return 'Pass';
+    if (status === 'fail') return 'Not pass';
+    return 'Not run';
+  };
+  const getAnalysisAgentStatusClass = (status: 'pass' | 'fail' | 'not_run') => {
+    if (status === 'pass') {
+      return 'bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-500/20';
+    }
+    if (status === 'fail') {
+      return 'bg-red-500/15 text-red-700 ring-1 ring-red-500/20';
+    }
+    return 'bg-muted text-muted-foreground ring-1 ring-border';
+  };
 
   return (
     <div className="space-y-6">
@@ -501,6 +555,60 @@ export default function ScanDetailPage() {
           </div>
           <div className="text-2xl font-bold mt-1">
             {scanDetail.summary.totalAgentFindings ?? scanDetail.analysisAgent?.count ?? 0}
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-lg p-6">
+        <h2 className="text-xl font-bold mb-4">DOM scan vs AI blind assistant</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-lg border border-border bg-muted/30 p-4">
+            <div className="text-sm text-muted-foreground mb-2">Normal DOM / WCAG scan</div>
+            <div className="text-3xl font-bold">{scanDetail.summary.totalFindings}</div>
+            <div className="text-sm text-muted-foreground mt-1">
+              {scanDetail.summary.scores.passedRules} passed · {scanDetail.summary.scores.failedRules} failed · {scanDetail.summary.scores.needsReviewRules} need review
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+              <div className="rounded border border-border bg-background p-3">
+                <div className="text-muted-foreground">WCAG A</div>
+                <div className="font-semibold">
+                  {scanDetail.summary.scores.scoreA != null ? `${scanDetail.summary.scores.scoreA.toFixed(1)}%` : 'N/A'}
+                </div>
+              </div>
+              <div className="rounded border border-border bg-background p-3">
+                <div className="text-muted-foreground">WCAG AA</div>
+                <div className="font-semibold">
+                  {scanDetail.summary.scores.scoreAA != null ? `${scanDetail.summary.scores.scoreAA.toFixed(1)}%` : 'N/A'}
+                </div>
+              </div>
+              <div className="rounded border border-border bg-background p-3">
+                <div className="text-muted-foreground">Need review</div>
+                <div className="font-semibold">
+                  {scanDetail.summary.scores.needsReviewRate != null ? `${scanDetail.summary.scores.needsReviewRate.toFixed(1)}%` : 'N/A'}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-border bg-muted/30 p-4">
+            <div className="text-sm text-muted-foreground mb-2">AI blind assistant</div>
+            <div className="text-3xl font-bold">{analysisAgentSummary?.pagesWithTrace ?? scanDetail.analysisAgent?.pagesWithArtifact ?? 0}</div>
+            <div className="text-sm text-muted-foreground mt-1">
+              pages with trace · {analysisAgentSummary?.totalIssues ?? 0} issue(s)
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+              <div className="rounded border border-border bg-background p-3">
+                <div className="text-muted-foreground">Pass</div>
+                <div className="font-semibold">{analysisAgentSummary?.passPages ?? 0}</div>
+              </div>
+              <div className="rounded border border-border bg-background p-3">
+                <div className="text-muted-foreground">Not pass</div>
+                <div className="font-semibold">{analysisAgentSummary?.failPages ?? 0}</div>
+              </div>
+              <div className="rounded border border-border bg-background p-3">
+                <div className="text-muted-foreground">Not run</div>
+                <div className="font-semibold">{analysisAgentSummary?.notRunPages ?? 0}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -679,8 +787,47 @@ export default function ScanDetailPage() {
             {t('scans.analysisAgentSectionIntro') ||
               'Keyboard simulation and optional AI enrichment. Complements WCAG rule results above.'}
           </p>
-          {analysisAgentFindings.length > 0 ? (
+          {analysisAgentTrace.length > 0 && (
             <div className="overflow-x-auto p-4 pt-2">
+              <div className="mb-3 text-sm font-semibold">Per-page AI trace</div>
+              <table className="w-full text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">#</th>
+                    <th className="px-3 py-2 text-left font-medium">Page</th>
+                    <th className="px-3 py-2 text-left font-medium">Status</th>
+                    <th className="px-3 py-2 text-left font-medium">Steps</th>
+                    <th className="px-3 py-2 text-left font-medium">Probes</th>
+                    <th className="px-3 py-2 text-left font-medium">Issues</th>
+                    <th className="px-3 py-2 text-left font-medium">Summary</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {analysisAgentTrace.map((trace) => (
+                    <tr key={`${trace.pageNumber}-${trace.pageUrl}`} className="hover:bg-muted/40 align-top">
+                      <td className="px-3 py-2 whitespace-nowrap">{trace.pageNumber}</td>
+                      <td className="px-3 py-2 max-w-[240px]">
+                        <span className="break-all text-xs text-muted-foreground">{trace.pageUrl}</span>
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getAnalysisAgentStatusClass(trace.status)}`}>
+                          {trace.statusLabel || getAnalysisAgentStatusLabel(trace.status)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">{trace.stepCount}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {trace.probeAttemptCount} attempted / {trace.probeSuccessCount} passed
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">{trace.issueCount}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{trace.traceSummary}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {analysisAgentFindings.length > 0 ? (
+            <div className="overflow-x-auto p-4 pt-0">
               <table className="w-full text-sm">
                 <thead className="bg-muted">
                   <tr>
@@ -812,8 +959,17 @@ export default function ScanDetailPage() {
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <div className="text-sm">
-                    {page.layerAgent?.count ?? 0} findings
+                  <div className="space-y-1 text-sm">
+                    <div className="flex items-center gap-2">
+                      {page.layerAgent?.trace ? (
+                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getAnalysisAgentStatusClass(page.layerAgent.trace.status)}`}>
+                          {page.layerAgent.trace.statusLabel || getAnalysisAgentStatusLabel(page.layerAgent.trace.status)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">No trace</span>
+                      )}
+                    </div>
+                    <div>{page.layerAgent?.count ?? 0} findings</div>
                   </div>
                 </td>
                 <td className="px-6 py-4">
@@ -947,44 +1103,79 @@ export default function ScanDetailPage() {
                 <Bot className="w-4 h-4" />
                 Layer Agent: Interaction Findings ({(selectedPageData.layerAgent?.findings?.length ?? 0)})
               </h3>
-              <div className="space-y-2">
-                {(selectedPageData.layerAgent?.findings ?? []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No agent findings for this page.</p>
+              <div className="space-y-3">
+                {selectedPageData.layerAgent?.trace ? (
+                  <div className="rounded border border-border bg-muted/30 p-3">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getAnalysisAgentStatusClass(selectedPageData.layerAgent.trace.status)}`}>
+                        {selectedPageData.layerAgent.trace.statusLabel || getAnalysisAgentStatusLabel(selectedPageData.layerAgent.trace.status)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {selectedPageData.layerAgent.trace.traceSummary}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                      <div className="rounded border border-border bg-background p-2">
+                        <div className="text-xs text-muted-foreground">Steps</div>
+                        <div className="font-semibold">{selectedPageData.layerAgent.trace.stepCount}</div>
+                      </div>
+                      <div className="rounded border border-border bg-background p-2">
+                        <div className="text-xs text-muted-foreground">Probes attempted</div>
+                        <div className="font-semibold">{selectedPageData.layerAgent.trace.probeAttemptCount}</div>
+                      </div>
+                      <div className="rounded border border-border bg-background p-2">
+                        <div className="text-xs text-muted-foreground">Probes passed</div>
+                        <div className="font-semibold">{selectedPageData.layerAgent.trace.probeSuccessCount}</div>
+                      </div>
+                      <div className="rounded border border-border bg-background p-2">
+                        <div className="text-xs text-muted-foreground">Issues</div>
+                        <div className="font-semibold">{selectedPageData.layerAgent.trace.issueCount}</div>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
-                  (selectedPageData.layerAgent?.findings ?? []).map((finding: any, idx: number) => {
-                    const conf = finding.confidence;
-                    const isNumeric = typeof conf === 'number' && Number.isFinite(conf);
-                    const label = isNumeric
-                      ? (conf >= 0.8 ? 'high' : conf >= 0.5 ? 'medium' : 'low')
-                      : (conf ?? 'medium');
-                    const pct = isNumeric ? `${Math.round(conf * 100)}% ` : '';
-                    const isOpenAi = finding.source === 'openai' || finding.evidence?.source === 'openai';
-                    return (
-                      <div key={finding.id ?? idx} className="border border-border rounded p-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium">{finding.kind}</span>
-                          <span className={`text-xs px-2 py-1 rounded ${label === 'high' ? 'bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-500/20' :
-                            label === 'medium' ? 'bg-amber-500/15 text-amber-200 ring-1 ring-amber-500/20' :
-                              'bg-muted text-muted-foreground'
-                            }`}>
-                            {pct ? `${label} (${pct})` : label}
-                          </span>
-                          {isOpenAi && (
-                            <span className="text-xs px-2 py-1 rounded bg-violet-500/15 text-violet-200 ring-1 ring-violet-500/25 font-medium" title="Enriched by OpenAI analyst">
-                              AI
+                  <p className="text-sm text-muted-foreground">No agent trace recorded for this page.</p>
+                )}
+
+                <div className="space-y-2">
+                  {(selectedPageData.layerAgent?.findings ?? []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No agent findings for this page.</p>
+                  ) : (
+                    (selectedPageData.layerAgent?.findings ?? []).map((finding: any, idx: number) => {
+                      const conf = finding.confidence;
+                      const isNumeric = typeof conf === 'number' && Number.isFinite(conf);
+                      const label = isNumeric
+                        ? (conf >= 0.8 ? 'high' : conf >= 0.5 ? 'medium' : 'low')
+                        : (conf ?? 'medium');
+                      const pct = isNumeric ? `${Math.round(conf * 100)}% ` : '';
+                      const isOpenAi = finding.source === 'openai' || finding.evidence?.source === 'openai';
+                      return (
+                        <div key={finding.id ?? idx} className="border border-border rounded p-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium">{finding.kind}</span>
+                            <span className={`text-xs px-2 py-1 rounded ${label === 'high' ? 'bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-500/20' :
+                              label === 'medium' ? 'bg-amber-500/15 text-amber-200 ring-1 ring-amber-500/20' :
+                                'bg-muted text-muted-foreground'
+                              }`}>
+                              {pct ? `${label} (${pct})` : label}
                             </span>
+                            {isOpenAi && (
+                              <span className="text-xs px-2 py-1 rounded bg-violet-500/15 text-violet-200 ring-1 ring-violet-500/25 font-medium" title="Enriched by OpenAI analyst">
+                                AI
+                              </span>
+                            )}
+                          </div>
+                          {finding.message && (
+                            <p className="text-sm text-muted-foreground">{finding.message}</p>
+                          )}
+                          {finding.howToVerify && (
+                            <p className="text-xs text-muted-foreground mt-1">How to verify: {finding.howToVerify}</p>
                           )}
                         </div>
-                        {finding.message && (
-                          <p className="text-sm text-muted-foreground">{finding.message}</p>
-                        )}
-                        {finding.howToVerify && (
-                          <p className="text-xs text-muted-foreground mt-1">How to verify: {finding.howToVerify}</p>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
 

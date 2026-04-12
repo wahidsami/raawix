@@ -95,6 +95,17 @@ export interface FallbackAgentRow {
   pageUrl: string;
 }
 
+export interface FallbackAgentTraceRow {
+  pageNumber: number;
+  pageUrl: string;
+  statusLabel: string;
+  stepCount: number;
+  probeAttemptCount: number;
+  probeSuccessCount: number;
+  issueCount: number;
+  traceSummary: string;
+}
+
 export interface FallbackScanPdfParams {
   logoDataUrl?: string;
   poweredByLogoDataUrl?: string;
@@ -136,6 +147,10 @@ export interface FallbackScanPdfParams {
   findings: FallbackFindingRow[];
   analysisAgentTitle: string;
   analysisAgentIntro: string;
+  analysisAgentTraceTitle: string;
+  analysisAgentTraceSummaryText: string;
+  analysisAgentTraceEmpty: string;
+  traceRows: FallbackAgentTraceRow[];
   analysisAgentEmpty: string;
   agentRows: FallbackAgentRow[];
   footerText: string;
@@ -252,6 +267,22 @@ export async function renderFallbackScanPdf(params: FallbackScanPdfParams): Prom
       drawLines(block, bodySize - 0.5, 3);
       y -= 6;
       ensureSpace(bodySize);
+    }
+  }
+
+  // —— Analysis AI trace
+  drawHeading(params.analysisAgentTraceTitle);
+  if (params.analysisAgentTraceSummaryText.trim()) {
+    drawLines(params.analysisAgentTraceSummaryText, bodySize - 0.5, 3);
+    y -= 4;
+  }
+  if (params.traceRows.length === 0) {
+    drawLines(params.analysisAgentTraceEmpty, bodySize, 3);
+  } else {
+    for (const r of params.traceRows) {
+      const block = `${r.pageNumber}. ${r.statusLabel}\n${r.traceSummary}\nsteps: ${r.stepCount} | probes: ${r.probeAttemptCount}/${r.probeSuccessCount} | issues: ${r.issueCount}\n${r.pageUrl}`;
+      drawLines(block, bodySize - 0.5, 3);
+      y -= 6;
     }
   }
 

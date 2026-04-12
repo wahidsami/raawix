@@ -21,6 +21,10 @@ import {
   agentSourceLabel,
   formatSuggestedWcagIds,
 } from '../utils/agent-report-format.js';
+import {
+  formatAnalysisAgentPageStatus,
+  loadAnalysisAgentPageSummaries,
+} from '../utils/analysis-agent-summary.js';
 import { renderFallbackScanPdf } from '../utils/pdf-lib-fallback-report.js';
 
 const router: Router = Router();
@@ -260,8 +264,70 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
     const analysisAgentParticipated =
       pagesWithAgentArtifact > 0 || (agentList?.length ?? 0) > 0;
 
+    const analysisAgentTraceSummaries = await loadAnalysisAgentPageSummaries(
+      (scan.pages as { pageNumber: number; url: string; agentPath?: string | null; agentFindings?: unknown[] }[]).map(
+        (page) => ({
+          pageNumber: page.pageNumber,
+          pageUrl: page.url,
+          agentPath: page.agentPath,
+          findingsCount: page.agentFindings?.length ?? 0,
+        })
+      )
+    );
+
+    const analysisAgentTraceRows = analysisAgentTraceSummaries.map((summary) => ({
+      pageNumber: summary.pageNumber,
+      pageUrl: summary.pageUrl,
+      status: summary.status,
+      statusLabel:
+        locale === 'ar'
+          ? summary.status === 'pass'
+            ? getPDFTranslation('analysisAgentPassLabel', locale)
+            : summary.status === 'fail'
+              ? getPDFTranslation('analysisAgentNotPassLabel', locale)
+              : getPDFTranslation('analysisAgentNotRunLabel', locale)
+          : formatAnalysisAgentPageStatus(summary.status),
+      stepCount: summary.stepCount,
+      probeAttemptCount: summary.probeAttemptCount,
+      probeSuccessCount: summary.probeSuccessCount,
+      issueCount: summary.issueCount,
+      traceSummary: summary.traceSummary,
+    }));
+
+    const analysisAgentTraceSummary = analysisAgentTraceSummaries.reduce(
+      (acc, summary) => {
+        acc.pagesWithTrace += summary.executed ? 1 : 0;
+        acc.passPages += summary.status === 'pass' ? 1 : 0;
+        acc.failPages += summary.status === 'fail' ? 1 : 0;
+        acc.notRunPages += summary.status === 'not_run' ? 1 : 0;
+        acc.totalIssues += summary.issueCount;
+        acc.totalSteps += summary.stepCount;
+        acc.totalProbeAttempts += summary.probeAttemptCount;
+        acc.totalProbeSuccesses += summary.probeSuccessCount;
+        return acc;
+      },
+      {
+        pagesWithTrace: 0,
+        passPages: 0,
+        failPages: 0,
+        notRunPages: 0,
+        totalIssues: 0,
+        totalSteps: 0,
+        totalProbeAttempts: 0,
+        totalProbeSuccesses: 0,
+      }
+    );
+    const analysisAgentTraceSummaryText =
+      analysisAgentTraceSummary.pagesWithTrace > 0
+        ? locale === 'ar'
+          ? `تم تسجيل تتبّع على ${analysisAgentTraceSummary.pagesWithTrace} صفحة. نجحت ${analysisAgentTraceSummary.passPages} صفحة، ولم تنجح ${analysisAgentTraceSummary.failPages} صفحة، ولم يعمل الوكيل على ${analysisAgentTraceSummary.notRunPages} صفحة.`
+          : `Interaction traces recorded on ${analysisAgentTraceSummary.pagesWithTrace} page(s). ${analysisAgentTraceSummary.passPages} pass, ${analysisAgentTraceSummary.failPages} not pass, ${analysisAgentTraceSummary.notRunPages} not run.`
+        : '';
+
     let analysisAgentTableOrEmpty: string;
     let analysisAgentNoRowsPlain: string;
+    let analysisAgentTraceTableOrEmpty: string;
+    let analysisAgentTraceNoRowsPlain: string;
 
     if (agentList?.length) {
       analysisAgentNoRowsPlain = '';
@@ -293,6 +359,30 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
           })
           .join('')}
         </tbody></table>`;
+      analysisAgentTraceNoRowsPlain = '';
+      analysisAgentTraceTableOrEmpty = `<table class="findings-table"><thead><tr>
+          <th>#</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentPageHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentStatusHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentStepsHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentProbesHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentIssuesHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentTraceSummaryHeader', locale))}</th>
+        </tr></thead><tbody>
+        ${analysisAgentTraceRows
+          .map((row) => {
+            return `<tr>
+            <td>${row.pageNumber}</td>
+            <td style="font-size:9px;word-break:break-all;">${escapeHtml(row.pageUrl.slice(0, 100))}</td>
+            <td><span class="badge ${row.status === 'fail' ? 'badge-fail' : row.status === 'pass' ? 'badge-pass' : 'badge-not-run'}">${escapeHtml(row.statusLabel)}</span></td>
+            <td>${row.stepCount}</td>
+            <td>${row.probeAttemptCount} / ${row.probeSuccessCount}</td>
+            <td>${row.issueCount}</td>
+            <td>${escapeHtml(row.traceSummary)}</td>
+          </tr>`;
+          })
+          .join('')}
+        </tbody></table>`;
     } else if (analysisAgentParticipated) {
       const base = getPDFTranslation('analysisAgentRanNoFindings', locale);
       const suffix =
@@ -303,9 +393,35 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
           : '';
       analysisAgentNoRowsPlain = `${base}${suffix}`;
       analysisAgentTableOrEmpty = `<p class="intro-content">${escapeHtml(base)}${escapeHtml(suffix)}</p>`;
+      analysisAgentTraceNoRowsPlain = '';
+      analysisAgentTraceTableOrEmpty = `<table class="findings-table"><thead><tr>
+          <th>#</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentPageHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentStatusHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentStepsHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentProbesHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentIssuesHeader', locale))}</th>
+          <th>${escapeHtml(getPDFTranslation('analysisAgentTraceSummaryHeader', locale))}</th>
+        </tr></thead><tbody>
+        ${analysisAgentTraceRows
+          .map((row) => {
+            return `<tr>
+            <td>${row.pageNumber}</td>
+            <td style="font-size:9px;word-break:break-all;">${escapeHtml(row.pageUrl.slice(0, 100))}</td>
+            <td><span class="badge ${row.status === 'fail' ? 'badge-fail' : row.status === 'pass' ? 'badge-pass' : 'badge-not-run'}">${escapeHtml(row.statusLabel)}</span></td>
+            <td>${row.stepCount}</td>
+            <td>${row.probeAttemptCount} / ${row.probeSuccessCount}</td>
+            <td>${row.issueCount}</td>
+            <td>${escapeHtml(row.traceSummary)}</td>
+          </tr>`;
+          })
+          .join('')}
+        </tbody></table>`;
     } else {
       analysisAgentNoRowsPlain = getPDFTranslation('analysisAgentNotIncluded', locale);
       analysisAgentTableOrEmpty = `<p class="intro-content">${escapeHtml(analysisAgentNoRowsPlain)}</p>`;
+      analysisAgentTraceNoRowsPlain = getPDFTranslation('analysisAgentTraceEmpty', locale);
+      analysisAgentTraceTableOrEmpty = `<p class="intro-content">${escapeHtml(analysisAgentTraceNoRowsPlain)}</p>`;
     }
 
     const findingsForFallback = reportFindings.map((f: any) => {
@@ -347,6 +463,17 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
         pageUrl,
       };
     });
+
+    const agentTraceRowsForFallback = analysisAgentTraceRows.map((row) => ({
+      pageNumber: row.pageNumber,
+      pageUrl: row.pageUrl,
+      statusLabel: row.statusLabel,
+      stepCount: row.stepCount,
+      probeAttemptCount: row.probeAttemptCount,
+      probeSuccessCount: row.probeSuccessCount,
+      issueCount: row.issueCount,
+      traceSummary: row.traceSummary,
+    }));
 
     const fallbackSubtitle = isPartialExport
       ? inFlight && hasExportableData && !isPartialTerminal
@@ -409,6 +536,10 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       totalAnalysisAgentFindings: String(scan._count.agentFindings),
       analysisAgentTitle: getPDFTranslation('analysisAgentTitle', locale),
       analysisAgentIntro: getPDFTranslation('analysisAgentIntro', locale),
+      analysisAgentTraceTitle: getPDFTranslation('analysisAgentTraceTitle', locale),
+      analysisAgentTraceIntro: getPDFTranslation('analysisAgentTraceIntro', locale),
+      analysisAgentTraceSummaryText: analysisAgentTraceSummaryText,
+      analysisAgentTraceTableOrEmpty,
       analysisAgentTableOrEmpty,
       footerText: getPDFTranslation('footerText', locale),
       reportGeneratedBy: getPDFTranslation('reportGeneratedBy', locale),
@@ -476,6 +607,10 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
         findings: findingsForFallback,
         analysisAgentTitle: templateData.analysisAgentTitle,
         analysisAgentIntro: templateData.analysisAgentIntro,
+        analysisAgentTraceTitle: templateData.analysisAgentTraceTitle,
+        analysisAgentTraceSummaryText: templateData.analysisAgentTraceSummaryText,
+        analysisAgentTraceEmpty: analysisAgentTraceNoRowsPlain || templateData.analysisAgentTraceSummaryText,
+        traceRows: agentTraceRowsForFallback,
         analysisAgentEmpty:
           agentRowsForFallback.length > 0 ? '—' : analysisAgentNoRowsPlain,
         agentRows: agentRowsForFallback,
