@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import type { Browser, BrowserContext, Page } from 'playwright';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join, resolve, normalize } from 'node:path';
 import type { PageScanResult, ResolvedScanPipeline } from '@raawi-x/core';
@@ -10,6 +10,7 @@ import { computeCanonicalUrl } from './url-utils.js';
 import { computePageFingerprint } from './page-fingerprint.js';
 import { PageStabilizer, type StabilizationConfig } from './page-stabilizer.js';
 import { scanEventEmitter } from '../events/scan-events.js';
+import { launchChromium } from './browser-launch.js';
 
 export interface CaptureOptions {
   timeout?: number;
@@ -34,9 +35,7 @@ export class PageCapture {
 
   async initialize(): Promise<void> {
     if (!this.browser) {
-      this.browser = await chromium.launch({
-        headless: true,
-      });
+      this.browser = await launchChromium();
     }
 
     // Create context with storage state if provided (for authenticated sessions)

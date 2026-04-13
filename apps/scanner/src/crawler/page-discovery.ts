@@ -6,7 +6,8 @@
 import { extractLinks, normalizeUrl, getHostname, isSameHostname, shouldIncludeUrl } from './url-utils.js';
 import { fetchHtmlForDiscovery } from './discovery-http-fetch.js';
 import { scanEventEmitter } from '../events/scan-events.js';
-import { chromium, Browser, Page } from 'playwright';
+import type { Browser, Page } from 'playwright';
+import { launchChromium } from './browser-launch.js';
 
 function formatErrorChain(error: unknown): string {
   const parts: string[] = [];
@@ -66,7 +67,7 @@ export class PageDiscovery {
   }
 
   async discover(): Promise<DiscoveryResult> {
-    await this.initialize();
+    const browserReady = await this.initialize();
 
     const discoveredUrls: string[] = [];
     const visited = new Set<string>();
@@ -103,6 +104,10 @@ export class PageDiscovery {
       }
 
       try {
+        if (!browserReady || !this.browser) {
+          throw new Error('Browser discovery unavailable; using HTTP fallback');
+        }
+
         const page = await this.browser!.newPage();
         
         try {
@@ -346,13 +351,18 @@ export class PageDiscovery {
     }
   }
 
-  private async initialize(): Promise<void> {
+  private async initialize(): Promise<boolean> {
     if (!this.browser) {
-      this.browser = await chromium.launch({
-        headless: true,
-        args: ['--disable-dev-shm-usage', '--no-sandbox', '--disable-setuid-sandbox'],
-      });
+      try {
+        this.browser = await launchChromium();
+      } catch (error) {
+        console.warn(`[DISCOVERY] Browser launch failed; falling back to HTTP-only discovery: ${formatErrorChain(error)}`);
+        this.browser = null;
+        return false;
+      }
     }
+
+    return true;
   }
 
   private async close(): Promise<void> {

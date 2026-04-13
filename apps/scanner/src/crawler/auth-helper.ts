@@ -1,8 +1,9 @@
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import type { Browser, BrowserContext, Page } from 'playwright';
 import type { AuthProfileData } from '../db/auth-profile-repository.js';
 import { join } from 'node:path';
 import { writeFile, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { launchChromium } from './browser-launch.js';
 
 export interface LoginResult {
   success: boolean;
@@ -37,7 +38,7 @@ export async function testLoginFlow(profile: AuthProfileData): Promise<LoginResu
   let page: Page | null = null;
 
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await launchChromium();
     context = await browser.newContext();
 
     page = await context.newPage();
@@ -129,7 +130,7 @@ export async function performLoginAndSaveState(
   let page: Page | null = null;
 
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await launchChromium();
     context = await browser.newContext();
 
     // Set extra headers if provided

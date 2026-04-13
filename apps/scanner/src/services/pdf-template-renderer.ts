@@ -8,7 +8,8 @@
 import { readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'url';
-import { Browser, chromium } from 'playwright';
+import type { Browser } from 'playwright';
+import { launchChromium } from '../crawler/browser-launch.js';
 import { PDFDocument } from 'pdf-lib';
 import { StructuredLogger } from '../utils/logger.js';
 import { buildEmbeddedPdfFontFaces } from '../utils/pdf-embedded-fonts.js';
@@ -129,15 +130,7 @@ export class PDFTemplateRenderer {
    */
   private async renderWithPlaywright(data: TemplateData): Promise<Buffer> {
     if (!this.browser) {
-      this.browser = await chromium.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-        ],
-      });
+      this.browser = await launchChromium();
     }
 
     const page = await this.browser.newPage();
