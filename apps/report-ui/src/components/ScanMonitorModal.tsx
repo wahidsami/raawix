@@ -198,12 +198,16 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
     let alive = true;
     let interval: ReturnType<typeof setInterval> | undefined;
+    let initialDelay: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
+    const maxAttempts = 20;
     const pageNumber = activeScanPageNumber;
 
     const tick = async () => {
       if (!alive) return;
+      attempts += 1;
       const ok = await fetchScreenshotPreview(pageNumber);
-      if (ok && interval) {
+      if ((ok || attempts >= maxAttempts) && interval) {
         clearInterval(interval);
         interval = undefined;
       }
@@ -213,11 +217,14 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       if (prev) URL.revokeObjectURL(prev);
       return null;
     });
-    void tick();
-    interval = setInterval(tick, 500);
+    initialDelay = setTimeout(() => {
+      interval = setInterval(tick, 3000);
+      void tick();
+    }, 1500);
 
     return () => {
       alive = false;
+      if (initialDelay) clearTimeout(initialDelay);
       if (interval) clearInterval(interval);
       setPagePreviewObjectUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev);

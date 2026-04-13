@@ -85,6 +85,7 @@ export class ReportGenerator {
         screenshotPath: metadata.screenshotPath || join(pageDir, 'screenshot.png'),
         a11yPath: metadata.a11yPath || join(pageDir, 'a11y.json'),
         metadataPath,
+        timings: metadata.timings,
         error: metadata.error,
       };
 
@@ -219,9 +220,10 @@ export class ReportGenerator {
           findingsCount,
           visionCount,
           assistive: assistiveCounts,
+          timings: page.timings,
         },
         timestamp: new Date().toISOString(),
-      });
+      } as any);
     }
 
     // Generate summary
@@ -562,4 +564,3 @@ export class ReportGenerator {
     return reportPath;
   }
 }
-

@@ -23,6 +23,8 @@ export const config = {
     maxPagesHardLimit: parseInt(process.env.MAX_PAGES_HARD_LIMIT || '500', 10), // Updated for large government sites
     maxDepthHardLimit: parseInt(process.env.MAX_DEPTH_HARD_LIMIT || '20', 10), // Max depth cap (increased for complex sites)
     maxRuntimeMs: parseInt(process.env.MAX_RUNTIME_MS || '10800000', 10), // 180 minutes (3 HOURS - plenty of time for large government sites!)
+    sequentialPageTimeoutMs: parseInt(process.env.SEQUENTIAL_PAGE_TIMEOUT_MS || '120000', 10),
+    sequentialScanMinRuntimeMs: parseInt(process.env.SEQUENTIAL_SCAN_MIN_RUNTIME_MS || '600000', 10),
   },
   // Dynamic settings (can be overridden via API/Settings page)
   getDynamicQuotas: async () => {

@@ -72,9 +72,16 @@ export class PageCapture {
       url,
       status: 'success',
     };
+    const captureStartedAt = Date.now();
+    const timings: NonNullable<PageScanResult['timings']> = {};
+    const recordTiming = <T>(name: keyof NonNullable<PageScanResult['timings']>, startedAt: number, value: T): T => {
+      timings[name] = Date.now() - startedAt;
+      return value;
+    };
 
     try {
       // SECURITY: Validate URL with SSRF protections BEFORE Playwright goto
+      const validationStartedAt = Date.now();
       await validateUrl(url, config.allowedPorts);
 
       // SECURITY: Check URL policy BEFORE network navigation
@@ -88,13 +95,16 @@ export class PageCapture {
       if (url.startsWith('file://') || url.startsWith('ftp://') || url.startsWith('gopher://')) {
         throw new Error('Dangerous protocol detected. Only http/https allowed.');
       }
+      timings.validationMs = Date.now() - validationStartedAt;
 
       // Navigate to page (security checks passed)
       console.log(`[WAIT] Navigation start: ${url}`);
+      const navigationStartedAt = Date.now();
       const response = await page.goto(url, {
         waitUntil: options.stabilization?.waitUntil || 'domcontentloaded',
         timeout,
       });
+      recordTiming('navigationMs', navigationStartedAt, response);
       console.log(`[WAIT] Navigation end: ${url}`);
 
       // Check if redirect occurred and validate redirect URL
@@ -116,7 +126,9 @@ export class PageCapture {
           useReadyMarker: true,
         };
 
+        const stabilizationStartedAt = Date.now();
         const stabilizationResult = await PageStabilizer.waitForStable(page, stabilizationConfig);
+        recordTiming('stabilizationMs', stabilizationStartedAt, stabilizationResult);
 
         // Log stabilization results
         if (stabilizationResult.readyMarkerHit) {
@@ -145,6 +157,7 @@ export class PageCapture {
       }
 
       // Get page metadata
+      const metadataStartedAt = Date.now();
       result.title = await page.title();
       result.finalUrl = finalUrl;
 
@@ -154,6 +167,7 @@ export class PageCapture {
       // Compute page fingerprint
       const html = await page.content();
       result.pageFingerprint = computePageFingerprint(result.title, html);
+      timings.metadataMs = Date.now() - metadataStartedAt;
 
       const pl: ResolvedScanPipeline =
         options.pipeline ?? {
@@ -170,8 +184,10 @@ export class PageCapture {
       // LAYER 1 (optional): accessibility barriers
       if (pl.layer1) {
         console.log('[L1] Checking for accessibility barriers (disabled tools)...');
+        const accessibilityBarrierStartedAt = Date.now();
         const { detectAccessibilityBarriers } = await import('../rules/accessibility-barriers.js');
         const accessibilityBarriers = await detectAccessibilityBarriers(page);
+        timings.accessibilityBarrierMs = Date.now() - accessibilityBarrierStartedAt;
         if (accessibilityBarriers.length > 0) {
           console.log(`[L1] Found ${accessibilityBarriers.length} accessibility barriers`);
           (result as any).accessibilityBarriers = accessibilityBarriers;
@@ -228,10 +244,12 @@ export class PageCapture {
 
         const screenshotPath = join(pageDir, 'screenshot.png');
         const fullPage = pl.screenshotMode === 'full';
+        const screenshotStartedAt = Date.now();
         await page.screenshot({
           path: screenshotPath,
           fullPage,
         });
+        timings.screenshotMs = Date.now() - screenshotStartedAt;
         result.screenshotPath = screenshotPath;
         console.log('[L2] Screenshot end');
 
@@ -260,6 +278,7 @@ export class PageCapture {
       // DOM/HTML + links + a11y (Layer 1 artifacts; required for crawl link discovery)
       if (writeDomArtifacts) {
         console.log('[L1] Capture start');
+        const domCaptureStartedAt = Date.now();
         if (pl.layer1 && this.scanId) {
           scanEventEmitter.emitEvent(this.scanId, {
             type: 'layer_status',
@@ -278,9 +297,11 @@ export class PageCapture {
         await writeFile(htmlPath, finalHtml, 'utf-8');
         result.htmlPath = htmlPath;
         result.pageFingerprint = computePageFingerprint(result.title, finalHtml);
+        timings.domCaptureMs = Date.now() - domCaptureStartedAt;
         console.log(`[L1] Capture end: DOM/HTML for page ${pageNumber}: ${url}`);
 
         try {
+          const linkExtractionStartedAt = Date.now();
           const extractedLinks = await page.evaluate((baseUrl) => {
             const links: string[] = [];
             const seen = new Set<string>();
@@ -301,6 +322,7 @@ export class PageCapture {
             });
             return links;
           }, url);
+          timings.linkExtractionMs = Date.now() - linkExtractionStartedAt;
           (result as any).extractedLinks = extractedLinks;
           console.log(`[CRAWL] Extracted ${extractedLinks.length} links from live DOM for ${url}`);
         } catch (error) {
@@ -322,6 +344,7 @@ export class PageCapture {
 
         if (pl.layer1) {
           try {
+            const a11ySnapshotStartedAt = Date.now();
             const a11ySnapshot = await page.evaluate(() => {
               const elements = document.querySelectorAll('*');
               const a11yData: any[] = [];
@@ -343,6 +366,7 @@ export class PageCapture {
             });
             const a11yPath = join(pageDir, 'a11y.json');
             await writeFile(a11yPath, JSON.stringify(a11ySnapshot, null, 2), 'utf-8');
+            timings.a11ySnapshotMs = Date.now() - a11ySnapshotStartedAt;
             result.a11yPath = a11yPath;
           } catch (error) {
             console.warn(`Failed to capture a11y snapshot for ${url}:`, error);
@@ -352,8 +376,10 @@ export class PageCapture {
 
       if (pl.layer2 && config.vision.enabled) {
         try {
+          const visionStartedAt = Date.now();
           const visionAnalyzer = new VisionAnalyzer();
           const visionFindings = await visionAnalyzer.analyzePage(page, pageNumber, finalUrl, outputDir);
+          timings.visionMs = Date.now() - visionStartedAt;
           visionCount = visionFindings.length;
           if (visionFindings.length > 0) {
             visionPath = await visionAnalyzer.saveFindings(visionFindings, pageNumber, outputDir);
@@ -383,6 +409,7 @@ export class PageCapture {
       // Analysis AI agent (keyboard interaction trace) — optional per scan
       if (pl.analysisAgent && config.agent.enabled) {
         try {
+          const agentStartedAt = Date.now();
           const { runInteractionAgent } = await import('../agent/interaction-agent.js');
           if (this.scanId) {
             scanEventEmitter.emitEvent(this.scanId, {
@@ -419,6 +446,7 @@ export class PageCapture {
           const interactionPath = join(interactionDir, 'interaction.json');
           await writeFile(interactionPath, JSON.stringify(artifact, null, 2), 'utf-8');
           result.agentPath = interactionPath;
+          timings.agentMs = Date.now() - agentStartedAt;
 
           if (this.scanId) {
             scanEventEmitter.emitEvent(this.scanId, {
@@ -446,6 +474,7 @@ export class PageCapture {
       }
 
       // Save metadata
+      timings.totalMs = Date.now() - captureStartedAt;
       const metadata = {
         pageNumber,
         url,
@@ -459,9 +488,12 @@ export class PageCapture {
         a11yPath: result.a11yPath,
         visionPath: result.visionPath,
         agentPath: result.agentPath,
+        timings,
       };
+      const metadataWriteStartedAt = Date.now();
       const metadataPath = join(pageDir, 'page.json');
       await writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
+      timings.metadataWriteMs = Date.now() - metadataWriteStartedAt;
       result.metadataPath = metadataPath;
     } catch (error) {
       result.status = 'failed';
@@ -483,12 +515,14 @@ export class PageCapture {
         }
 
         await mkdir(pageDir, { recursive: true });
+        timings.totalMs = Date.now() - captureStartedAt;
         const metadata = {
           pageNumber,
           url,
           status: 'failed',
           error: result.error,
           capturedAt: new Date().toISOString(),
+          timings,
         };
         const metadataPath = join(pageDir, 'page.json');
         await writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
@@ -497,6 +531,15 @@ export class PageCapture {
         // If we can't save metadata, that's okay
       }
     } finally {
+      timings.totalMs = Date.now() - captureStartedAt;
+      result.timings = timings;
+      console.log('[TIMING] Page capture', {
+        scanId: this.scanId,
+        pageNumber,
+        url,
+        status: result.status,
+        ...timings,
+      });
       await page.close();
     }
 
@@ -514,4 +557,3 @@ export class PageCapture {
     }
   }
 }
-

@@ -85,6 +85,22 @@ export interface PageFingerprint {
   mainTextHash?: string; // Hash of normalized main content (truncated)
 }
 
+export interface PageCaptureTimings {
+  totalMs?: number;
+  validationMs?: number;
+  navigationMs?: number;
+  stabilizationMs?: number;
+  metadataMs?: number;
+  accessibilityBarrierMs?: number;
+  screenshotMs?: number;
+  domCaptureMs?: number;
+  linkExtractionMs?: number;
+  a11ySnapshotMs?: number;
+  visionMs?: number;
+  agentMs?: number;
+  metadataWriteMs?: number;
+}
+
 export interface PageScanResult {
   pageNumber: number;
   url: string;
@@ -99,6 +115,7 @@ export interface PageScanResult {
   visionPath?: string;
   agentPath?: string;
   metadataPath?: string;
+  timings?: PageCaptureTimings;
   status: 'success' | 'failed';
 }
 
@@ -156,6 +173,7 @@ export interface PageArtifact {
   visionPath?: string; // Path to vision.json
   agentPath?: string;
   metadataPath?: string;
+  timings?: PageCaptureTimings;
   html?: string;
   a11y?: unknown;
   error?: string;

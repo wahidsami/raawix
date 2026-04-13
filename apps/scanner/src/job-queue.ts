@@ -13,7 +13,7 @@ import { scanRepository } from './db/scan-repository.js';
 import { getHostname } from './crawler/url-utils.js';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { rm, readFile } from 'node:fs/promises';
+import { mkdir, rm, readFile, writeFile } from 'node:fs/promises';
 import { resolveScanPipeline, defaultScanPipeline } from './scan-pipeline.js';
 
 /**
@@ -45,6 +45,49 @@ export class JobQueue {
     this.storage = new SecureStorage(config.outputDir);
     this.reportGenerator = new ReportGenerator(config.outputDir);
     this.logger = new StructuredLogger();
+  }
+
+  private withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+    let timeoutHandle: NodeJS.Timeout | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        const error = new Error(message);
+        error.name = 'ScanTimeoutError';
+        reject(error);
+      }, timeoutMs);
+    });
+
+    return Promise.race([promise, timeoutPromise]).finally(() => {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+    });
+  }
+
+  private async saveFailedPageArtifact(
+    outputDir: string,
+    pageNumber: number,
+    url: string,
+    error: string,
+    timings?: PageScanResult['timings']
+  ): Promise<void> {
+    const pageDir = join(outputDir, 'pages', String(pageNumber));
+    await mkdir(pageDir, { recursive: true });
+    const metadataPath = join(pageDir, 'page.json');
+    await writeFile(
+      metadataPath,
+      JSON.stringify(
+        {
+          pageNumber,
+          url,
+          status: 'failed',
+          error,
+          capturedAt: new Date().toISOString(),
+          timings,
+        },
+        null,
+        2
+      ),
+      'utf-8'
+    );
   }
 
   async addJob(request: ScanRequest): Promise<string> {
@@ -573,11 +616,20 @@ export class JobQueue {
     const selectedUrls = (job.request as any).selectedUrls as string[] | undefined;
     const isSequentialScan = selectedUrls && selectedUrls.length > 0;
     const timeoutMs = isSequentialScan
-      ? Math.max(selectedUrls.length * 60000, 600000) // 60s per page, minimum 10 minutes
+      ? Math.max(
+          selectedUrls.length * config.quotas.sequentialPageTimeoutMs + 120000,
+          config.quotas.sequentialScanMinRuntimeMs
+        )
       : config.quotas.maxRuntimeMs;
 
     console.log(`[JOB-QUEUE] Timeout set to ${timeoutMs}ms (${Math.round(timeoutMs / 60000)} minutes) for ${isSequentialScan ? 'sequential' : 'BFS'} scan`);
-    logger.info('Scan timeout configured', { scanId, timeoutMs, isSequentialScan, pageCount: selectedUrls?.length || 0 });
+    logger.info('Scan timeout configured', {
+      scanId,
+      timeoutMs,
+      isSequentialScan,
+      pageCount: selectedUrls?.length || 0,
+      sequentialPageTimeoutMs: config.quotas.sequentialPageTimeoutMs,
+    });
 
     // Set up per-scan timeout (job TTL)
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -715,6 +767,7 @@ export class JobQueue {
 
         const pages: PageScanResult[] = [];
         let pageCounter = 0;
+        const scanDeadlineAt = startTime + timeoutMs;
 
         for (const url of selectedUrls) {
           if (this.canceled.has(scanId)) {
@@ -724,6 +777,11 @@ export class JobQueue {
 
           try {
             pageCounter++;
+            const remainingScanMs = scanDeadlineAt - Date.now();
+            if (remainingScanMs <= 0) {
+              throw new Error(`Scan exceeded maximum runtime of ${timeoutMs}ms before page ${pageCounter}`);
+            }
+
             logger.info(`Scanning page ${pageCounter}/${selectedUrls.length}: ${url}`, { scanId });
 
             // Emit page_started
@@ -768,7 +826,16 @@ export class JobQueue {
               timestamp: new Date().toISOString(),
             });
 
-            const pageResult = await pageCapture.capturePage(url, outputDir, pageCounter, pageCaptureBaseOpts);
+            const effectivePageTimeoutMs = Math.min(
+              config.quotas.sequentialPageTimeoutMs,
+              Math.max(remainingScanMs, 1000)
+            );
+            const pageStartedAt = Date.now();
+            const pageResult = await this.withTimeout(
+              pageCapture.capturePage(url, outputDir, pageCounter, pageCaptureBaseOpts),
+              effectivePageTimeoutMs,
+              `Page ${pageCounter} exceeded selected-page timeout of ${effectivePageTimeoutMs}ms`
+            );
 
             pages.push(pageResult);
 
@@ -808,25 +875,100 @@ export class JobQueue {
               summary: {
                 findingsCount: 0, // Will be calculated in report generation
                 visionCount: 0, // Will be calculated in report generation
+                timings: pageResult.timings,
               },
               timestamp: new Date().toISOString(),
+            } as any);
+            logger.info('Sequential page scan finished', {
+              scanId,
+              url,
+              pageNumber: pageCounter,
+              durationMs: Date.now() - pageStartedAt,
+              timings: pageResult.timings,
             });
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             const errorStack = error instanceof Error ? error.stack : undefined;
+            const timedOut = error instanceof Error && error.name === 'ScanTimeoutError';
             console.error(`[SEQUENTIAL-SCAN] Failed to scan page ${url}:`, errorMessage, errorStack);
             logger.error(`Failed to scan page ${url}:`, {
               error: errorMessage,
               stack: errorStack,
               url,
-              pageNumber: pageCounter
+              pageNumber: pageCounter,
+              timedOut,
             });
-            pages.push({
+            const failedPage: PageScanResult = {
               pageNumber: pageCounter,
               url,
               status: 'failed',
               error: errorMessage,
+              timings: { totalMs: config.quotas.sequentialPageTimeoutMs },
+            };
+            pages.push(failedPage);
+            await this.saveFailedPageArtifact(outputDir, pageCounter, url, errorMessage, failedPage.timings);
+
+            try {
+              await scanRepository.upsertPage(scanId, {
+                pageNumber: failedPage.pageNumber,
+                url: failedPage.url,
+                error: failedPage.error,
+              });
+            } catch (dbError) {
+              logger.warn('Failed to upsert failed page in database', {
+                scanId,
+                url,
+                error: dbError instanceof Error ? dbError.message : 'Unknown',
+              });
+            }
+
+            for (const layer of ['L1', 'L2', 'L3'] as const) {
+              scanEventEmitter.emitEvent(scanId, {
+                type: 'layer_status',
+                scanId,
+                url,
+                pageNumber: pageCounter,
+                layer,
+                status: 'failed',
+                meta: { error: errorMessage },
+                timestamp: new Date().toISOString(),
+              } as any);
+            }
+            scanEventEmitter.emitEvent(scanId, {
+              type: 'error',
+              scanId,
+              url,
+              message: errorMessage,
+              timestamp: new Date().toISOString(),
             });
+            scanEventEmitter.emitEvent(scanId, {
+              type: 'page_done',
+              scanId,
+              url,
+              pageNumber: pageCounter,
+              summary: {
+                findingsCount: 0,
+                visionCount: 0,
+                failed: true,
+                error: errorMessage,
+              },
+              timestamp: new Date().toISOString(),
+            } as any);
+
+            if (timedOut && pageCapture) {
+              logger.warn('Restarting page capture browser after page timeout', { scanId, pageNumber: pageCounter, url });
+              try {
+                await pageCapture.close();
+              } catch (closeError) {
+                logger.warn('Failed to close timed-out page capture browser', {
+                  scanId,
+                  error: closeError instanceof Error ? closeError.message : 'Unknown',
+                });
+              }
+              pageCapture = new PageCapture(scanId, storageStatePath);
+              await pageCapture.initialize();
+              this.activePageCaptures.set(scanId, pageCapture);
+            }
           }
         }
 
