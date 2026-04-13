@@ -96,7 +96,7 @@ export type InteractionArtifact = {
     howToVerify?: string;
   }>;
   probes?: Array<{
-    name: 'modal_probe' | 'menu_probe' | 'form_validation_probe' | 'search_probe' | 'media_probe';
+    name: 'modal_probe' | 'menu_probe' | 'form_validation_probe' | 'search_probe' | 'workspace_probe' | 'media_probe';
     attempted: boolean;
     success: boolean;
     message: string;
@@ -132,6 +132,17 @@ type FormSubmitProbeCandidate = {
   hasSensitiveKeyword: boolean;
   safeToProbe: boolean;
   skipReason?: string;
+};
+
+type WorkspaceProbeCandidate = {
+  selector: string;
+  tag: string;
+  role: string | null;
+  name: string;
+  kind: 'link' | 'button';
+  href?: string | null;
+  ariaExpanded?: string | null;
+  hasPopup: boolean;
 };
 
 const INTERACTIVE_ROLES = new Set([
@@ -363,6 +374,7 @@ async function findCandidateElements(
   menuToggles: Array<{ selector: string; tag: string; expanded: string | null }>;
   submitButtons: FormSubmitProbeCandidate[];
   searchFields: Array<{ selector: string; submitSelector?: string; hasSearchRole: boolean }>;
+  workspaceControls: WorkspaceProbeCandidate[];
 }> {
   return page.evaluate((max: number) => {
     const out: {
@@ -370,7 +382,8 @@ async function findCandidateElements(
       menuToggles: Array<{ selector: string; tag: string; expanded: string | null }>;
       submitButtons: FormSubmitProbeCandidate[];
       searchFields: Array<{ selector: string; submitSelector?: string; hasSearchRole: boolean }>;
-    } = { modalTriggers: [], menuToggles: [], submitButtons: [], searchFields: [] };
+      workspaceControls: WorkspaceProbeCandidate[];
+    } = { modalTriggers: [], menuToggles: [], submitButtons: [], searchFields: [], workspaceControls: [] };
     const controlName = (el: Element): string => {
       const ariaLabel = el.getAttribute('aria-label');
       if (ariaLabel?.trim()) return ariaLabel.trim();
@@ -512,6 +525,33 @@ async function findCandidateElements(
         });
       });
     }
+
+    const workspaceKeywords = /account|profile|dashboard|settings|workspace|portal|billing|security|orders|notifications|preferences|الحساب|الملف|لوحة|الإعدادات|الفواتير|الأمان|الطلبات/i;
+    const destructiveKeywords = /logout|log out|sign out|signout|delete|remove|cancel plan|unsubscribe|تسجيل الخروج|خروج|حذف|إزالة|إلغاء/i;
+    const workspaceSelectors = 'a[href], button, [role="button"], summary';
+    document.querySelectorAll(workspaceSelectors).forEach((node) => {
+      if (out.workspaceControls.length >= max) return;
+      const el = node as HTMLElement;
+      if (el.offsetParent === null) return;
+      const name = controlName(el);
+      const href = el.getAttribute('href');
+      const signature = `${name} ${href ?? ''} ${el.getAttribute('aria-label') ?? ''}`.trim();
+      if (!workspaceKeywords.test(signature)) return;
+      if (destructiveKeywords.test(signature)) return;
+      const selector = simpleSelector(el);
+      if (out.workspaceControls.some((item) => item.selector === selector)) return;
+      const tag = el.tagName.toLowerCase();
+      out.workspaceControls.push({
+        selector,
+        tag: el.tagName,
+        role: el.getAttribute('role'),
+        name: name.slice(0, 120),
+        kind: tag === 'a' && !!href ? 'link' : 'button',
+        href,
+        ariaExpanded: el.getAttribute('aria-expanded'),
+        hasPopup: !!el.getAttribute('aria-haspopup'),
+      });
+    });
     return out;
   }, maxPerType);
 }
@@ -684,6 +724,68 @@ async function checkSearchOutcome(page: Page): Promise<{
       activeTag: active?.tagName?.toLowerCase() ?? '',
       activeRole: active?.getAttribute('role') ?? null,
       liveMessageCount: liveNodes.length,
+    };
+  });
+}
+
+async function inspectAuthenticatedWorkspaceState(page: Page): Promise<{
+  heading: string | null;
+  landmarkCount: number;
+  accountCueCount: number;
+  logoutCueCount: number;
+  workspaceDestinationCount: number;
+  unnamedWorkspaceControlCount: number;
+}> {
+  return page.evaluate(() => {
+    const controlName = (el: Element): string => {
+      const ariaLabel = el.getAttribute('aria-label');
+      if (ariaLabel?.trim()) return ariaLabel.trim();
+      const labelledBy = el.getAttribute('aria-labelledby');
+      if (labelledBy?.trim()) {
+        const text = labelledBy
+          .split(/\s+/)
+          .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+        if (text) return text;
+      }
+      const id = el.getAttribute('id');
+      if (id) {
+        const label = document.querySelector(`label[for="${CSS.escape(id)}"]`);
+        if (label?.textContent?.trim()) return label.textContent.trim();
+      }
+      return (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+    };
+
+    const workspaceKeywords = /account|profile|dashboard|settings|workspace|portal|billing|security|orders|notifications|preferences|الحساب|الملف|لوحة|الإعدادات|الفواتير|الأمان|الطلبات/i;
+    const logoutKeywords = /logout|log out|sign out|signout|تسجيل الخروج|خروج/i;
+    const destinationKeywords = /profile|settings|dashboard|billing|security|orders|notifications|preferences|الملف|الإعدادات|لوحة|الفواتير|الأمان|الطلبات/i;
+    const controls = Array.from(document.querySelectorAll('a[href], button, [role="button"], summary')).filter((node) => {
+      const htmlNode = node as HTMLElement;
+      return htmlNode.offsetParent !== null;
+    });
+
+    const heading =
+      document.querySelector('h1, h2, [role="heading"]')?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 120) ?? null;
+    const landmarkCount = document.querySelectorAll(
+      'main,nav,header,footer,aside,[role="main"],[role="navigation"],[role="banner"],[role="contentinfo"]'
+    ).length;
+    const accountCueCount = controls.filter((node) => workspaceKeywords.test(`${controlName(node)} ${node.getAttribute('href') ?? ''}`)).length;
+    const logoutCueCount = controls.filter((node) => logoutKeywords.test(`${controlName(node)} ${node.getAttribute('href') ?? ''}`)).length;
+    const workspaceDestinationCount = controls.filter((node) => destinationKeywords.test(`${controlName(node)} ${node.getAttribute('href') ?? ''}`)).length;
+    const unnamedWorkspaceControlCount = controls.filter((node) => {
+      const signature = `${controlName(node)} ${node.getAttribute('href') ?? ''}`;
+      return workspaceKeywords.test(signature) && !controlName(node);
+    }).length;
+
+    return {
+      heading,
+      landmarkCount,
+      accountCueCount,
+      logoutCueCount,
+      workspaceDestinationCount,
+      unnamedWorkspaceControlCount,
     };
   });
 }
@@ -1090,6 +1192,7 @@ function buildJourneyRuns(
     }
 
     if (task.id === 'navigate-authenticated-workspace') {
+      const probe = probeByName.get('workspace_probe');
       const relatedIssueKinds = getIssueKinds([
         'authenticated_workspace_navigation_unclear',
         'unnamed_task_control',
@@ -1105,6 +1208,7 @@ function buildJourneyRuns(
         confidence: relatedIssueKinds.length > 0 ? 0.76 : fallback.confidence,
         summary:
           getIssueMessages(relatedIssueKinds)[0] ??
+          probe?.message ??
           assessment?.summary ??
           'Authenticated workspace cues were detected; account navigation needs a clearer journey evaluation.',
         usedSignals: uniqueStrings([
@@ -1114,7 +1218,12 @@ function buildJourneyRuns(
           pageProfile.counts.accountControls > 0 ? `${pageProfile.counts.accountControls} account control(s)` : null,
           pageProfile.counts.logoutControls > 0 ? `${pageProfile.counts.logoutControls} logout control(s)` : null,
         ]),
+        relatedProbeNames: probe ? ['workspace_probe'] : [],
         relatedIssueKinds,
+        evidence: {
+          ...(assessment?.evidence ?? {}),
+          probe: probe?.evidence,
+        },
       };
     }
 
@@ -1619,6 +1728,146 @@ export async function runInteractionAgent(
               attempted: false,
               success: false,
               message: 'No search field candidates found.',
+              evidence: {},
+            });
+          }
+        }
+
+        if (runProbe() && !stopFurtherProbesRef.current) {
+          const workspaceControl = candidates.workspaceControls[0];
+          if (workspaceControl) {
+            const nav = await runProbeWithNavGuard(
+              page,
+              probeStartUrl,
+              stopFurtherProbesRef,
+              async () => {
+                const beforeSnapshot = await getActiveSnapshot(page, ctx.url);
+                const beforeFingerprint = await getDomChangeFingerprint(page);
+                const beforeExpanded = workspaceControl.ariaExpanded;
+                const beforeState = await inspectAuthenticatedWorkspaceState(page);
+
+                await page.locator(workspaceControl.selector).first().focus();
+                if (workspaceControl.kind === 'link') {
+                  await page.keyboard.press('Enter');
+                } else {
+                  await page.keyboard.press('Space');
+                }
+                await page.waitForTimeout(PROBE_WAIT_MS);
+
+                const afterSnapshot = await getActiveSnapshot(page, page.url());
+                const afterFingerprint = await getDomChangeFingerprint(page);
+                const afterExpanded = await getExpandedState(page, workspaceControl.selector);
+                const afterState = await inspectAuthenticatedWorkspaceState(page);
+                const navigationHappenedInside = page.url() !== probeStartUrl;
+                const domChanged = domFingerprintChanged(beforeFingerprint, afterFingerprint);
+                const focusMoved = focusSignature(beforeSnapshot) !== focusSignature(afterSnapshot);
+                const accountDestinationsRevealed =
+                  afterState.workspaceDestinationCount > beforeState.workspaceDestinationCount;
+                const structureImproved =
+                  (afterState.heading?.trim().length ?? 0) > 0 &&
+                  afterState.landmarkCount >= Math.max(1, beforeState.landmarkCount);
+
+                if (
+                  !nav.navigationOccurred &&
+                  !domChanged &&
+                  beforeExpanded === afterExpanded &&
+                  !accountDestinationsRevealed
+                ) {
+                  issues.push({
+                    kind: 'authenticated_workspace_navigation_unclear',
+                    message: 'Account/workspace control activated without revealing clearer profile or settings navigation.',
+                    confidence: 0.73,
+                    evidence: {
+                      selector: workspaceControl.selector,
+                      controlName: workspaceControl.name,
+                      beforeExpanded,
+                      afterExpanded,
+                      domChanged,
+                      accountDestinationsRevealed,
+                    },
+                    suggestedWcagIds: ['2.4.3', '2.4.6', '3.2.3'],
+                    howToVerify: 'From the signed-in area, open the account/workspace control and confirm that profile, settings, or other account destinations become clearly available.',
+                  });
+                }
+
+                if (
+                  navigationHappenedInside &&
+                  !structureImproved &&
+                  afterState.accountCueCount === 0 &&
+                  afterState.logoutCueCount === 0
+                ) {
+                  issues.push({
+                    kind: 'authenticated_workspace_navigation_unclear',
+                    message: 'Authenticated navigation reached a destination, but the resulting page did not expose clear account context or structure.',
+                    confidence: 0.7,
+                    evidence: {
+                      selector: workspaceControl.selector,
+                      controlName: workspaceControl.name,
+                      heading: afterState.heading,
+                      landmarkCount: afterState.landmarkCount,
+                      accountCueCount: afterState.accountCueCount,
+                      logoutCueCount: afterState.logoutCueCount,
+                    },
+                    suggestedWcagIds: ['2.4.6', '1.3.1', '3.2.3'],
+                    howToVerify: 'Open a profile or settings destination from the signed-in area and confirm the destination announces a clear heading, landmarks, and account context.',
+                  });
+                }
+
+                return {
+                  selector: workspaceControl.selector,
+                  controlName: workspaceControl.name,
+                  kind: workspaceControl.kind,
+                  beforeExpanded,
+                  afterExpanded,
+                  beforeState,
+                  afterState,
+                  domChanged,
+                  focusMoved,
+                  accountDestinationsRevealed,
+                  structureImproved,
+                };
+              }
+            );
+
+            const hasResult = nav.result !== null;
+            const workspaceMessage = nav.error
+              ? nav.error.message
+              : !hasResult
+                ? 'Probe did not complete.'
+                : nav.navigationOccurred
+                  ? nav.result!.structureImproved || nav.result!.afterState.accountCueCount > 0
+                    ? 'Authenticated navigation reached a clearer account destination.'
+                    : 'Authenticated navigation changed page, but destination structure needs review.'
+                  : nav.result!.accountDestinationsRevealed || nav.result!.beforeExpanded !== nav.result!.afterExpanded
+                    ? 'Account/workspace control revealed additional signed-in destinations.'
+                    : 'Account/workspace control did not reveal a clearer signed-in path.';
+            probes.push({
+              name: 'workspace_probe',
+              attempted: true,
+              success: hasResult,
+              message: workspaceMessage,
+              evidence: {
+                navigationOccurred: nav.navigationOccurred,
+                navigationRestored: nav.navigationRestored,
+                selector: hasResult ? nav.result!.selector : workspaceControl.selector,
+                controlName: hasResult ? nav.result!.controlName : workspaceControl.name,
+                kind: hasResult ? nav.result!.kind : workspaceControl.kind,
+                beforeExpanded: hasResult ? nav.result!.beforeExpanded : undefined,
+                afterExpanded: hasResult ? nav.result!.afterExpanded : undefined,
+                domChanged: hasResult ? nav.result!.domChanged : undefined,
+                focusMoved: hasResult ? nav.result!.focusMoved : undefined,
+                accountDestinationsRevealed: hasResult ? nav.result!.accountDestinationsRevealed : undefined,
+                structureImproved: hasResult ? nav.result!.structureImproved : undefined,
+                beforeState: hasResult ? nav.result!.beforeState : undefined,
+                afterState: hasResult ? nav.result!.afterState : undefined,
+              },
+            });
+          } else {
+            probes.push({
+              name: 'workspace_probe',
+              attempted: false,
+              success: false,
+              message: 'No safe authenticated workspace control candidates found.',
               evidence: {},
             });
           }
