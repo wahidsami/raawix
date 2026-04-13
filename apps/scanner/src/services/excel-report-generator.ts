@@ -36,18 +36,121 @@ export class ExcelReportGenerator {
     workbook.creator = 'Raawi X';
     workbook.created = new Date();
     workbook.modified = new Date();
-
-    // Add Summary Sheet
-    await this.addSummarySheet(workbook, scan, wcagFindings, pages, locale);
-
-    // Add WCAG Findings Sheet
-    await this.addFindingsSheet(workbook, wcagFindings, pages, locale);
+    const isRaawiAgentReport = scan.auditMode === 'raawi-agent';
 
     const agentFindings = (scanData.agentFindings || []) as any[];
-    await this.addAnalysisAgentSheet(workbook, agentFindings, pages, locale);
-    await this.addAnalysisTraceSheet(workbook, pages, locale);
+    if (isRaawiAgentReport) {
+      await this.addRaawiSummarySheet(workbook, scan, pages, agentFindings, locale);
+      await this.addAnalysisTraceSheet(workbook, pages, locale, true);
+      await this.addAnalysisAgentSheet(workbook, agentFindings, pages, locale, true);
+      await this.addSummarySheet(workbook, scan, wcagFindings, pages, locale, true);
+      await this.addFindingsSheet(workbook, wcagFindings, pages, locale, true);
+    } else {
+      // Add Summary Sheet
+      await this.addSummarySheet(workbook, scan, wcagFindings, pages, locale);
+
+      // Add WCAG Findings Sheet
+      await this.addFindingsSheet(workbook, wcagFindings, pages, locale);
+
+      await this.addAnalysisAgentSheet(workbook, agentFindings, pages, locale);
+      await this.addAnalysisTraceSheet(workbook, pages, locale);
+    }
 
     return workbook;
+  }
+
+  /**
+   * Add Raawi-first summary sheet for Raawi agent scans.
+   */
+  private async addRaawiSummarySheet(
+    workbook: ExcelJS.Workbook,
+    scan: any,
+    pages: any[],
+    agentFindings: any[],
+    locale: 'en' | 'ar'
+  ) {
+    const sheet = workbook.addWorksheet(locale === 'ar' ? 'ملخص راوي' : 'Raawi Summary');
+    if (locale === 'ar') {
+      sheet.views = [{ rightToLeft: true }];
+    }
+
+    const title = locale === 'ar' ? 'تقرير وكيل راوي' : 'Raawi Agent Report';
+    const subtitle =
+      locale === 'ar'
+        ? 'نتائج التفاعل أولاً، مع إبقاء DOM/WCAG كأدلة تقنية داعمة.'
+        : 'Interaction results first, with DOM/WCAG kept as supporting technical evidence.';
+
+    const titleRow = sheet.addRow([title]);
+    titleRow.font = { size: 18, bold: true, color: { argb: 'FF047857' } };
+    titleRow.alignment = { horizontal: 'center' };
+    sheet.mergeCells('A1:B1');
+    titleRow.height = 30;
+
+    const subtitleRow = sheet.addRow([subtitle]);
+    subtitleRow.font = { size: 12, italic: true, color: { argb: 'FF4B5563' } };
+    subtitleRow.alignment = { horizontal: 'center', wrapText: true };
+    sheet.mergeCells('A2:B2');
+    sheet.addRow([]);
+
+    const summaries = await loadAnalysisAgentPageSummaries(
+      pages.map((page: any) => ({
+        pageNumber: page.pageNumber,
+        pageUrl: page.url,
+        agentPath: page.agentPath,
+        findingsCount: page.agentFindings?.length ?? 0,
+      }))
+    );
+
+    const totals = summaries.reduce(
+      (acc, summary) => {
+        acc.pagesWithTrace += summary.executed ? 1 : 0;
+        acc.pass += summary.status === 'pass' ? 1 : 0;
+        acc.notPass += summary.status === 'fail' ? 1 : 0;
+        acc.notRun += summary.status === 'not_run' ? 1 : 0;
+        acc.issues += summary.issueCount;
+        acc.steps += summary.stepCount;
+        acc.probesAttempted += summary.probeAttemptCount;
+        acc.probesPassed += summary.probeSuccessCount;
+        return acc;
+      },
+      {
+        pagesWithTrace: 0,
+        pass: 0,
+        notPass: 0,
+        notRun: 0,
+        issues: 0,
+        steps: 0,
+        probesAttempted: 0,
+        probesPassed: 0,
+      }
+    );
+
+    const t = this.getTranslations(locale);
+    this.addInfoRow(sheet, t.website, scan.seedUrl || 'N/A');
+    this.addInfoRow(sheet, t.auditDate, new Date(scan.createdAt).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US'));
+    this.addInfoRow(sheet, t.auditMode, t.auditModeRaawiAgent);
+    this.addInfoRow(sheet, locale === 'ar' ? 'إجمالي الصفحات' : 'Total pages', pages.length.toString());
+    this.addInfoRow(sheet, locale === 'ar' ? 'صفحات لها تتبّع راوي' : 'Pages with Raawi trace', totals.pagesWithTrace.toString());
+    this.addInfoRow(sheet, locale === 'ar' ? 'نجح' : 'Pass', totals.pass.toString(), 'FF10B981');
+    this.addInfoRow(sheet, locale === 'ar' ? 'لم ينجح' : 'Not pass', totals.notPass.toString(), 'FFEF4444');
+    this.addInfoRow(sheet, locale === 'ar' ? 'لم يعمل' : 'Not run', totals.notRun.toString(), 'FF6B7280');
+    this.addInfoRow(sheet, locale === 'ar' ? 'نتائج راوي' : 'Raawi findings', agentFindings.length.toString());
+    this.addInfoRow(sheet, locale === 'ar' ? 'مشكلات من التتبّع' : 'Trace issues', totals.issues.toString());
+    this.addInfoRow(sheet, locale === 'ar' ? 'الخطوات' : 'Steps', totals.steps.toString());
+    this.addInfoRow(sheet, locale === 'ar' ? 'الاختبارات' : 'Probes', `${totals.probesAttempted} / ${totals.probesPassed}`);
+
+    sheet.addRow([]);
+    const noteText =
+      locale === 'ar'
+        ? 'راجع تبويب تتبّع راوي لمعرفة ما حدث في كل صفحة، وتبويب نتائج راوي للملاحظات المسجلة. تبويبات WCAG التالية هي أدلة تقنية داعمة.'
+        : 'Use the Raawi Trace sheet to see what happened on each page, and Raawi Findings for recorded observations. The WCAG sheets that follow are supporting technical evidence.';
+    const note = sheet.addRow([noteText]);
+    sheet.mergeCells(`A${note.number}:B${note.number}`);
+    note.getCell(1).font = { italic: true, color: { argb: 'FF4B5563' } };
+    note.getCell(1).alignment = { wrapText: true, vertical: 'top' };
+
+    sheet.getColumn(1).width = 28;
+    sheet.getColumn(2).width = 52;
   }
 
   /**
@@ -58,9 +161,18 @@ export class ExcelReportGenerator {
     scan: any,
     findings: any[],
     pages: any[],
-    locale: 'en' | 'ar'
+    locale: 'en' | 'ar',
+    supporting = false
   ) {
-    const sheet = workbook.addWorksheet(locale === 'ar' ? 'الملخص' : 'Summary');
+    const sheet = workbook.addWorksheet(
+      supporting
+        ? locale === 'ar'
+          ? 'ملخص تقني داعم'
+          : 'Supporting Summary'
+        : locale === 'ar'
+          ? 'الملخص'
+          : 'Summary'
+    );
 
     // Set RTL for Arabic
     if (locale === 'ar') {
@@ -70,14 +182,14 @@ export class ExcelReportGenerator {
     const t = this.getTranslations(locale);
 
     // Title
-    const titleRow = sheet.addRow([t.reportTitle]);
+    const titleRow = sheet.addRow([supporting ? t.supportingReportTitle : t.reportTitle]);
     titleRow.font = { size: 18, bold: true, color: { argb: 'FF2563EB' } };
     titleRow.alignment = { horizontal: 'center' };
     sheet.mergeCells('A1:B1');
     titleRow.height = 30;
 
     // Subtitle
-    const subtitleRow = sheet.addRow([t.reportSubtitle]);
+    const subtitleRow = sheet.addRow([supporting ? t.supportingReportSubtitle : t.reportSubtitle]);
     subtitleRow.font = { size: 12, italic: true };
     subtitleRow.alignment = { horizontal: 'center' };
     sheet.mergeCells('A2:B2');
@@ -161,9 +273,18 @@ export class ExcelReportGenerator {
     workbook: ExcelJS.Workbook,
     findings: any[],
     pages: any[],
-    locale: 'en' | 'ar'
+    locale: 'en' | 'ar',
+    supporting = false
   ) {
-    const sheet = workbook.addWorksheet(locale === 'ar' ? 'نتائج WCAG' : 'WCAG Findings');
+    const sheet = workbook.addWorksheet(
+      supporting
+        ? locale === 'ar'
+          ? 'أدلة WCAG داعمة'
+          : 'Supporting WCAG Findings'
+        : locale === 'ar'
+          ? 'نتائج WCAG'
+          : 'WCAG Findings'
+    );
 
     // Set RTL for Arabic
     if (locale === 'ar') {
@@ -259,9 +380,18 @@ export class ExcelReportGenerator {
     workbook: ExcelJS.Workbook,
     agentFindings: any[],
     pages: any[],
-    locale: 'en' | 'ar'
+    locale: 'en' | 'ar',
+    raawiPrimary = false
   ) {
-    const sheet = workbook.addWorksheet(locale === 'ar' ? 'وكيل التحليل' : 'Analysis AI agent');
+    const sheet = workbook.addWorksheet(
+      raawiPrimary
+        ? locale === 'ar'
+          ? 'نتائج راوي'
+          : 'Raawi Findings'
+        : locale === 'ar'
+          ? 'وكيل التحليل'
+          : 'Analysis AI agent'
+    );
 
     const t = this.getTranslations(locale);
 
@@ -290,10 +420,14 @@ export class ExcelReportGenerator {
         pagesWithArtifact > 0
           ? locale === 'ar'
             ? `شغّل الوكيل على ${pagesWithArtifact} صفحة؛ لا توجد نتائج مسجّلة في قاعدة البيانات.`
-            : `Agent ran on ${pagesWithArtifact} page(s); no findings were recorded in the database.`
+            : `${raawiPrimary ? 'Raawi agent' : 'Agent'} ran on ${pagesWithArtifact} page(s); no findings were recorded in the database.`
           : locale === 'ar'
-            ? 'وكيل التحليل لم يُدرَج في هذا المسح.'
-            : 'Analysis AI agent was not included in this scan.';
+            ? raawiPrimary
+              ? 'لم يعمل وكيل راوي في هذا المسح.'
+              : 'وكيل التحليل لم يُدرَج في هذا المسح.'
+            : raawiPrimary
+              ? 'Raawi agent was not run for this scan.'
+              : 'Analysis AI agent was not included in this scan.';
       const noteRow = sheet.addRow([note, '', '', '', '', '', '']);
       sheet.mergeCells(`A${noteRow.number}:G${noteRow.number}`);
       noteRow.getCell(1).font = { italic: true, color: { argb: 'FF6B7280' } };
@@ -351,9 +485,18 @@ export class ExcelReportGenerator {
   private async addAnalysisTraceSheet(
     workbook: ExcelJS.Workbook,
     pages: any[],
-    locale: 'en' | 'ar'
+    locale: 'en' | 'ar',
+    raawiPrimary = false
   ) {
-    const sheet = workbook.addWorksheet(locale === 'ar' ? 'تتبّع الوكيل' : 'Analysis Trace');
+    const sheet = workbook.addWorksheet(
+      raawiPrimary
+        ? locale === 'ar'
+          ? 'تتبّع راوي'
+          : 'Raawi Trace'
+        : locale === 'ar'
+          ? 'تتبّع الوكيل'
+          : 'Analysis Trace'
+    );
     if (locale === 'ar') {
       sheet.views = [{ rightToLeft: true }];
     }
@@ -369,8 +512,12 @@ export class ExcelReportGenerator {
 
     const summaryRow = sheet.addRow([
       locale === 'ar'
-        ? 'صف واحد لكل صفحة يوضح حالة مساعد لوحة المفاتيح'
-        : 'One row per page showing the keyboard assistant status',
+        ? raawiPrimary
+          ? 'صف واحد لكل صفحة يوضح حالة تفاعل وكيل راوي'
+          : 'صف واحد لكل صفحة يوضح حالة مساعد لوحة المفاتيح'
+        : raawiPrimary
+          ? 'One row per page showing the Raawi agent interaction status'
+          : 'One row per page showing the keyboard assistant status',
     ]);
     sheet.mergeCells(`A${summaryRow.number}:H${summaryRow.number}`);
     summaryRow.font = { italic: true, color: { argb: 'FF6B7280' } };
@@ -546,6 +693,8 @@ export class ExcelReportGenerator {
       return {
         reportTitle: 'تقرير تدقيق إمكانية الوصول',
         reportSubtitle: 'بناءً على إرشادات WCAG 2.1',
+        supportingReportTitle: 'ملخص الأدلة التقنية الداعمة',
+        supportingReportSubtitle: 'نتائج DOM/WCAG الداعمة لتقرير وكيل راوي',
         entity: 'الجهة',
         website: 'الموقع الإلكتروني',
         auditDate: 'تاريخ التدقيق',
@@ -585,6 +734,8 @@ export class ExcelReportGenerator {
     return {
       reportTitle: 'ACCESSIBILITY AUDIT REPORT',
       reportSubtitle: 'Based on WCAG 2.1 Guidelines',
+      supportingReportTitle: 'SUPPORTING TECHNICAL EVIDENCE',
+      supportingReportSubtitle: 'DOM/WCAG findings that support the Raawi agent report',
       entity: 'Entity',
       website: 'Website',
       auditDate: 'Audit Date',

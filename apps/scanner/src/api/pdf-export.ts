@@ -209,6 +209,7 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
     const scanDate = scanData.scanDate;
     const entityCode = scan.entity?.code || 'N/A';
     const auditMode = (scan as any).auditMode === 'raawi-agent' ? 'raawi-agent' : 'classic';
+    const isRaawiAgentReport = auditMode === 'raawi-agent';
     const auditModeText = getPDFTranslation(auditMode === 'raawi-agent' ? 'auditModeRaawiAgent' : 'auditModeClassic', locale);
 
     const scoreAText = scores.scoreA !== null ? `${scores.scoreA.toFixed(1)}%` : 'N/A';
@@ -426,6 +427,107 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       analysisAgentTraceTableOrEmpty = `<p class="intro-content">${escapeHtml(analysisAgentTraceNoRowsPlain)}</p>`;
     }
 
+    const raawiLabels =
+      locale === 'ar'
+        ? {
+            reportTitle: 'تقرير وكيل راوي لإمكانية الوصول',
+            keyFindingsTitle: 'نتائج وكيل راوي والأدلة الداعمة',
+            modeOverviewTitle: 'ملخص تقييم وكيل راوي',
+            modeOverviewIntro:
+              'هذا التقرير يعرض نتيجة وكيل راوي أولاً. نتائج DOM/WCAG والرؤية تبقى كأدلة تقنية داعمة وليست النتيجة الأساسية لهذا الوضع.',
+            pagesWithTrace: 'صفحات لها تتبّع',
+            passPages: 'نجح',
+            failPages: 'لم ينجح',
+            notRunPages: 'لم يعمل',
+            totalIssues: 'مشكلات راوي',
+            technicalSummaryTitle: 'درجات WCAG الداعمة',
+            technicalStatsTitle: 'إحصائيات تقنية داعمة',
+            technicalFindingsTitle: 'أدلة DOM/WCAG الداعمة',
+            technicalFindingsIntro:
+              'الجدول التالي يوضح نتائج الطبقة التقنية. تُستخدم هذه النتائج لتفسير تقرير راوي وليست بديلاً عن نتيجة التفاعل.',
+            agentTitle: 'نتائج وكيل راوي',
+            agentIntro:
+              'تتبّع تفاعل كل صفحة ونتائج وكيل راوي. يوضح هذا القسم ما الذي حاول الوكيل تنفيذه وما إذا سجل مشكلات.',
+            traceTitle: 'تتبّع راوي لكل صفحة',
+            traceIntro: 'صف واحد لكل صفحة يوضح حالة التفاعل وعدد الخطوات والاختبارات والمشكلات.',
+            findingsLabel: 'نتائج راوي',
+            domFindingsLabel: 'نتائج DOM/WCAG',
+          }
+        : {
+            reportTitle: 'Raawi Agent Accessibility Report',
+            keyFindingsTitle: 'Raawi Results and Supporting Evidence',
+            modeOverviewTitle: 'Raawi Assessment Overview',
+            modeOverviewIntro:
+              'This report presents the Raawi agent result first. DOM/WCAG and vision observations remain supporting technical evidence, not the primary result for this mode.',
+            pagesWithTrace: 'Pages with trace',
+            passPages: 'Pass',
+            failPages: 'Not pass',
+            notRunPages: 'Not run',
+            totalIssues: 'Raawi issues',
+            technicalSummaryTitle: 'Supporting WCAG Compliance Scores',
+            technicalStatsTitle: 'Supporting Technical Statistics',
+            technicalFindingsTitle: 'Supporting DOM/WCAG Evidence',
+            technicalFindingsIntro:
+              'The table below shows technical layer findings. These explain what the DOM/WCAG layer observed and support the Raawi report.',
+            agentTitle: 'Raawi Agent Results',
+            agentIntro:
+              'Per-page interaction trace and Raawi findings for this scan. This section shows what the agent attempted and whether it recorded issues.',
+            traceTitle: 'Raawi Per-page Trace',
+            traceIntro: 'One row per page showing interaction status, steps, probes, and issues.',
+            findingsLabel: 'Raawi findings',
+            domFindingsLabel: 'DOM/WCAG findings',
+          };
+
+    const modeOverviewHtml = isRaawiAgentReport
+      ? `<div class="section">
+          <h2 class="section-title">${escapeHtml(raawiLabels.modeOverviewTitle)}</h2>
+          <p class="intro-content">${escapeHtml(raawiLabels.modeOverviewIntro)}</p>
+          <div class="stats-grid">
+            <div class="stat-item"><div class="label">${escapeHtml(raawiLabels.pagesWithTrace)}</div><div class="value">${analysisAgentTraceSummary.pagesWithTrace}</div></div>
+            <div class="stat-item"><div class="label">${escapeHtml(raawiLabels.passPages)}</div><div class="value">${analysisAgentTraceSummary.passPages}</div></div>
+            <div class="stat-item"><div class="label">${escapeHtml(raawiLabels.failPages)}</div><div class="value">${analysisAgentTraceSummary.failPages}</div></div>
+            <div class="stat-item"><div class="label">${escapeHtml(raawiLabels.notRunPages)}</div><div class="value">${analysisAgentTraceSummary.notRunPages}</div></div>
+            <div class="stat-item"><div class="label">${escapeHtml(raawiLabels.totalIssues)}</div><div class="value">${analysisAgentTraceSummary.totalIssues}</div></div>
+          </div>
+        </div>`
+      : '';
+
+    const agentSectionHtml = `<div class="section">
+      <h2 class="section-title">${escapeHtml(isRaawiAgentReport ? raawiLabels.agentTitle : getPDFTranslation('analysisAgentTitle', locale))}</h2>
+      <p class="intro-content" style="margin-bottom: 16px;">${escapeHtml(isRaawiAgentReport ? raawiLabels.agentIntro : getPDFTranslation('analysisAgentIntro', locale))}</p>
+      <div class="intro-content" style="margin-bottom: 12px;">${escapeHtml(analysisAgentTraceSummaryText)}</div>
+      <h3 class="section-title" style="font-size: 18px; margin-top: 10px;">${escapeHtml(isRaawiAgentReport ? raawiLabels.traceTitle : getPDFTranslation('analysisAgentTraceTitle', locale))}</h3>
+      <p class="intro-content" style="margin-bottom: 12px;">${escapeHtml(isRaawiAgentReport ? raawiLabels.traceIntro : getPDFTranslation('analysisAgentTraceIntro', locale))}</p>
+      ${analysisAgentTraceTableOrEmpty}
+      <div style="height: 16px;"></div>
+      ${analysisAgentTableOrEmpty}
+    </div>`;
+
+    const wcagFindingsSectionHtml = `<div class="section">
+      ${isRaawiAgentReport ? `<p class="intro-content">${escapeHtml(raawiLabels.technicalFindingsIntro)}</p>` : reportContent.keyFindings}
+    </div>
+    <div class="section">
+      <h2 class="section-title">${escapeHtml(isRaawiAgentReport ? raawiLabels.technicalFindingsTitle : getPDFTranslation('topFindingsTitle', locale))}</h2>
+      <table class="findings-table">
+        <thead>
+          <tr>
+            <th>${escapeHtml(getPDFTranslation('wcagIdHeader', locale))}</th>
+            <th>${escapeHtml(getPDFTranslation('levelHeader', locale))}</th>
+            <th>${escapeHtml(getPDFTranslation('statusHeader', locale))}</th>
+            <th>${escapeHtml(getPDFTranslation('descriptionHeader', locale))}</th>
+            <th>${escapeHtml(getPDFTranslation('pageHeader', locale))}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${findingsRows || '<tr><td colspan="5">No findings</td></tr>'}
+        </tbody>
+      </table>
+    </div>`;
+
+    const findingsBodyHtml = isRaawiAgentReport
+      ? `${agentSectionHtml}${wcagFindingsSectionHtml}`
+      : `${wcagFindingsSectionHtml}${agentSectionHtml}`;
+
     const findingsForFallback = reportFindings.map((f: any) => {
       const statusText =
         locale === 'ar'
@@ -483,12 +585,28 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
         : getPDFTranslation('partialReportSubtitle', locale)
       : undefined;
 
+    const reportTitle = isRaawiAgentReport
+      ? raawiLabels.reportTitle
+      : getPDFTranslation('reportTitle', locale);
+    const analysisAgentTitle = isRaawiAgentReport
+      ? raawiLabels.agentTitle
+      : getPDFTranslation('analysisAgentTitle', locale);
+    const analysisAgentIntro = isRaawiAgentReport
+      ? raawiLabels.agentIntro
+      : getPDFTranslation('analysisAgentIntro', locale);
+    const analysisAgentTraceTitle = isRaawiAgentReport
+      ? raawiLabels.traceTitle
+      : getPDFTranslation('analysisAgentTraceTitle', locale);
+    const analysisAgentTraceIntro = isRaawiAgentReport
+      ? raawiLabels.traceIntro
+      : getPDFTranslation('analysisAgentTraceIntro', locale);
+
     const templateData: TemplateData = {
       logoDataUrl,
       poweredByLogoDataUrl,
       entityLogoDataUrl,
       entityLogoDisplay: entityLogoDataUrl ? 'display: block;' : 'display: none;',
-      reportTitle: getPDFTranslation('reportTitle', locale),
+      reportTitle,
       subtitle: isPartialExport
         ? inFlight && hasExportableData && !isPartialTerminal
           ? getPDFTranslation('interimExportSubtitle', locale)
@@ -508,7 +626,9 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       introductionContent: reportContent.introduction,
       reportGeneratedOn: getPDFTranslation('reportGeneratedOn', locale),
       generationDate: new Date().toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US'),
-      executiveSummaryTitle: getPDFTranslation('executiveSummaryTitle', locale),
+      executiveSummaryTitle: isRaawiAgentReport
+        ? raawiLabels.technicalSummaryTitle
+        : getPDFTranslation('executiveSummaryTitle', locale),
       wcagALabel: getPDFTranslation('wcagALabel', locale),
       wcagAALabel: getPDFTranslation('wcagAALabel', locale),
       needsReviewLabel: getPDFTranslation('needsReviewLabel', locale),
@@ -518,16 +638,22 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       scoreADetail: `${scores.passedRules} ${locale === 'ar' ? 'قاعدة نجحت' : 'rules passed'}`,
       scoreAADetail: `${scores.passedRules} ${locale === 'ar' ? 'قاعدة نجحت' : 'rules passed'}`,
       needsReviewDetail: `${scores.needsReviewRules} ${locale === 'ar' ? 'قاعدة تحتاج مراجعة' : 'rules need review'}`,
-      scanStatisticsTitle: getPDFTranslation('scanStatisticsTitle', locale),
+      scanStatisticsTitle: isRaawiAgentReport
+        ? raawiLabels.technicalStatsTitle
+        : getPDFTranslation('scanStatisticsTitle', locale),
       totalPagesLabel: getPDFTranslation('totalPagesLabel', locale),
-      totalFindingsLabel: getPDFTranslation('totalFindingsLabel', locale),
+      totalFindingsLabel: isRaawiAgentReport
+        ? raawiLabels.domFindingsLabel
+        : getPDFTranslation('totalFindingsLabel', locale),
       failedRulesLabel: getPDFTranslation('failedRulesLabel', locale),
       needsReviewRulesLabel: getPDFTranslation('needsReviewRulesLabel', locale),
       totalPages: scan._count.pages.toString(),
       totalFindings: scan._count.findings.toString(),
       failedRules: scores.failedRules.toString(),
       needsReviewRules: scores.needsReviewRules.toString(),
-      keyFindingsTitle: getPDFTranslation('keyFindingsTitle', locale),
+      keyFindingsTitle: isRaawiAgentReport
+        ? raawiLabels.keyFindingsTitle
+        : getPDFTranslation('keyFindingsTitle', locale),
       keyFindingsContent: reportContent.keyFindings,
       topFindingsTitle: getPDFTranslation('topFindingsTitle', locale),
       wcagIdHeader: getPDFTranslation('wcagIdHeader', locale),
@@ -536,15 +662,19 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       descriptionHeader: getPDFTranslation('descriptionHeader', locale),
       pageHeader: getPDFTranslation('pageHeader', locale),
       findingsRows: findingsRows || '<tr><td colspan="5">No findings</td></tr>',
-      analysisAgentFindingsLabel: getPDFTranslation('analysisAgentFindingsLabel', locale),
+      analysisAgentFindingsLabel: isRaawiAgentReport
+        ? raawiLabels.findingsLabel
+        : getPDFTranslation('analysisAgentFindingsLabel', locale),
       totalAnalysisAgentFindings: String(scan._count.agentFindings),
-      analysisAgentTitle: getPDFTranslation('analysisAgentTitle', locale),
-      analysisAgentIntro: getPDFTranslation('analysisAgentIntro', locale),
-      analysisAgentTraceTitle: getPDFTranslation('analysisAgentTraceTitle', locale),
-      analysisAgentTraceIntro: getPDFTranslation('analysisAgentTraceIntro', locale),
+      analysisAgentTitle,
+      analysisAgentIntro,
+      analysisAgentTraceTitle,
+      analysisAgentTraceIntro,
       analysisAgentTraceSummaryText: analysisAgentTraceSummaryText,
       analysisAgentTraceTableOrEmpty,
       analysisAgentTableOrEmpty,
+      modeOverviewHtml,
+      findingsBodyHtml,
       footerText: getPDFTranslation('footerText', locale),
       reportGeneratedBy: getPDFTranslation('reportGeneratedBy', locale),
       disclaimerText: getPDFTranslation('disclaimerText', locale),

@@ -351,23 +351,25 @@
         {{introductionContent}}
       </div>
     </div>
+
+    {{modeOverviewHtml}}
     
     <div class="section">
       <h2 class="section-title">{{executiveSummaryTitle}}</h2>
       <div class="score-grid">
         <div class="score-card">
           <div class="label">{{wcagALabel}}</div>
-          <div class="value">{{scoreA}}%</div>
+          <div class="value">{{scoreA}}</div>
           <div class="detail">{{scoreADetail}}</div>
         </div>
         <div class="score-card">
           <div class="label">{{wcagAALabel}}</div>
-          <div class="value">{{scoreAA}}%</div>
+          <div class="value">{{scoreAA}}</div>
           <div class="detail">{{scoreAADetail}}</div>
         </div>
         <div class="score-card">
           <div class="label">{{needsReviewLabel}}</div>
-          <div class="value">{{needsReviewRate}}%</div>
+          <div class="value">{{needsReviewRate}}</div>
           <div class="detail">{{needsReviewDetail}}</div>
         </div>
       </div>
@@ -409,39 +411,8 @@
     <div class="header">
       <h1>{{keyFindingsTitle}}</h1>
     </div>
-    
-    <div class="section">
-      {{keyFindingsContent}}
-    </div>
-    
-    <div class="section">
-      <h2 class="section-title">{{topFindingsTitle}}</h2>
-      <table class="findings-table">
-        <thead>
-          <tr>
-            <th>{{wcagIdHeader}}</th>
-            <th>{{levelHeader}}</th>
-            <th>{{statusHeader}}</th>
-            <th>{{descriptionHeader}}</th>
-            <th>{{pageHeader}}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{findingsRows}}
-        </tbody>
-      </table>
-    </div>
 
-    <div class="section">
-      <h2 class="section-title">{{analysisAgentTitle}}</h2>
-      <p class="intro-content" style="margin-bottom: 16px;">{{analysisAgentIntro}}</p>
-      <div class="intro-content" style="margin-bottom: 12px;">{{analysisAgentTraceSummaryText}}</div>
-      <h3 class="section-title" style="font-size: 18px; margin-top: 10px;">{{analysisAgentTraceTitle}}</h3>
-      <p class="intro-content" style="margin-bottom: 12px;">{{analysisAgentTraceIntro}}</p>
-      {{analysisAgentTraceTableOrEmpty}}
-      <div style="height: 16px;"></div>
-      {{analysisAgentTableOrEmpty}}
-    </div>
+    {{findingsBodyHtml}}
   </div>
   
   <!-- Footer -->

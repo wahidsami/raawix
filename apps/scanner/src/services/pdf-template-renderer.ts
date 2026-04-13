@@ -90,6 +90,8 @@ export interface TemplateData {
   analysisAgentTraceSummaryText: string;
   analysisAgentTraceTableOrEmpty: string;
   analysisAgentTableOrEmpty: string;
+  modeOverviewHtml: string;
+  findingsBodyHtml: string;
   
   // Footer
   footerText: string;
