@@ -97,8 +97,11 @@ interface PropertyAuthProfileState {
   passwordSecretSource?: 'missing' | 'stored' | 'env';
   usernameEnvVarName?: string | null;
   passwordEnvVarName?: string | null;
+  usernameEnvVarPresent?: boolean | null;
+  passwordEnvVarPresent?: boolean | null;
   hasUsernameValue?: boolean;
   hasPasswordValue?: boolean;
+  secretHealth?: 'ready' | 'missing_env';
   postLoginSeedPaths?: string[] | null;
   isActive: boolean;
   lastTestedAt?: string | null;
@@ -454,12 +457,18 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
     return `~${rounded} min`;
   }, [phase, stats.pagesScanned, stats.pagesDiscovered]);
 
+  const authProfileSecretsReady = authProfile?.secretHealth !== 'missing_env';
   const canUseSavedAuthProfile =
-    !!authProfile && authProfile.isActive && authProfile.authType === 'scripted_login';
+    !!authProfile &&
+    authProfile.isActive &&
+    authProfile.authType === 'scripted_login' &&
+    authProfileSecretsReady;
   const authCoveragePreviewLabel = canUseSavedAuthProfile && useSavedAuthProfile
     ? 'Authenticated scan planned'
     : authProfile?.isActive && authProfile.authType !== 'scripted_login'
       ? 'Saved profile not yet automatable'
+      : authProfile?.secretHealth === 'missing_env'
+        ? 'Missing env secret'
       : authProfile && !authProfile.isActive
         ? 'Saved profile is inactive'
         : 'Unauthenticated scan';
@@ -2812,12 +2821,27 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                           <div>
                             Username secret: {authProfile.usernameSecretSource || 'missing'}
                             {authProfile.usernameEnvVarName ? ` (${authProfile.usernameEnvVarName})` : ''}
+                            {authProfile.usernameSecretSource === 'env'
+                              ? authProfile.usernameEnvVarPresent
+                                ? ' [present]'
+                                : ' [missing]'
+                              : ''}
                           </div>
                           <div>
                             Password secret: {authProfile.passwordSecretSource || 'missing'}
                             {authProfile.passwordEnvVarName ? ` (${authProfile.passwordEnvVarName})` : ''}
+                            {authProfile.passwordSecretSource === 'env'
+                              ? authProfile.passwordEnvVarPresent
+                                ? ' [present]'
+                                : ' [missing]'
+                              : ''}
                           </div>
                         </div>
+                        {authProfile.secretHealth === 'missing_env' ? (
+                          <div className="rounded border border-amber-500/30 bg-amber-500/5 p-2 text-xs text-amber-700">
+                            One or more referenced env secrets are missing on the server. Authenticated scanning is disabled until they are added.
+                          </div>
+                        ) : null}
                         {authProfile.lastTestError ? (
                           <div className="text-xs text-amber-700">
                             Last test error: {authProfile.lastTestError}
@@ -2836,6 +2860,8 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                             <span className="block text-xs text-muted-foreground font-normal">
                               {canUseSavedAuthProfile
                                 ? 'The scanner will sign in before crawling and the report will mark this run as authenticated.'
+                                : authProfile.secretHealth === 'missing_env'
+                                  ? 'This profile uses env-backed secrets, but one or more referenced env vars are missing on the server.'
                                 : authProfile.authType !== 'scripted_login'
                                   ? 'This saved auth profile exists, but only scripted login profiles are automated right now.'
                                   : 'This saved auth profile is inactive, so this run will stay unauthenticated.'}
@@ -3016,6 +3042,12 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                             <p className="mt-1 text-[11px] text-muted-foreground">
                               Stored as <code>${'{env:VAR_NAME}'}</code> and resolved only at scan time.
                             </p>
+                            {authProfile?.usernameEnvVarName === authProfileEditor.usernameEnvVarName.trim() &&
+                            authProfile.usernameSecretSource === 'env' ? (
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                Current server status: {authProfile.usernameEnvVarPresent ? 'present' : 'missing'}
+                              </p>
+                            ) : null}
                           </div>
                           <div>
                             <label className="mb-1 block text-xs font-medium text-foreground">Password env var</label>
@@ -3031,6 +3063,12 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                             <p className="mt-1 text-[11px] text-muted-foreground">
                               Stored as <code>${'{env:VAR_NAME}'}</code> and resolved only at scan time.
                             </p>
+                            {authProfile?.passwordEnvVarName === authProfileEditor.passwordEnvVarName.trim() &&
+                            authProfile.passwordSecretSource === 'env' ? (
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                Current server status: {authProfile.passwordEnvVarPresent ? 'present' : 'missing'}
+                              </p>
+                            ) : null}
                           </div>
                           <div>
                             <label className="mb-1 block text-xs font-medium text-foreground">Success URL prefix</label>

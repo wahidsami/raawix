@@ -8,6 +8,17 @@ const router: Router = Router();
 
 function toSafeProfile(profile: AuthProfileData | null) {
   if (!profile) return null;
+  const usernameEnvVarPresent =
+    profile.usernameSecretSource === 'env' && profile.usernameEnvVarName
+      ? !!process.env[profile.usernameEnvVarName]
+      : null;
+  const passwordEnvVarPresent =
+    profile.passwordSecretSource === 'env' && profile.passwordEnvVarName
+      ? !!process.env[profile.passwordEnvVarName]
+      : null;
+  const secretHealth =
+    (profile.usernameSecretSource !== 'env' || usernameEnvVarPresent) &&
+    (profile.passwordSecretSource !== 'env' || passwordEnvVarPresent);
   return {
     id: profile.id,
     propertyId: profile.propertyId,
@@ -22,8 +33,11 @@ function toSafeProfile(profile: AuthProfileData | null) {
     passwordSecretSource: profile.passwordSecretSource || 'missing',
     usernameEnvVarName: profile.usernameEnvVarName || null,
     passwordEnvVarName: profile.passwordEnvVarName || null,
+    usernameEnvVarPresent,
+    passwordEnvVarPresent,
     hasUsernameValue: profile.usernameSecretSource !== 'missing',
     hasPasswordValue: profile.passwordSecretSource !== 'missing',
+    secretHealth: secretHealth ? 'ready' : 'missing_env',
     postLoginSeedPaths: profile.postLoginSeedPaths,
     extraHeaders: profile.extraHeaders,
     isActive: profile.isActive,
