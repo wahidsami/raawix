@@ -97,11 +97,15 @@ const agentKindTaxonomy: Record<string, TaxonomyMatch> = {
   focus_lost: { category: 'Keyboard & Navigation', subcategory: 'Incorrect tab order' },
   form_blocked: { category: 'Forms & Inputs', subcategory: 'No input instructions' },
   inaccessible_action: { category: 'Keyboard & Navigation', subcategory: 'Not accessible via keyboard' },
+  image_alt_task_issue: { category: 'Images', subcategory: 'Missing alt text' },
   keyboard_trap: { category: 'Keyboard & Navigation', subcategory: 'Keyboard traps' },
+  missing_page_structure: { category: 'Structure & Semantics', subcategory: 'Missing landmarks' },
   missing_focus_indicator: { category: 'Keyboard & Navigation', subcategory: 'Missing focus indicator' },
   modal_probe_failed: { category: 'Keyboard & Navigation', subcategory: 'Keyboard traps' },
   poor_label_quality: { category: 'Forms & Inputs', subcategory: 'Missing labels' },
+  unnamed_task_control: { category: 'Forms & Inputs', subcategory: 'Missing labels' },
   unclear_error_recovery: { category: 'Forms & Inputs', subcategory: 'Errors not explained' },
+  verification_checkpoint_requires_manual_input: { category: 'Authentication & Security', subcategory: 'Memory-based challenges' },
 };
 
 const visionKindTaxonomy: Record<string, TaxonomyMatch> = {

@@ -51,6 +51,13 @@ export type AnalystCompactInput = {
       reason: string;
     }>;
   };
+  taskAssessments?: Array<{
+    taskId: string;
+    label: string;
+    category: string;
+    result: string;
+    summary: string;
+  }>;
 };
 
 const EnrichedFindingSchema = z.object({
@@ -126,6 +133,13 @@ export function buildCompactInput(
           })),
         }
       : undefined,
+    taskAssessments: artifact.taskAssessments?.map((assessment) => ({
+      taskId: assessment.taskId,
+      label: assessment.label,
+      category: assessment.category,
+      result: assessment.result,
+      summary: assessment.summary,
+    })),
     stepsSummary: steps,
     probesSummary,
     existingIssues,
@@ -172,12 +186,17 @@ function buildUserPrompt(input: AnalystCompactInput): string {
   const pageProfileStr = input.pageProfile
     ? JSON.stringify(input.pageProfile, null, 2)
     : 'n/a';
+  const taskAssessmentStr = input.taskAssessments?.length
+    ? JSON.stringify(input.taskAssessments, null, 2)
+    : 'n/a';
 
   return `Page: ${input.url}
 Title: ${input.title ?? 'n/a'}
 Page number: ${input.pageNumber}
 Page profile:
 ${pageProfileStr}
+Task assessments:
+${taskAssessmentStr}
 
 Steps (focus trace, max ${MAX_STEPS_SUMMARY}):
 ${stepsStr}

@@ -154,6 +154,16 @@ type AnalysisTracePageProfile = {
   };
 };
 
+type AnalysisTaskAssessment = {
+  taskId: string;
+  label: string;
+  category: string;
+  result: 'working' | 'not_working' | 'needs_review' | 'not_applicable' | 'manual_checkpoint';
+  confidence: number;
+  summary: string;
+  evidence: Record<string, unknown>;
+};
+
 interface ScanDetail {
   scanId: string;
   seedUrl: string;
@@ -218,6 +228,7 @@ interface ScanDetail {
       issueKinds: string[];
       issueMessages: string[];
       traceSummary: string;
+      taskAssessments?: AnalysisTaskAssessment[];
       pageProfile?: AnalysisTracePageProfile;
     }>;
     summary?: {
@@ -273,6 +284,7 @@ interface ScanDetail {
         issueKinds: string[];
         issueMessages: string[];
         traceSummary: string;
+        taskAssessments?: AnalysisTaskAssessment[];
         pageProfile?: AnalysisTracePageProfile;
       };
     };
@@ -474,6 +486,7 @@ export default function ScanDetailPage() {
     if (result === 'not_working') return 'Not working';
     if (result === 'needs_review') return 'Needs review';
     if (result === 'not_applicable') return 'Not applicable';
+    if (result === 'manual_checkpoint') return 'Manual checkpoint';
     return result;
   };
   const getAuditorResultClass = (result: string) => {
@@ -481,6 +494,12 @@ export default function ScanDetailPage() {
     if (result === 'not_working') return 'bg-red-500/15 text-red-700 ring-1 ring-red-500/20';
     if (result === 'needs_review') return 'bg-amber-500/15 text-amber-700 ring-1 ring-amber-500/20';
     return 'bg-muted text-muted-foreground ring-1 ring-border';
+  };
+  const getTaskAssessmentClass = (result: string) => {
+    if (result === 'working') return 'text-emerald-700';
+    if (result === 'not_working') return 'text-red-700';
+    if (result === 'manual_checkpoint') return 'text-blue-700';
+    return 'text-amber-700';
   };
   const renderAgentCell = (page: ScanDetail['pages'][number]) => (
     <td className="px-6 py-4">
@@ -1057,7 +1076,18 @@ export default function ScanDetailPage() {
                         )}
                       </td>
                       <td className="px-3 py-2 min-w-[240px]">
-                        {trace.pageProfile?.taskIntents?.length ? (
+                        {trace.taskAssessments?.length ? (
+                          <div className="space-y-1">
+                            {trace.taskAssessments.slice(0, 3).map((task) => (
+                              <div key={task.taskId} className="rounded border border-border bg-background px-2 py-1">
+                                <div className="text-xs font-medium">{task.label}</div>
+                                <div className={`text-[11px] font-medium ${getTaskAssessmentClass(task.result)}`}>
+                                  {getAuditorResultLabel(task.result)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : trace.pageProfile?.taskIntents?.length ? (
                           <div className="space-y-1">
                             {trace.pageProfile.taskIntents.slice(0, 3).map((task) => (
                               <div key={task.id} className="rounded border border-border bg-background px-2 py-1">

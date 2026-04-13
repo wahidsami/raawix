@@ -4,7 +4,12 @@
  */
 
 import type { Page } from 'playwright';
-import { captureRaawiPageProfile, type RaawiPageProfile } from './page-understanding.js';
+import {
+  assessRaawiTaskIntents,
+  captureRaawiPageProfile,
+  type RaawiPageProfile,
+  type RaawiTaskAssessment,
+} from './page-understanding.js';
 
 const NAME_CAP = 200;
 const CLASSES_CAP = 200;
@@ -29,6 +34,7 @@ export type InteractionArtifact = {
   pageNumber: number;
   capturedAt: string;
   pageProfile?: RaawiPageProfile;
+  taskAssessments?: RaawiTaskAssessment[];
   steps: Array<{
     i: number;
     action: 'tab' | 'shift+tab';
@@ -70,7 +76,11 @@ export type InteractionArtifact = {
       | 'modal_focus_not_moved'
       | 'focus_not_restored'
       | 'expanded_state_not_updated'
-      | 'validation_error_not_focused';
+      | 'validation_error_not_focused'
+      | 'missing_page_structure'
+      | 'unnamed_task_control'
+      | 'image_alt_task_issue'
+      | 'verification_checkpoint_requires_manual_input';
     message: string;
     confidence: number;
     evidence: unknown;
@@ -515,6 +525,7 @@ export async function runInteractionAgent(
   const issues: InteractionArtifact['issues'] = [];
   const probes: NonNullable<InteractionArtifact['probes']> = [];
   let pageProfile: RaawiPageProfile | undefined;
+  let taskAssessments: RaawiTaskAssessment[] = [];
   const unnamedExamples: Array<{ stepIndex: number; tag: string; role: string | null; selectorHint: string }> = [];
   const roleNameCount = new Map<string, number>();
   let focusNotVisibleCount = 0;
@@ -583,6 +594,11 @@ export async function runInteractionAgent(
   try {
     try {
       pageProfile = await captureRaawiPageProfile(page, ctx.url);
+      taskAssessments = assessRaawiTaskIntents(pageProfile);
+      for (const assessment of taskAssessments) {
+        if (!assessment.issue) continue;
+        issues.push(assessment.issue);
+      }
     } catch (profileErr) {
       console.warn('[InteractionAgent] Page profile capture failed:', profileErr);
     }
@@ -998,6 +1014,7 @@ export async function runInteractionAgent(
     pageNumber: ctx.pageNumber,
     capturedAt: new Date().toISOString(),
     ...(pageProfile ? { pageProfile } : {}),
+    ...(taskAssessments.length > 0 ? { taskAssessments } : {}),
     steps,
     issues,
     ...(probes.length > 0 ? { probes } : {}),
