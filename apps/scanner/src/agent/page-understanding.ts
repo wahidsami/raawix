@@ -41,6 +41,7 @@ export interface RaawiTaskAssessment {
     kind:
       | 'missing_page_structure'
       | 'unnamed_task_control'
+      | 'missing_form_instructions'
       | 'image_alt_task_issue'
       | 'verification_checkpoint_requires_manual_input';
     message: string;
@@ -66,6 +67,11 @@ export interface RaawiPageProfile {
     forms: number;
     fields: number;
     fieldsWithoutName: number;
+    fieldsWithoutInstructions: number;
+    requiredFields: number;
+    requiredFieldsWithoutIndicator: number;
+    passwordFields: number;
+    otpLikeFields: number;
     images: number;
     imagesWithoutAlt: number;
     media: number;
@@ -79,6 +85,8 @@ export interface RaawiPageProfile {
     hasRegister: boolean;
     hasOtp: boolean;
     hasPassword: boolean;
+    hasForgotPassword: boolean;
+    hasResendCode: boolean;
     hasContact: boolean;
     hasModalTrigger: boolean;
     hasMenuToggle: boolean;
@@ -87,6 +95,24 @@ export interface RaawiPageProfile {
     kind: 'link' | 'button' | 'field';
     name: string;
     type?: string | null;
+  }>;
+  forms: Array<{
+    index: number;
+    purpose: 'login' | 'register' | 'contact' | 'search' | 'generic';
+    fieldCount: number;
+    requiredCount: number;
+    unlabeledCount: number;
+    fieldsWithoutInstructions: number;
+    passwordCount: number;
+    otpLikeCount: number;
+    hasSubmit: boolean;
+    fieldSamples: Array<{
+      type: string | null;
+      name: string;
+      required: boolean;
+      hasInstruction: boolean;
+      otpLike: boolean;
+    }>;
   }>;
   taskIntents: RaawiTaskIntent[];
 }
@@ -276,6 +302,15 @@ export async function captureRaawiPageProfile(page: Page, url: string): Promise<
       }
       return '';
     };
+    const describedByText = (el: Element): string => {
+      const describedBy = el.getAttribute('aria-describedby');
+      if (!describedBy?.trim()) return '';
+      return describedBy
+        .split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
+        .filter(Boolean)
+        .join(' ');
+    };
 
     const headings = Array.from(document.querySelectorAll('h1,h2,h3'))
       .map((h) => (h.textContent ?? '').replace(/\s+/g, ' ').trim())
@@ -316,6 +351,24 @@ export async function captureRaawiPageProfile(page: Page, url: string): Promise<
         forms: forms.length,
         fields: fields.length,
         fieldsWithoutName: fields.filter((field) => !programmaticName(field)).length,
+        fieldsWithoutInstructions: fields.filter((field) => !describedByText(field)).length,
+        requiredFields: fields.filter((field) => {
+          const input = field as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+          return !!input.required || field.getAttribute('aria-required') === 'true';
+        }).length,
+        requiredFieldsWithoutIndicator: fields.filter((field) => {
+          const input = field as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+          const required = !!input.required || field.getAttribute('aria-required') === 'true';
+          if (!required) return false;
+          const name = accessibleName(field).toLowerCase();
+          return !(name.includes('*') || name.includes('required') || name.includes('مطلوب'));
+        }).length,
+        passwordFields: fields.filter((field) => (field as HTMLInputElement).type === 'password').length,
+        otpLikeFields: fields.filter((field) => {
+          const input = field as HTMLInputElement | HTMLTextAreaElement;
+          const signature = `${programmaticName(field)} ${field.getAttribute('name') ?? ''} ${field.getAttribute('id') ?? ''} ${field.getAttribute('autocomplete') ?? ''}`.toLowerCase();
+          return input.inputMode === 'numeric' || /otp|verification|code|token|رمز|كود/.test(signature);
+        }).length,
         images: images.length,
         imagesWithoutAlt: images.filter((img) => !img.hasAttribute('alt')).length,
         media,
@@ -329,11 +382,48 @@ export async function captureRaawiPageProfile(page: Page, url: string): Promise<
         hasRegister: hasWord(['register', 'sign up', 'signup', 'create account', 'تسجيل', 'إنشاء حساب']),
         hasOtp: hasWord(['otp', 'verification code', 'one time', 'رمز التحقق', 'كود التحقق']),
         hasPassword: fields.some((field) => (field as HTMLInputElement).type === 'password'),
+        hasForgotPassword: hasWord(['forgot password', 'reset password', 'نسيت كلمة المرور', 'استعادة كلمة المرور']),
+        hasResendCode: hasWord(['resend code', 'send again', 'إعادة إرسال', 'إرسال مرة أخرى']),
         hasContact: hasWord(['contact', 'support', 'message', 'تواصل', 'اتصل', 'الدعم']),
         hasModalTrigger: document.querySelector('[aria-haspopup="dialog"], [data-modal], [role="dialog"], [aria-modal="true"]') != null,
         hasMenuToggle: document.querySelector('[aria-expanded], [aria-haspopup="menu"]') != null,
       },
       sampleControls,
+      forms: forms.slice(0, 5).map((form, index) => {
+        const formText = `${(form.textContent ?? '').replace(/\s+/g, ' ').trim()} ${form.getAttribute('aria-label') ?? ''}`.toLowerCase();
+        const formFields = Array.from(form.querySelectorAll('input, select, textarea'));
+        const fieldSamples = formFields.slice(0, 6).map((field) => {
+          const input = field as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+          const type = field.getAttribute('type');
+          const name = accessibleName(field).slice(0, 80);
+          const required = !!input.required || field.getAttribute('aria-required') === 'true';
+          const hasInstruction = !!describedByText(field);
+          const otpLike = input.inputMode === 'numeric' || /otp|verification|code|token|رمز|كود/.test(`${programmaticName(field)} ${field.getAttribute('name') ?? ''}`.toLowerCase());
+          return { type, name, required, hasInstruction, otpLike };
+        });
+        const purpose: 'login' | 'register' | 'contact' | 'search' | 'generic' =
+          /login|sign in|signin|دخول|تسجيل الدخول/.test(formText) || form.querySelector('input[type="password"]')
+            ? 'login'
+            : /register|sign up|signup|create account|تسجيل|إنشاء حساب/.test(formText)
+              ? 'register'
+              : /contact|message|support|تواصل|رسالة/.test(formText)
+                ? 'contact'
+                : form.querySelector('input[type="search"]') || /search|بحث/.test(formText)
+                  ? 'search'
+                  : 'generic';
+        return {
+          index: index + 1,
+          purpose,
+          fieldCount: formFields.length,
+          requiredCount: fieldSamples.filter((field) => field.required).length,
+          unlabeledCount: formFields.filter((field) => !programmaticName(field)).length,
+          fieldsWithoutInstructions: fieldSamples.filter((field) => !field.hasInstruction).length,
+          passwordCount: fieldSamples.filter((field) => field.type === 'password').length,
+          otpLikeCount: fieldSamples.filter((field) => field.otpLike).length,
+          hasSubmit: form.querySelector('button[type="submit"], input[type="submit"]') != null,
+          fieldSamples,
+        };
+      }),
       textSignals: signalText,
     };
   }, url);
@@ -349,6 +439,7 @@ export async function captureRaawiPageProfile(page: Page, url: string): Promise<
     counts: raw.counts,
     signals: raw.signals,
     sampleControls: raw.sampleControls,
+    forms: raw.forms,
     pageType,
     taskIntents: buildTaskIntents(raw, pageType),
   };
@@ -414,13 +505,23 @@ export function assessRaawiTaskIntents(profile: RaawiPageProfile): RaawiTaskAsse
           category: task.category,
           result: 'manual_checkpoint',
           confidence: 0.8,
-          summary: 'A verification-code checkpoint appears to be present and requires a human-provided code during scanning.',
-          evidence: { signals: profile.signals },
+          summary: profile.signals.hasResendCode
+            ? 'A verification-code checkpoint appears to be present and includes resend/recovery cues, but still requires a human-provided code during scanning.'
+            : 'A verification-code checkpoint appears to be present and requires a human-provided code during scanning.',
+          evidence: {
+            signals: profile.signals,
+            otpLikeFields: profile.counts.otpLikeFields,
+            forms: profile.forms,
+          },
           issue: {
             kind: 'verification_checkpoint_requires_manual_input',
             message: 'Verification-code checkpoint detected; scanner needs a manual code-entry pause to continue authenticated flow.',
             confidence: 0.8,
-            evidence: { signals: profile.signals },
+            evidence: {
+              signals: profile.signals,
+              otpLikeFields: profile.counts.otpLikeFields,
+              forms: profile.forms,
+            },
             suggestedWcagIds: ['3.3.2'],
             howToVerify: 'Start the login flow and confirm the verification code step has accessible instructions, resend/recovery, and enough time.',
           },
@@ -455,6 +556,41 @@ export function assessRaawiTaskIntents(profile: RaawiPageProfile): RaawiTaskAsse
         };
       }
 
+      if (profile.counts.fieldsWithoutInstructions > 0 || profile.counts.requiredFieldsWithoutIndicator > 0) {
+        return {
+          taskId: task.id,
+          label: task.label,
+          category: task.category,
+          result: 'needs_review',
+          confidence: 0.78,
+          summary:
+            profile.counts.fieldsWithoutInstructions > 0
+              ? `${profile.counts.fieldsWithoutInstructions} field(s) appear to lack extra instructions or described-by help text.`
+              : `${profile.counts.requiredFieldsWithoutIndicator} required field(s) may not expose a clear required indicator in the accessible name.`,
+          evidence: {
+            forms: profile.forms,
+            fieldsWithoutInstructions: profile.counts.fieldsWithoutInstructions,
+            requiredFields: profile.counts.requiredFields,
+            requiredFieldsWithoutIndicator: profile.counts.requiredFieldsWithoutIndicator,
+          },
+          issue: {
+            kind: 'missing_form_instructions',
+            message:
+              profile.counts.fieldsWithoutInstructions > 0
+                ? `${profile.counts.fieldsWithoutInstructions} field(s) appear to lack clear instructions or described-by help text.`
+                : `${profile.counts.requiredFieldsWithoutIndicator} required field(s) may not expose a clear required indicator.`,
+            confidence: 0.78,
+            evidence: {
+              forms: profile.forms,
+              fieldsWithoutInstructions: profile.counts.fieldsWithoutInstructions,
+              requiredFieldsWithoutIndicator: profile.counts.requiredFieldsWithoutIndicator,
+            },
+            suggestedWcagIds: ['3.3.2', '1.3.1'],
+            howToVerify: 'Review each required field with a screen reader and confirm instructions, required state, and helper text are announced before submission.',
+          },
+        };
+      }
+
       return {
         taskId: task.id,
         label: task.label,
@@ -469,6 +605,8 @@ export function assessRaawiTaskIntents(profile: RaawiPageProfile): RaawiTaskAsse
           forms: profile.counts.forms,
           fields: profile.counts.fields,
           fieldsWithoutName: profile.counts.fieldsWithoutName,
+          fieldsWithoutInstructions: profile.counts.fieldsWithoutInstructions,
+          requiredFields: profile.counts.requiredFields,
         },
       };
     }

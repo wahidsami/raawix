@@ -34,6 +34,12 @@ export interface AnalysisAgentPageSummary {
       buttons: number;
       forms: number;
       fields: number;
+      fieldsWithoutName: number;
+      fieldsWithoutInstructions: number;
+      requiredFields: number;
+      requiredFieldsWithoutIndicator: number;
+      passwordFields: number;
+      otpLikeFields: number;
       images: number;
       media: number;
     };
@@ -41,10 +47,30 @@ export interface AnalysisAgentPageSummary {
       hasSearch: boolean;
       hasLogin: boolean;
       hasOtp: boolean;
+      hasForgotPassword: boolean;
+      hasResendCode: boolean;
       hasContact: boolean;
       hasModalTrigger: boolean;
       hasMenuToggle: boolean;
     };
+    forms: {
+      index: number;
+      purpose: 'login' | 'register' | 'contact' | 'search' | 'generic';
+      fieldCount: number;
+      requiredCount: number;
+      unlabeledCount: number;
+      fieldsWithoutInstructions: number;
+      passwordCount: number;
+      otpLikeCount: number;
+      hasSubmit: boolean;
+      fieldSamples: Array<{
+        type: string | null;
+        name: string;
+        required: boolean;
+        hasInstruction: boolean;
+        otpLike: boolean;
+      }>;
+    }[];
   };
 }
 
@@ -93,6 +119,12 @@ function summarizeArtifact(
               buttons: artifact.pageProfile.counts.buttons,
               forms: artifact.pageProfile.counts.forms,
               fields: artifact.pageProfile.counts.fields,
+              fieldsWithoutName: artifact.pageProfile.counts.fieldsWithoutName,
+              fieldsWithoutInstructions: artifact.pageProfile.counts.fieldsWithoutInstructions,
+              requiredFields: artifact.pageProfile.counts.requiredFields,
+              requiredFieldsWithoutIndicator: artifact.pageProfile.counts.requiredFieldsWithoutIndicator,
+              passwordFields: artifact.pageProfile.counts.passwordFields,
+              otpLikeFields: artifact.pageProfile.counts.otpLikeFields,
               images: artifact.pageProfile.counts.images,
               media: artifact.pageProfile.counts.media,
             },
@@ -100,10 +132,13 @@ function summarizeArtifact(
               hasSearch: artifact.pageProfile.signals.hasSearch,
               hasLogin: artifact.pageProfile.signals.hasLogin,
               hasOtp: artifact.pageProfile.signals.hasOtp,
+              hasForgotPassword: artifact.pageProfile.signals.hasForgotPassword,
+              hasResendCode: artifact.pageProfile.signals.hasResendCode,
               hasContact: artifact.pageProfile.signals.hasContact,
               hasModalTrigger: artifact.pageProfile.signals.hasModalTrigger,
               hasMenuToggle: artifact.pageProfile.signals.hasMenuToggle,
             },
+            forms: artifact.pageProfile.forms,
           },
         }
       : {}),

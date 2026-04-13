@@ -141,6 +141,12 @@ type AnalysisTracePageProfile = {
     buttons: number;
     forms: number;
     fields: number;
+    fieldsWithoutName: number;
+    fieldsWithoutInstructions: number;
+    requiredFields: number;
+    requiredFieldsWithoutIndicator: number;
+    passwordFields: number;
+    otpLikeFields: number;
     images: number;
     media: number;
   };
@@ -148,10 +154,30 @@ type AnalysisTracePageProfile = {
     hasSearch: boolean;
     hasLogin: boolean;
     hasOtp: boolean;
+    hasForgotPassword: boolean;
+    hasResendCode: boolean;
     hasContact: boolean;
     hasModalTrigger: boolean;
     hasMenuToggle: boolean;
   };
+  forms: Array<{
+    index: number;
+    purpose: 'login' | 'register' | 'contact' | 'search' | 'generic';
+    fieldCount: number;
+    requiredCount: number;
+    unlabeledCount: number;
+    fieldsWithoutInstructions: number;
+    passwordCount: number;
+    otpLikeCount: number;
+    hasSubmit: boolean;
+    fieldSamples: Array<{
+      type: string | null;
+      name: string;
+      required: boolean;
+      hasInstruction: boolean;
+      otpLike: boolean;
+    }>;
+  }>;
 };
 
 type AnalysisTaskAssessment = {
@@ -1070,6 +1096,11 @@ export default function ScanDetailPage() {
                             <div className="mt-1 text-[11px] text-muted-foreground">
                               {trace.pageProfile.counts.forms} forms • {trace.pageProfile.counts.fields} fields • {trace.pageProfile.counts.images} images
                             </div>
+                            {(trace.pageProfile.counts.passwordFields > 0 || trace.pageProfile.counts.otpLikeFields > 0) && (
+                              <div className="mt-1 text-[11px] text-muted-foreground">
+                                {trace.pageProfile.counts.passwordFields} password • {trace.pageProfile.counts.otpLikeFields} OTP-like
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">No profile</span>

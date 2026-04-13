@@ -79,6 +79,7 @@ export type InteractionArtifact = {
       | 'validation_error_not_focused'
       | 'missing_page_structure'
       | 'unnamed_task_control'
+      | 'missing_form_instructions'
       | 'image_alt_task_issue'
       | 'verification_checkpoint_requires_manual_input';
     message: string;
