@@ -1819,14 +1819,64 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   const handleError = (event: ScanEvent) => {
     const errorMessage = (event as any).error || event.message || 'Unknown error occurred';
     const isTimeout = (event as any).isTimeout || false;
+    const isPageScopedError = Boolean(event.url);
+    const currentPhase = phaseRef.current;
+    const currentIsScanning = isScanningRef.current;
 
     console.error('[SCAN] Error event received:', { error: errorMessage, isTimeout, event });
 
+    if (isPageScopedError && (currentPhase === 'scanning' || currentIsScanning)) {
+      const failedUrl = event.url!;
+      addDebugLog('warning', `Page failed, scan continuing: ${friendlyUrlPath(failedUrl)} - ${errorMessage}`);
+      setBanner({
+        tone: 'warning',
+        message:
+          (t('scanMonitor.pageFailedContinuing') as string) ||
+          `A page failed and the scan is continuing: ${friendlyUrlPath(failedUrl)}`,
+      });
+
+      setTree((prev) => {
+        const newTree = new globalThis.Map(prev);
+        if (newTree.has(failedUrl)) {
+          const node = newTree.get(failedUrl)!;
+          node.status = 'failed';
+          node.layers.L1 = node.layers.L1 === 'running' ? 'failed' : node.layers.L1;
+          node.layers.L2 = node.layers.L2 === 'running' ? 'failed' : node.layers.L2;
+          node.layers.L3 = node.layers.L3 === 'running' ? 'failed' : node.layers.L3;
+          newTree.set(failedUrl, node);
+        }
+        return newTree;
+      });
+
+      setScannedPages((prev) => {
+        const next = new globalThis.Map(prev);
+        const existing = next.get(failedUrl);
+        next.set(failedUrl, {
+          url: failedUrl,
+          status: 'failed',
+          pageNumber: event.pageNumber,
+          counts: existing?.counts,
+          layers: existing?.layers ?? { L1: 'failed', L2: 'failed', L3: 'failed' },
+        });
+        return next;
+      });
+
+      setStats((prev) => ({
+        ...prev,
+        fails: prev.fails + 1,
+      }));
+
+      if (currentPage === failedUrl) {
+        setCurrentActivity((t('scanMonitor.activityMessages.recoveringAfterPageError') as string) || 'Continuing with the next page...');
+      }
+      return;
+    }
+
     // Stop scanning state
-        freezeElapsedTimer();
-        setIsScanning(false);
-        setScanPaused(false);
-        setScanCompleted(true);
+    freezeElapsedTimer();
+    setIsScanning(false);
+    setScanPaused(false);
+    setScanCompleted(true);
     setCurrentPage(null);
     setCurrentActivity('');
 
@@ -1854,6 +1904,10 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
     }
 
     // Client UX: avoid blocking alert dialogs; show banner instead
+    setBanner({
+      tone: 'error',
+      message: displayMessage,
+    });
   };
 
   const handleStopScan = async () => {
@@ -2055,6 +2109,8 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       addDebugLog('info', `Starting scan of ${selectedUrls.size} selected pages`);
       setPhase('scanning');
       setIsScanning(true);
+      setScanCompleted(false);
+      setScanPaused(false);
       setCurrentStep(t('scanMonitor.crawling'));
       scanStartedAtRef.current = Date.now();
       setElapsedMs(0);

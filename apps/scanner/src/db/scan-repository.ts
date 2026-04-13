@@ -4,6 +4,35 @@ import { StructuredLogger } from '../utils/logger.js';
 
 type AuditMode = 'classic' | 'raawi-agent';
 
+function stripNullBytes(value: string): string {
+  return value.replace(/\u0000/g, '');
+}
+
+function sanitizeNullableString(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  return stripNullBytes(value);
+}
+
+function sanitizeJsonValue<T>(value: T): T {
+  if (typeof value === 'string') {
+    return stripNullBytes(value) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeJsonValue(item)) as T;
+  }
+  if (value && typeof value === 'object') {
+    if (value instanceof Date) {
+      return value;
+    }
+    const sanitizedEntries = Object.entries(value as Record<string, unknown>).map(([key, entryValue]) => [
+      key,
+      sanitizeJsonValue(entryValue),
+    ]);
+    return Object.fromEntries(sanitizedEntries) as T;
+  }
+  return value;
+}
+
 /**
  * Repository for scan persistence
  */
@@ -302,14 +331,14 @@ export class ScanRepository {
           findingsData.push({
             scanId: scan.id,
             pageId,
-            ruleId: ruleResult.ruleId,
-            wcagId: ruleResult.wcagId || null,
-            level: level || null,
+            ruleId: stripNullBytes(ruleResult.ruleId),
+            wcagId: sanitizeNullableString(ruleResult.wcagId),
+            level: sanitizeNullableString(level || null),
             status: ruleResult.status,
             confidence: ruleResult.confidence,
-            message: ruleResult.message || null,
-            evidenceJson: ruleResult.evidence,
-            howToVerify: ruleResult.howToVerify,
+            message: sanitizeNullableString(ruleResult.message || null),
+            evidenceJson: sanitizeJsonValue(ruleResult.evidence),
+            howToVerify: stripNullBytes(ruleResult.howToVerify),
           });
         }
       }
@@ -353,13 +382,13 @@ export class ScanRepository {
             visionFindingsData.push({
               scanId: scan.id,
               pageId,
-              kind: finding.kind,
-              bboxJson: finding.bbox,
-              detectedText: finding.detectedText || null,
+              kind: stripNullBytes(finding.kind),
+              bboxJson: sanitizeJsonValue(finding.bbox),
+              detectedText: sanitizeNullableString(finding.detectedText || null),
               confidence: finding.confidence,
-              correlatedSelector: finding.correlatedSelector || null,
-              evidenceJson: evidenceJsonData, // Includes Gemini raw outputs
-              suggestedWcagIdsJson: finding.suggestedWcagIds,
+              correlatedSelector: sanitizeNullableString(finding.correlatedSelector || null),
+              evidenceJson: sanitizeJsonValue(evidenceJsonData), // Includes Gemini raw outputs
+              suggestedWcagIdsJson: sanitizeJsonValue(finding.suggestedWcagIds),
             });
           }
         } catch (error) {
@@ -426,12 +455,12 @@ export class ScanRepository {
               agentFindingsData.push({
                 scanId: scan.id,
                 pageId,
-                kind: issue.kind,
-                message: issue.message ?? null,
+                kind: stripNullBytes(issue.kind),
+                message: sanitizeNullableString(issue.message ?? null),
                 confidence,
-                evidenceJson: issue.evidence ?? (issue as any).evidenceJson ?? {},
-                howToVerify: issue.howToVerify ?? null,
-                suggestedWcagIdsJson: issue.suggestedWcagIds ?? null,
+                evidenceJson: sanitizeJsonValue(issue.evidence ?? (issue as any).evidenceJson ?? {}),
+                howToVerify: sanitizeNullableString(issue.howToVerify ?? null),
+                suggestedWcagIdsJson: sanitizeJsonValue(issue.suggestedWcagIds ?? null),
                 source: 'agent',
               });
             }
@@ -522,10 +551,10 @@ export class ScanRepository {
               agentFindingsData.push({
                 scanId: scan.id,
                 pageId,
-                kind: f.kind,
-                message: f.message ?? null,
+                kind: stripNullBytes(f.kind),
+                message: sanitizeNullableString(f.message ?? null),
                 confidence: f.confidence,
-                evidenceJson: {
+                evidenceJson: sanitizeJsonValue({
                   source: 'openai',
                   ...(f.category && f.subcategory
                     ? {
@@ -538,9 +567,9 @@ export class ScanRepository {
                   ...(typeof f.evidence === 'object' && f.evidence !== null
                     ? (f.evidence as Record<string, unknown>)
                     : {}),
-                },
-                howToVerify: f.howToVerify ?? null,
-                suggestedWcagIdsJson: f.suggestedWcagIds ?? null,
+                }),
+                howToVerify: sanitizeNullableString(f.howToVerify ?? null),
+                suggestedWcagIdsJson: sanitizeJsonValue(f.suggestedWcagIds ?? null),
                 source: 'openai',
               });
             }
