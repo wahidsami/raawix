@@ -125,6 +125,43 @@ interface AuthProfileEditorState {
   isActive: boolean;
 }
 
+interface AuthProfileDetectionState {
+  success: boolean;
+  message: string;
+  error?: string;
+  loginSucceeded: boolean;
+  verificationCheckpointDetected: boolean;
+  detected: {
+    loginUrl: string;
+    usernameSelector?: string;
+    passwordSelector?: string;
+    submitSelector?: string;
+    successUrlPrefix?: string | null;
+    successSelector?: string | null;
+    postLoginSeedPaths: string[];
+    confidence: 'high' | 'medium' | 'low';
+    notes: string[];
+  };
+}
+
+function createEmptyAuthProfileEditor(): AuthProfileEditorState {
+  return {
+    authType: 'scripted_login',
+    loginUrl: '',
+    successUrlPrefix: '',
+    successSelector: '',
+    usernameSelector: '',
+    passwordSelector: '',
+    submitSelector: '',
+    usernameValue: '',
+    passwordValue: '',
+    usernameEnvVarName: '',
+    passwordEnvVarName: '',
+    postLoginSeedPathsText: '',
+    isActive: true,
+  };
+}
+
 export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain', maxPages, maxDepth, entityId, propertyId, onClose, onComplete }: ScanMonitorModalProps) {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
@@ -160,23 +197,12 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   const [authProfileError, setAuthProfileError] = useState<string | null>(null);
   const [useSavedAuthProfile, setUseSavedAuthProfile] = useState(true);
   const [showAuthProfileEditor, setShowAuthProfileEditor] = useState(false);
-  const [authProfileEditor, setAuthProfileEditor] = useState<AuthProfileEditorState>({
-    authType: 'scripted_login',
-    loginUrl: '',
-    successUrlPrefix: '',
-    successSelector: '',
-    usernameSelector: '',
-    passwordSelector: '',
-    submitSelector: '',
-    usernameValue: '',
-    passwordValue: '',
-    usernameEnvVarName: '',
-    passwordEnvVarName: '',
-    postLoginSeedPathsText: '',
-    isActive: true,
-  });
+  const [authProfileEditor, setAuthProfileEditor] = useState<AuthProfileEditorState>(createEmptyAuthProfileEditor());
   const [authProfileSaving, setAuthProfileSaving] = useState(false);
   const [authProfileTesting, setAuthProfileTesting] = useState(false);
+  const [authProfileDetecting, setAuthProfileDetecting] = useState(false);
+  const [showAuthProfileAdvanced, setShowAuthProfileAdvanced] = useState(false);
+  const [authProfileDetection, setAuthProfileDetection] = useState<AuthProfileDetectionState | null>(null);
   const propertyDefaultsAppliedRef = useRef(false);
   const scanPipelineInvalid = !pipelineLayer1 && !pipelineLayer2;
 
@@ -281,22 +307,10 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         isActive: authProfile.isActive,
       });
     } else {
-      setAuthProfileEditor({
-        authType: 'scripted_login',
-        loginUrl: '',
-        successUrlPrefix: '',
-        successSelector: '',
-        usernameSelector: '',
-        passwordSelector: '',
-        submitSelector: '',
-        usernameValue: '',
-        passwordValue: '',
-        usernameEnvVarName: '',
-        passwordEnvVarName: '',
-        postLoginSeedPathsText: '',
-        isActive: true,
-      });
+      setAuthProfileEditor(createEmptyAuthProfileEditor());
     }
+    setAuthProfileDetection(null);
+    setShowAuthProfileAdvanced(false);
   }, [authProfile]);
 
   const [currentPage, setCurrentPage] = useState<string | null>(null);
@@ -581,6 +595,45 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       });
     } finally {
       setAuthProfileTesting(false);
+    }
+  };
+
+  const handleDetectAuthProfile = async () => {
+    if (!propertyId) return;
+    try {
+      setAuthProfileDetecting(true);
+      setBanner(null);
+      setAuthProfileDetection(null);
+      const result = await apiClient.detectPropertyAuthProfile(propertyId, {
+        loginUrl: authProfileEditor.loginUrl.trim(),
+        usernameValue: authProfileEditor.usernameValue.trim(),
+        passwordValue: authProfileEditor.passwordValue.trim() || undefined,
+      });
+      setAuthProfileDetection(result);
+      setAuthProfileEditor((prev) => ({
+        ...prev,
+        loginUrl: result.detected.loginUrl || prev.loginUrl,
+        usernameSelector: result.detected.usernameSelector || prev.usernameSelector,
+        passwordSelector: result.detected.passwordSelector || prev.passwordSelector,
+        submitSelector: result.detected.submitSelector || prev.submitSelector,
+        successUrlPrefix: result.detected.successUrlPrefix || '',
+        successSelector: result.detected.successSelector || '',
+        postLoginSeedPathsText: result.detected.postLoginSeedPaths.join('\n'),
+      }));
+      setBanner({
+        tone: result.success ? 'success' : 'warning',
+        message: result.message,
+      });
+      if (!result.success) {
+        setShowAuthProfileAdvanced(true);
+      }
+    } catch (error) {
+      setBanner({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Failed to detect the login flow.',
+      });
+    } finally {
+      setAuthProfileDetecting(false);
     }
   };
 
@@ -2876,7 +2929,16 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
-                            onClick={() => setShowAuthProfileEditor((prev) => !prev)}
+                            onClick={() =>
+                              setShowAuthProfileEditor((prev) => {
+                                const next = !prev;
+                                if (!next) {
+                                  setAuthProfileDetection(null);
+                                  setShowAuthProfileAdvanced(false);
+                                }
+                                return next;
+                              })
+                            }
                             className="rounded border border-input px-3 py-1.5 text-xs hover:bg-muted"
                           >
                             {showAuthProfileEditor ? 'Close login profile' : 'Edit login profile'}
@@ -2905,7 +2967,16 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                         </div>
                         <button
                           type="button"
-                          onClick={() => setShowAuthProfileEditor((prev) => !prev)}
+                          onClick={() =>
+                            setShowAuthProfileEditor((prev) => {
+                              const next = !prev;
+                              if (!next) {
+                                setAuthProfileDetection(null);
+                                setShowAuthProfileAdvanced(false);
+                              }
+                              return next;
+                            })
+                          }
                           className="rounded border border-input px-3 py-1.5 text-xs hover:bg-muted"
                         >
                           {showAuthProfileEditor ? 'Close login profile' : 'Create login profile'}
@@ -2918,9 +2989,65 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                           {authProfile ? 'Edit saved login profile' : 'Create login profile'}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Use scripted login to sign in before scan start. If the flow later requires a verification code, the scan can pause and wait for operator input.
+                          Start with the login URL, username, and password. The system can auto-detect the
+                          technical selectors, then you can open advanced settings only if something needs manual correction.
                         </p>
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <label className="flex items-center gap-2 rounded border border-border px-3 py-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={authProfileEditor.isActive}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({ ...prev, isActive: e.target.checked }))
+                              }
+                            />
+                            <span>Profile is active for future scans</span>
+                          </label>
+                          <div className="rounded border border-sky-500/20 bg-sky-500/5 px-3 py-2 text-xs text-sky-700 dark:text-sky-300">
+                            The profile will be saved as scripted login. Raawi can pause later if the authenticated flow reaches a verification code step.
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-foreground">Login URL</label>
+                            <input
+                              value={authProfileEditor.loginUrl}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({ ...prev, loginUrl: e.target.value }))
+                              }
+                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="https://example.com/login"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-foreground">Username</label>
+                            <input
+                              value={authProfileEditor.usernameValue}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({ ...prev, usernameValue: e.target.value }))
+                              }
+                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="user@example.com"
+                            />
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Leave blank only if you are using a saved or env-backed secret.
+                            </div>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-foreground">Password</label>
+                            <input
+                              type="password"
+                              value={authProfileEditor.passwordValue}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({ ...prev, passwordValue: e.target.value }))
+                              }
+                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="Enter password"
+                            />
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Leave blank only if you are keeping an existing saved/env secret.
+                            </div>
+                          </div>
                           <div>
                             <label className="mb-1 block text-xs font-medium text-foreground">Auth type</label>
                             <select
@@ -2938,180 +3065,230 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                               <option value="cookie">Cookie</option>
                             </select>
                           </div>
-                          <label className="flex items-center gap-2 rounded border border-border px-3 py-2 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={authProfileEditor.isActive}
-                              onChange={(e) =>
-                                setAuthProfileEditor((prev) => ({ ...prev, isActive: e.target.checked }))
-                              }
-                            />
-                            <span>Profile active</span>
-                          </label>
                         </div>
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-foreground">Login URL</label>
-                            <input
-                              type="url"
-                              value={authProfileEditor.loginUrl}
-                              onChange={(e) =>
-                                setAuthProfileEditor((prev) => ({ ...prev, loginUrl: e.target.value }))
-                              }
-                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                              placeholder="https://example.com/login"
-                            />
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-foreground">Submit selector</label>
-                            <input
-                              type="text"
-                              value={authProfileEditor.submitSelector}
-                              onChange={(e) =>
-                                setAuthProfileEditor((prev) => ({ ...prev, submitSelector: e.target.value }))
-                              }
-                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                              placeholder="button[type='submit']"
-                            />
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-foreground">Username selector</label>
-                            <input
-                              type="text"
-                              value={authProfileEditor.usernameSelector}
-                              onChange={(e) =>
-                                setAuthProfileEditor((prev) => ({ ...prev, usernameSelector: e.target.value }))
-                              }
-                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                              placeholder="input[name='email']"
-                            />
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-foreground">Password selector</label>
-                            <input
-                              type="text"
-                              value={authProfileEditor.passwordSelector}
-                              onChange={(e) =>
-                                setAuthProfileEditor((prev) => ({ ...prev, passwordSelector: e.target.value }))
-                              }
-                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                              placeholder="input[type='password']"
-                            />
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-foreground">Username value</label>
-                            <input
-                              type="text"
-                              value={authProfileEditor.usernameValue}
-                              onChange={(e) =>
-                                setAuthProfileEditor((prev) => ({ ...prev, usernameValue: e.target.value }))
-                              }
-                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                              placeholder={authProfile?.hasUsernameValue ? 'Leave blank to keep existing username secret' : 'user@example.com'}
-                            />
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                              Leave blank to keep the current secret, or use the env var field below.
-                            </p>
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-foreground">Password value</label>
-                            <input
-                              type="password"
-                              value={authProfileEditor.passwordValue}
-                              onChange={(e) =>
-                                setAuthProfileEditor((prev) => ({ ...prev, passwordValue: e.target.value }))
-                              }
-                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                              placeholder={authProfile?.hasPasswordValue ? 'Leave blank to keep existing password secret' : 'Password'}
-                            />
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                              Leave blank to keep the current secret, or use the env var field below.
-                            </p>
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-foreground">Username env var</label>
-                            <input
-                              type="text"
-                              value={authProfileEditor.usernameEnvVarName}
-                              onChange={(e) =>
-                                setAuthProfileEditor((prev) => ({ ...prev, usernameEnvVarName: e.target.value }))
-                              }
-                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                              placeholder="SCAN_LOGIN_USERNAME"
-                            />
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                              Stored as <code>${'{env:VAR_NAME}'}</code> and resolved only at scan time.
-                            </p>
-                            {authProfile?.usernameEnvVarName === authProfileEditor.usernameEnvVarName.trim() &&
-                            authProfile.usernameSecretSource === 'env' ? (
-                              <p className="mt-1 text-[11px] text-muted-foreground">
-                                Current server status: {authProfile.usernameEnvVarPresent ? 'present' : 'missing'}
-                              </p>
-                            ) : null}
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-foreground">Password env var</label>
-                            <input
-                              type="text"
-                              value={authProfileEditor.passwordEnvVarName}
-                              onChange={(e) =>
-                                setAuthProfileEditor((prev) => ({ ...prev, passwordEnvVarName: e.target.value }))
-                              }
-                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                              placeholder="SCAN_LOGIN_PASSWORD"
-                            />
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                              Stored as <code>${'{env:VAR_NAME}'}</code> and resolved only at scan time.
-                            </p>
-                            {authProfile?.passwordEnvVarName === authProfileEditor.passwordEnvVarName.trim() &&
-                            authProfile.passwordSecretSource === 'env' ? (
-                              <p className="mt-1 text-[11px] text-muted-foreground">
-                                Current server status: {authProfile.passwordEnvVarPresent ? 'present' : 'missing'}
-                              </p>
-                            ) : null}
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-foreground">Success URL prefix</label>
-                            <input
-                              type="text"
-                              value={authProfileEditor.successUrlPrefix}
-                              onChange={(e) =>
-                                setAuthProfileEditor((prev) => ({ ...prev, successUrlPrefix: e.target.value }))
-                              }
-                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                              placeholder="https://example.com/dashboard"
-                            />
-                          </div>
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-foreground">Success selector</label>
-                            <input
-                              type="text"
-                              value={authProfileEditor.successSelector}
-                              onChange={(e) =>
-                                setAuthProfileEditor((prev) => ({ ...prev, successSelector: e.target.value }))
-                              }
-                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                              placeholder="[data-test='dashboard']"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="mb-1 block text-xs font-medium text-foreground">
-                            Post-login seed paths
-                          </label>
-                          <textarea
-                            value={authProfileEditor.postLoginSeedPathsText}
-                            onChange={(e) =>
-                              setAuthProfileEditor((prev) => ({ ...prev, postLoginSeedPathsText: e.target.value }))
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void handleDetectAuthProfile()}
+                            disabled={
+                              authProfileDetecting ||
+                              authProfileSaving ||
+                              authProfileEditor.authType !== 'scripted_login' ||
+                              !authProfileEditor.loginUrl.trim() ||
+                              !(authProfileEditor.usernameValue.trim() || authProfile?.hasUsernameValue)
                             }
-                            rows={4}
-                            className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                            placeholder={"/dashboard\n/account\n/services"}
-                          />
-                          <p className="mt-1 text-[11px] text-muted-foreground">
-                            One path per line. These paths are added to discovery after login succeeds.
-                          </p>
+                            className="rounded border border-input px-4 py-2 text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {authProfileDetecting ? 'Detecting...' : 'Detect login flow'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowAuthProfileAdvanced((prev) => !prev)}
+                            className="rounded border border-input px-4 py-2 text-sm hover:bg-muted"
+                          >
+                            {showAuthProfileAdvanced ? 'Hide advanced settings' : 'Show advanced settings'}
+                          </button>
                         </div>
+                        {authProfileDetection ? (
+                          <div className="rounded-md border border-border bg-muted/20 p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <div className="text-sm font-semibold">Detected login flow</div>
+                                <div className="text-xs text-muted-foreground">
+                                  Confidence: {authProfileDetection.detected.confidence}
+                                </div>
+                              </div>
+                              <div
+                                className={`rounded-full px-2 py-1 text-xs font-medium ${
+                                  authProfileDetection.success
+                                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                }`}
+                              >
+                                {authProfileDetection.loginSucceeded
+                                  ? 'Login confirmed'
+                                  : authProfileDetection.verificationCheckpointDetected
+                                    ? 'Verification checkpoint reached'
+                                    : 'Review needed'}
+                              </div>
+                            </div>
+                            <div className="mt-3 grid gap-3 md:grid-cols-2">
+                              <div className="rounded border border-border bg-background px-3 py-2 text-xs">
+                                <div className="font-medium text-foreground">Detected username field</div>
+                                <div className="mt-1 text-muted-foreground">
+                                  {authProfileDetection.detected.usernameSelector || 'Not detected'}
+                                </div>
+                              </div>
+                              <div className="rounded border border-border bg-background px-3 py-2 text-xs">
+                                <div className="font-medium text-foreground">Detected submit action</div>
+                                <div className="mt-1 text-muted-foreground">
+                                  {authProfileDetection.detected.submitSelector || 'Not detected'}
+                                </div>
+                              </div>
+                              <div className="rounded border border-border bg-background px-3 py-2 text-xs">
+                                <div className="font-medium text-foreground">Detected password field</div>
+                                <div className="mt-1 text-muted-foreground">
+                                  {authProfileDetection.detected.passwordSelector || 'Not detected'}
+                                </div>
+                              </div>
+                              <div className="rounded border border-border bg-background px-3 py-2 text-xs">
+                                <div className="font-medium text-foreground">Detected success signal</div>
+                                <div className="mt-1 text-muted-foreground">
+                                  {authProfileDetection.detected.successUrlPrefix ||
+                                    authProfileDetection.detected.successSelector ||
+                                    'Fallback heuristics only'}
+                                </div>
+                              </div>
+                            </div>
+                            {authProfileDetection.detected.notes.length > 0 ? (
+                              <div className="mt-3 space-y-1">
+                                {authProfileDetection.detected.notes.map((note) => (
+                                  <div key={note} className="text-xs text-muted-foreground">
+                                    - {note}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {showAuthProfileAdvanced ? (
+                          <>
+                            <div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                              Advanced settings are only needed if auto-detect misses something or you want to use env-backed secrets instead of typing credentials here.
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                              <div>
+                                <label className="mb-1 block text-xs font-medium text-foreground">Success URL prefix</label>
+                                <input
+                                  value={authProfileEditor.successUrlPrefix}
+                                  onChange={(e) =>
+                                    setAuthProfileEditor((prev) => ({ ...prev, successUrlPrefix: e.target.value }))
+                                  }
+                                  className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                                  placeholder="https://example.com/app"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-xs font-medium text-foreground">Success selector</label>
+                                <input
+                                  value={authProfileEditor.successSelector}
+                                  onChange={(e) =>
+                                    setAuthProfileEditor((prev) => ({ ...prev, successSelector: e.target.value }))
+                                  }
+                                  className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                                  placeholder="[data-testid='dashboard']"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-xs font-medium text-foreground">Submit selector</label>
+                                <input
+                                  value={authProfileEditor.submitSelector}
+                                  onChange={(e) =>
+                                    setAuthProfileEditor((prev) => ({ ...prev, submitSelector: e.target.value }))
+                                  }
+                                  className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                                  placeholder="button[type='submit']"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-xs font-medium text-foreground">Username selector</label>
+                                <input
+                                  value={authProfileEditor.usernameSelector}
+                                  onChange={(e) =>
+                                    setAuthProfileEditor((prev) => ({ ...prev, usernameSelector: e.target.value }))
+                                  }
+                                  className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                                  placeholder="input[name='email']"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-xs font-medium text-foreground">Password selector</label>
+                                <input
+                                  value={authProfileEditor.passwordSelector}
+                                  onChange={(e) =>
+                                    setAuthProfileEditor((prev) => ({ ...prev, passwordSelector: e.target.value }))
+                                  }
+                                  className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                                  placeholder="input[name='password']"
+                                />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-xs font-medium text-foreground">Username env var</label>
+                                <input
+                                  value={authProfileEditor.usernameEnvVarName}
+                                  onChange={(e) =>
+                                    setAuthProfileEditor((prev) => ({ ...prev, usernameEnvVarName: e.target.value }))
+                                  }
+                                  className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                                  placeholder="SCAN_LOGIN_USERNAME"
+                                />
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  Current source:{' '}
+                                  {authProfile?.usernameSecretSource === 'env'
+                                    ? `env (${authProfile.usernameEnvVarName || 'unnamed'})`
+                                    : authProfile?.usernameSecretSource === 'stored'
+                                      ? 'stored'
+                                      : 'missing'}
+                                </div>
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  Server status:{' '}
+                                  {authProfile?.usernameSecretSource === 'env'
+                                    ? authProfile.usernameEnvVarPresent
+                                      ? 'present'
+                                      : 'missing'
+                                    : 'set to use env on next save'}
+                                </div>
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-xs font-medium text-foreground">Password env var</label>
+                                <input
+                                  value={authProfileEditor.passwordEnvVarName}
+                                  onChange={(e) =>
+                                    setAuthProfileEditor((prev) => ({ ...prev, passwordEnvVarName: e.target.value }))
+                                  }
+                                  className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                                  placeholder="SCAN_LOGIN_PASSWORD"
+                                />
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  Current source:{' '}
+                                  {authProfile?.passwordSecretSource === 'env'
+                                    ? `env (${authProfile.passwordEnvVarName || 'unnamed'})`
+                                    : authProfile?.passwordSecretSource === 'stored'
+                                      ? 'stored'
+                                      : 'missing'}
+                                </div>
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  Server status:{' '}
+                                  {authProfile?.passwordSecretSource === 'env'
+                                    ? authProfile.passwordEnvVarPresent
+                                      ? 'present'
+                                      : 'missing'
+                                    : 'set to use env on next save'}
+                                </div>
+                              </div>
+                              <div className="md:col-span-2">
+                                <label className="mb-1 block text-xs font-medium text-foreground">
+                                  Post-login seed paths
+                                </label>
+                                <textarea
+                                  value={authProfileEditor.postLoginSeedPathsText}
+                                  onChange={(e) =>
+                                    setAuthProfileEditor((prev) => ({
+                                      ...prev,
+                                      postLoginSeedPathsText: e.target.value,
+                                    }))
+                                  }
+                                  rows={4}
+                                  className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                                  placeholder={'/dashboard\n/account'}
+                                />
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  One path per line. These help authenticated discovery start in the signed-in area.
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        ) : null}
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
