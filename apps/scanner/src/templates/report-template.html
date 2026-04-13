@@ -37,8 +37,8 @@
     }
     
     .page {
-      width: 210mm;
-      min-height: 297mm;
+      width: {{pageWidth}};
+      min-height: {{pageMinHeight}};
       padding: 20mm;
       margin: 0 auto;
       background: white;
@@ -223,6 +223,7 @@
       width: 100%;
       border-collapse: collapse;
       margin-top: 20px;
+      table-layout: fixed;
     }
     
     .findings-table th {
@@ -242,6 +243,21 @@
       padding: 10px 12px;
       border-bottom: 1px solid #e5e7eb;
       font-size: 11px;
+      vertical-align: top;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .wide-table th,
+    .wide-table td {
+      font-size: 9.5px;
+      padding: 8px 9px;
+    }
+
+    .sub-section-title {
+      font-size: 18px;
+      margin-top: 10px;
+      margin-bottom: 12px;
     }
     
     .findings-table tr:hover {

@@ -29,8 +29,29 @@ import { renderFallbackScanPdf } from '../utils/pdf-lib-fallback-report.js';
 import type { ManualCheckpointHistoryEntry } from '@raawi-x/core';
 import { loadManualCheckpointHistory } from '../utils/manual-checkpoint-history.js';
 import { loadAuthScanContext } from '../utils/auth-scan-context.js';
+import { buildRaawiExportData } from '../utils/raawi-export-data.js';
 
 const router: Router = Router();
+
+function renderPdfCell(value: string | number | null | undefined): string {
+  return escapeHtml(String(value ?? '—')).replace(/\n/g, '<br>');
+}
+
+function renderPdfTable(headers: string[], rows: Array<Array<string | number>>, className = ''): string {
+  const headerHtml = headers.map((header) => `<th>${escapeHtml(header)}</th>`).join('');
+  const bodyHtml = rows.length
+    ? rows
+        .map(
+          (row) =>
+            `<tr>${row
+              .map((cell) => `<td>${renderPdfCell(cell)}</td>`)
+              .join('')}</tr>`,
+        )
+        .join('')
+    : `<tr><td colspan="${headers.length}">No rows</td></tr>`;
+
+  return `<table class="findings-table ${className}"><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`;
+}
 
 const exportSchema = z.object({
   scanId: z.string(),
@@ -84,6 +105,8 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
           },
           orderBy: { pageNumber: 'asc' },
         },
+        findings: true,
+        visionFindings: true,
         agentFindings: {
           orderBy: { createdAt: 'asc' },
         },
@@ -217,6 +240,32 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
     const scanOutputDir = `${config.outputDir}/${scanId}`;
     const manualCheckpointHistory = await loadManualCheckpointHistory(scanOutputDir);
     const authContext = await loadAuthScanContext(scanOutputDir);
+    const raawiExportData = isRaawiAgentReport
+      ? await buildRaawiExportData({
+          locale,
+          hostname: scan.hostname || scan.property?.domain || null,
+          pages: (scan.pages as Array<{
+            id: string;
+            pageNumber: number;
+            url: string;
+            canonicalUrl?: string | null;
+            finalUrl?: string | null;
+            title?: string | null;
+            agentPath?: string | null;
+          }>).map((page) => ({
+            id: page.id,
+            pageNumber: page.pageNumber,
+            url: page.url,
+            canonicalUrl: page.canonicalUrl,
+            finalUrl: page.finalUrl,
+            title: page.title,
+            agentPath: page.agentPath,
+          })),
+          ruleFindings: (scan.findings || []) as any[],
+          visionFindings: (scan.visionFindings || []) as any[],
+          agentFindings: (scan.agentFindings || []) as any[],
+        })
+      : null;
 
     const scoreAText = scores.scoreA !== null ? `${scores.scoreA.toFixed(1)}%` : 'N/A';
     const scoreAAText = scores.scoreAA !== null ? `${scores.scoreAA.toFixed(1)}%` : 'N/A';
@@ -637,8 +686,198 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       </table>
     </div>`;
 
+    const raawiFindingsBodyHtml =
+      isRaawiAgentReport && raawiExportData
+        ? (() => {
+            const auditorRows = raawiExportData.auditorFindings.map((finding) => [
+              [finding.serviceName, finding.sourceLabel].filter(Boolean).join('\n'),
+              [
+                finding.issueTitle,
+                finding.issueCode,
+                finding.wcagIds.length > 0 ? `WCAG: ${finding.wcagIds.join(', ')}` : '',
+              ]
+                .filter(Boolean)
+                .join('\n'),
+              finding.resultLabel,
+              finding.severity,
+              finding.category,
+              finding.subcategory,
+              finding.pageUrl,
+              finding.evidence || finding.selector || finding.howToVerify || '—',
+            ]);
+            const traceRows = raawiExportData.traceRows.map((trace) => [
+              trace.pageNumber,
+              trace.pageUrl,
+              trace.understanding,
+              trace.journeys,
+              trace.statusLabel,
+              trace.stepCount,
+              trace.probesText,
+              trace.issueCount,
+              trace.summary,
+            ]);
+            const findingRows = raawiExportData.findingRows.map((finding, index) => [
+              index + 1,
+              finding.pageUrl,
+              finding.kind,
+              finding.sourceLabel,
+              finding.confidenceLabel,
+              finding.message,
+            ]);
+            const evidenceRows = raawiExportData.supportingEvidenceRows.map((row) => [
+              row.pageNumber,
+              row.wcagId,
+              row.status,
+              row.message,
+            ]);
+            const pagesRows = raawiExportData.pagesRows.map((page) => [
+              page.pageNumber,
+              page.url,
+              page.raawiAgent,
+              page.layer1,
+              page.layer2,
+              page.layer3,
+              page.actions,
+            ]);
+
+            const auditorSection = `<div class="section">
+              <h2 class="section-title">${escapeHtml(locale === 'ar' ? 'نتائج مدقق راوي' : 'Raawi auditor findings')}</h2>
+              <p class="intro-content">${escapeHtml(
+                locale === 'ar'
+                  ? 'هذا هو نفس جدول مراجعة راوي المعروض داخل شاشة التقرير.'
+                  : 'This is the same Raawi review table shown in the report screen.',
+              )}</p>
+              ${
+                auditorRows.length > 0
+                  ? renderPdfTable(
+                      [
+                        locale === 'ar' ? 'اسم الخدمة' : 'Service Name',
+                        locale === 'ar' ? 'عنوان المشكلة' : 'Issue Title',
+                        locale === 'ar' ? 'النتيجة' : 'Result',
+                        locale === 'ar' ? 'الخطورة' : 'Severity',
+                        locale === 'ar' ? 'الفئة' : 'Category',
+                        locale === 'ar' ? 'الفئة الفرعية' : 'Subcategory',
+                        locale === 'ar' ? 'رابط الصفحة' : 'Page URL',
+                        locale === 'ar' ? 'الدليل' : 'Evidence',
+                      ],
+                      auditorRows,
+                      'wide-table',
+                    )
+                  : `<p class="intro-content">${escapeHtml(
+                      locale === 'ar'
+                        ? 'لا توجد نتائج مدقق راوي محفوظة لهذا الفحص.'
+                        : 'No Raawi auditor findings were recorded for this scan.',
+                    )}</p>`
+              }
+            </div>`;
+
+            const agentSection = `<div class="section">
+              <h2 class="section-title">${escapeHtml(locale === 'ar' ? 'نتائج وكيل راوي' : 'Raawi agent results')}</h2>
+              <p class="intro-content">${escapeHtml(
+                locale === 'ar'
+                  ? 'يعرض هذا القسم نفس جدولي التتبّع والنتائج الموجودين في شاشة التقرير.'
+                  : 'This section shows the same trace and findings tables used in the report screen.',
+              )}</p>
+              <h3 class="section-title sub-section-title">${escapeHtml(locale === 'ar' ? 'تتبّع راوي لكل صفحة' : 'Raawi per-page trace')}</h3>
+              ${
+                traceRows.length > 0
+                  ? renderPdfTable(
+                      [
+                        '#',
+                        locale === 'ar' ? 'الصفحة' : 'Page',
+                        locale === 'ar' ? 'الفهم' : 'Understanding',
+                        locale === 'ar' ? 'المسارات' : 'Journeys',
+                        locale === 'ar' ? 'الحالة' : 'Status',
+                        locale === 'ar' ? 'الخطوات' : 'Steps',
+                        locale === 'ar' ? 'الاختبارات' : 'Probes',
+                        locale === 'ar' ? 'المشكلات' : 'Issues',
+                        locale === 'ar' ? 'الملخص' : 'Summary',
+                      ],
+                      traceRows,
+                      'wide-table',
+                    )
+                  : `<p class="intro-content">${escapeHtml(
+                      locale === 'ar' ? 'لا يوجد تتبّع تفاعل محفوظ.' : 'No interaction trace was recorded.',
+                    )}</p>`
+              }
+              <div style="height: 18px;"></div>
+              <h3 class="section-title sub-section-title">${escapeHtml(locale === 'ar' ? 'نتائج راوي' : 'Raawi findings')}</h3>
+              ${
+                findingRows.length > 0
+                  ? renderPdfTable(
+                      [
+                        '#',
+                        locale === 'ar' ? 'الصفحة' : 'Page',
+                        locale === 'ar' ? 'النوع' : 'Kind',
+                        locale === 'ar' ? 'المصدر' : 'Source',
+                        locale === 'ar' ? 'الثقة' : 'Confidence',
+                        locale === 'ar' ? 'الرسالة' : 'Message',
+                      ],
+                      findingRows,
+                      'wide-table',
+                    )
+                  : `<p class="intro-content">${escapeHtml(
+                      locale === 'ar' ? 'لا توجد نتائج راوي محفوظة.' : 'No Raawi findings were recorded.',
+                    )}</p>`
+              }
+            </div>`;
+
+            const supportingSection = `<div class="section">
+              <h2 class="section-title">${escapeHtml(locale === 'ar' ? 'أدلة تقنية داعمة' : 'Supporting technical evidence')}</h2>
+              <p class="intro-content">${escapeHtml(
+                locale === 'ar'
+                  ? 'نتائج DOM/WCAG التالية تُستخدم كأدلة داعمة لتفسير نتيجة وكيل راوي.'
+                  : 'The DOM/WCAG results below are kept as supporting evidence for the Raawi agent result.',
+              )}</p>
+              ${
+                evidenceRows.length > 0
+                  ? renderPdfTable(
+                      [
+                        locale === 'ar' ? 'الصفحة' : 'Page',
+                        locale === 'ar' ? 'معرف WCAG' : 'WCAG ID',
+                        locale === 'ar' ? 'الحالة' : 'Status',
+                        locale === 'ar' ? 'الرسالة' : 'Message',
+                      ],
+                      evidenceRows,
+                      'wide-table',
+                    )
+                  : `<p class="intro-content">${escapeHtml(
+                      locale === 'ar'
+                        ? 'لا توجد نتائج WCAG داعمة محفوظة.'
+                        : 'No supporting WCAG findings were recorded.',
+                    )}</p>`
+              }
+            </div>`;
+
+            const pagesSection = `<div class="section">
+              <h2 class="section-title">${escapeHtml(locale === 'ar' ? 'الصفحات' : 'Pages')}</h2>
+              ${
+                pagesRows.length > 0
+                  ? renderPdfTable(
+                      [
+                        '#',
+                        locale === 'ar' ? 'الرابط' : 'URL',
+                        locale === 'ar' ? 'وكيل راوي' : 'Raawi Agent',
+                        locale === 'ar' ? 'الطبقة 1 (WCAG)' : 'Layer 1 (WCAG)',
+                        locale === 'ar' ? 'الطبقة 2 (الرؤية)' : 'Layer 2 (Vision)',
+                        locale === 'ar' ? 'الطبقة 3 (الخريطة المساندة)' : 'Layer 3 (Assistive Map)',
+                        locale === 'ar' ? 'الإجراءات' : 'Actions',
+                      ],
+                      pagesRows,
+                      'wide-table',
+                    )
+                  : `<p class="intro-content">${escapeHtml(
+                      locale === 'ar' ? 'لا توجد صفحات محفوظة لهذا الفحص.' : 'No pages were recorded for this scan.',
+                    )}</p>`
+              }
+            </div>`;
+
+            return `${authCoverageSectionHtml}${auditorSection}${agentSection}${supportingSection}${pagesSection}${continuationHistorySectionHtml}`;
+          })()
+        : '';
+
     const findingsBodyHtml = isRaawiAgentReport
-      ? `${authCoverageSectionHtml}${agentSectionHtml}${continuationHistorySectionHtml}${wcagFindingsSectionHtml}`
+      ? raawiFindingsBodyHtml
       : `${authCoverageSectionHtml}${wcagFindingsSectionHtml}${agentSectionHtml}${continuationHistorySectionHtml}`;
 
     const findingsForFallback = reportFindings.map((f: any) => {
@@ -808,6 +1047,9 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       disclaimerText: getPDFTranslation('disclaimerText', locale),
       locale,
       direction: isRTL ? 'rtl' : 'ltr',
+      landscape: isRaawiAgentReport ? 'true' : 'false',
+      pageWidth: isRaawiAgentReport ? '297mm' : '210mm',
+      pageMinHeight: isRaawiAgentReport ? '210mm' : '297mm',
     };
 
     // Try template-based rendering

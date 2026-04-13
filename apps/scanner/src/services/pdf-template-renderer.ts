@@ -101,6 +101,9 @@ export interface TemplateData {
   // Layout
   locale: 'en' | 'ar';
   direction: 'ltr' | 'rtl';
+  landscape: string;
+  pageWidth: string;
+  pageMinHeight: string;
 }
 
 export class PDFTemplateRenderer {
@@ -168,6 +171,7 @@ export class PDFTemplateRenderer {
       // Generate PDF
       const pdfBuffer = await page.pdf({
         format: 'A4',
+        landscape: data.landscape === 'true',
         printBackground: true,
         margin: {
           top: '0mm',

@@ -10,6 +10,14 @@ import { config } from '../config.js';
 import { loadManualCheckpointHistory } from '../utils/manual-checkpoint-history.js';
 import type { AuthScanContext, ManualCheckpointHistoryEntry } from '@raawi-x/core';
 import { loadAuthScanContext } from '../utils/auth-scan-context.js';
+import {
+  buildRaawiExportData,
+  type RaawiAuditorFindingRow,
+  type RaawiFindingRow,
+  type RaawiPagesRow,
+  type RaawiTraceRow,
+  type SupportingTechnicalEvidenceRow,
+} from '../utils/raawi-export-data.js';
 
 /**
  * Excel Report Generator
@@ -45,13 +53,31 @@ export class ExcelReportGenerator {
     const authContext = await loadAuthScanContext(`${config.outputDir}/${scanId}`);
 
     const agentFindings = (scanData.agentFindings || []) as any[];
+    const visionFindings = (scanData.visionFindings || []) as any[];
     if (isRaawiAgentReport) {
+      const raawiExportData = await buildRaawiExportData({
+        locale,
+        hostname: scan.hostname || scan.property?.domain || null,
+        pages: pages.map((page: any) => ({
+          id: page.id,
+          pageNumber: page.pageNumber,
+          url: page.url,
+          canonicalUrl: page.canonicalUrl,
+          finalUrl: page.finalUrl,
+          title: page.title,
+          agentPath: page.agentPath,
+        })),
+        ruleFindings: wcagFindings,
+        visionFindings,
+        agentFindings,
+      });
+
       await this.addRaawiSummarySheet(workbook, scan, pages, agentFindings, authContext, locale);
-      await this.addAnalysisTraceSheet(workbook, pages, locale, true);
+      await this.addRaawiAuditorFindingsSheet(workbook, raawiExportData.auditorFindings, locale);
+      await this.addRaawiAgentResultsSheet(workbook, raawiExportData.traceRows, raawiExportData.findingRows, locale);
+      await this.addSupportingTechnicalEvidenceSheet(workbook, raawiExportData.supportingEvidenceRows, locale);
+      await this.addRaawiPagesSheet(workbook, raawiExportData.pagesRows, locale);
       await this.addManualContinuationSheet(workbook, manualCheckpointHistory, locale, true);
-      await this.addAnalysisAgentSheet(workbook, agentFindings, pages, locale, true);
-      await this.addSummarySheet(workbook, scan, wcagFindings, pages, authContext, locale, true);
-      await this.addFindingsSheet(workbook, wcagFindings, pages, locale, true);
     } else {
       // Add Summary Sheet
       await this.addSummarySheet(workbook, scan, wcagFindings, pages, authContext, locale);
@@ -161,6 +187,339 @@ export class ExcelReportGenerator {
 
     sheet.getColumn(1).width = 28;
     sheet.getColumn(2).width = 52;
+  }
+
+  private styleWorksheetForLocale(sheet: ExcelJS.Worksheet, locale: 'en' | 'ar') {
+    if (locale === 'ar') {
+      sheet.views = [{ rightToLeft: true }];
+    }
+  }
+
+  private styleTableHeader(row: ExcelJS.Row, color = 'FF059669') {
+    row.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    row.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: color },
+    };
+    row.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    row.height = 26;
+  }
+
+  private addSheetTitle(
+    sheet: ExcelJS.Worksheet,
+    title: string,
+    subtitle: string | null,
+    columnCount: number,
+    accent = 'FF047857',
+  ) {
+    const titleRow = sheet.addRow([title]);
+    titleRow.font = { size: 17, bold: true, color: { argb: accent } };
+    titleRow.alignment = { horizontal: 'center' };
+    sheet.mergeCells(titleRow.number, 1, titleRow.number, columnCount);
+
+    if (subtitle) {
+      const subtitleRow = sheet.addRow([subtitle]);
+      subtitleRow.font = { size: 11, italic: true, color: { argb: 'FF4B5563' } };
+      subtitleRow.alignment = { horizontal: 'center', wrapText: true };
+      sheet.mergeCells(subtitleRow.number, 1, subtitleRow.number, columnCount);
+    }
+
+    sheet.addRow([]);
+  }
+
+  private addEmptyStateRow(sheet: ExcelJS.Worksheet, text: string, columnCount: number) {
+    const row = sheet.addRow([text]);
+    sheet.mergeCells(row.number, 1, row.number, columnCount);
+    row.getCell(1).font = { italic: true, color: { argb: 'FF6B7280' } };
+    row.getCell(1).alignment = { wrapText: true, vertical: 'top' };
+  }
+
+  private styleDataRows(rows: ExcelJS.Row[]) {
+    for (const row of rows) {
+      row.alignment = { wrapText: true, vertical: 'top' };
+    }
+  }
+
+  private async addRaawiAuditorFindingsSheet(
+    workbook: ExcelJS.Workbook,
+    auditorFindings: RaawiAuditorFindingRow[],
+    locale: 'en' | 'ar',
+  ) {
+    const sheet = workbook.addWorksheet(locale === 'ar' ? 'نتائج مدقق راوي' : 'Raawi auditor findings');
+    this.styleWorksheetForLocale(sheet, locale);
+
+    this.addSheetTitle(
+      sheet,
+      locale === 'ar' ? 'نتائج مدقق راوي' : 'Raawi auditor findings',
+      locale === 'ar'
+        ? 'نفس جدول المراجعة الظاهر في شاشة تقرير راوي.'
+        : 'The same review table shown in the Raawi report screen.',
+      8,
+    );
+
+    const headerRow = sheet.addRow([
+      locale === 'ar' ? 'اسم الخدمة' : 'Service Name',
+      locale === 'ar' ? 'عنوان المشكلة' : 'Issue Title',
+      locale === 'ar' ? 'النتيجة' : 'Result',
+      locale === 'ar' ? 'الخطورة' : 'Severity',
+      locale === 'ar' ? 'الفئة' : 'Category',
+      locale === 'ar' ? 'الفئة الفرعية' : 'Subcategory',
+      locale === 'ar' ? 'رابط الصفحة' : 'Page URL',
+      locale === 'ar' ? 'الدليل' : 'Evidence',
+    ]);
+    this.styleTableHeader(headerRow);
+
+    if (auditorFindings.length === 0) {
+      this.addEmptyStateRow(
+        sheet,
+        locale === 'ar'
+          ? 'لا توجد نتائج مدقق راوي محفوظة لهذا الفحص.'
+          : 'No Raawi auditor findings were recorded for this scan.',
+        8,
+      );
+    } else {
+      const rows = auditorFindings.map((finding) =>
+        sheet.addRow([
+          [finding.serviceName, finding.sourceLabel].filter(Boolean).join('\n'),
+          [
+            finding.issueTitle,
+            finding.issueCode,
+            finding.wcagIds.length > 0 ? `WCAG: ${finding.wcagIds.join(', ')}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          finding.resultLabel,
+          finding.severity,
+          finding.category,
+          finding.subcategory,
+          finding.pageUrl,
+          finding.evidence || finding.selector || finding.howToVerify || '—',
+        ]),
+      );
+      this.styleDataRows(rows);
+    }
+
+    sheet.getColumn(1).width = 24;
+    sheet.getColumn(2).width = 34;
+    sheet.getColumn(3).width = 16;
+    sheet.getColumn(4).width = 12;
+    sheet.getColumn(5).width = 18;
+    sheet.getColumn(6).width = 22;
+    sheet.getColumn(7).width = 38;
+    sheet.getColumn(8).width = 46;
+    sheet.views = [{ state: 'frozen', ySplit: 4, rightToLeft: locale === 'ar' }];
+  }
+
+  private async addRaawiAgentResultsSheet(
+    workbook: ExcelJS.Workbook,
+    traceRows: RaawiTraceRow[],
+    findingRows: RaawiFindingRow[],
+    locale: 'en' | 'ar',
+  ) {
+    const sheet = workbook.addWorksheet(locale === 'ar' ? 'نتائج وكيل راوي' : 'Raawi agent results');
+    this.styleWorksheetForLocale(sheet, locale);
+
+    this.addSheetTitle(
+      sheet,
+      locale === 'ar' ? 'نتائج وكيل راوي' : 'Raawi agent results',
+      locale === 'ar'
+        ? 'يحتوي هذا التبويب على نفس جدولي التتبّع والنتائج المعروضين في الشاشة.'
+        : 'This sheet contains the same trace and findings tables shown on the screen.',
+      9,
+    );
+
+    const traceTitle = sheet.addRow([locale === 'ar' ? 'تتبّع راوي لكل صفحة' : 'Raawi per-page trace']);
+    traceTitle.font = { bold: true, color: { argb: 'FF1F2937' } };
+    sheet.mergeCells(traceTitle.number, 1, traceTitle.number, 9);
+
+    const traceHeader = sheet.addRow([
+      '#',
+      locale === 'ar' ? 'الصفحة' : 'Page',
+      locale === 'ar' ? 'الفهم' : 'Understanding',
+      locale === 'ar' ? 'المسارات' : 'Journeys',
+      locale === 'ar' ? 'الحالة' : 'Status',
+      locale === 'ar' ? 'الخطوات' : 'Steps',
+      locale === 'ar' ? 'الاختبارات' : 'Probes',
+      locale === 'ar' ? 'المشكلات' : 'Issues',
+      locale === 'ar' ? 'الملخص' : 'Summary',
+    ]);
+    this.styleTableHeader(traceHeader);
+
+    if (traceRows.length === 0) {
+      this.addEmptyStateRow(
+        sheet,
+        locale === 'ar' ? 'لا يوجد تتبّع تفاعل محفوظ.' : 'No interaction trace was recorded.',
+        9,
+      );
+    } else {
+      const rows = traceRows.map((trace) =>
+        sheet.addRow([
+          trace.pageNumber,
+          trace.pageUrl,
+          trace.understanding,
+          trace.journeys,
+          trace.statusLabel,
+          trace.stepCount,
+          trace.probesText,
+          trace.issueCount,
+          trace.summary,
+        ]),
+      );
+      this.styleDataRows(rows);
+    }
+
+    sheet.addRow([]);
+    const findingsTitle = sheet.addRow([locale === 'ar' ? 'نتائج راوي' : 'Raawi findings']);
+    findingsTitle.font = { bold: true, color: { argb: 'FF1F2937' } };
+    sheet.mergeCells(findingsTitle.number, 1, findingsTitle.number, 9);
+
+    const findingsHeader = sheet.addRow([
+      '#',
+      locale === 'ar' ? 'الصفحة' : 'Page',
+      locale === 'ar' ? 'النوع' : 'Kind',
+      locale === 'ar' ? 'المصدر' : 'Source',
+      locale === 'ar' ? 'الثقة' : 'Confidence',
+      locale === 'ar' ? 'الرسالة' : 'Message',
+    ]);
+    this.styleTableHeader(findingsHeader, 'FF0F766E');
+
+    if (findingRows.length === 0) {
+      this.addEmptyStateRow(
+        sheet,
+        locale === 'ar' ? 'لا توجد نتائج راوي محفوظة.' : 'No Raawi findings were recorded.',
+        6,
+      );
+    } else {
+      const rows = findingRows.map((finding, index) =>
+        sheet.addRow([
+          index + 1,
+          finding.pageUrl,
+          finding.kind,
+          finding.sourceLabel,
+          finding.confidenceLabel,
+          finding.message,
+        ]),
+      );
+      this.styleDataRows(rows);
+    }
+
+    sheet.getColumn(1).width = 8;
+    sheet.getColumn(2).width = 36;
+    sheet.getColumn(3).width = 28;
+    sheet.getColumn(4).width = 18;
+    sheet.getColumn(5).width = 12;
+    sheet.getColumn(6).width = 44;
+    sheet.getColumn(7).width = 12;
+    sheet.getColumn(8).width = 10;
+    sheet.getColumn(9).width = 42;
+    sheet.views = [{ state: 'frozen', ySplit: 5, rightToLeft: locale === 'ar' }];
+  }
+
+  private async addSupportingTechnicalEvidenceSheet(
+    workbook: ExcelJS.Workbook,
+    evidenceRows: SupportingTechnicalEvidenceRow[],
+    locale: 'en' | 'ar',
+  ) {
+    const sheet = workbook.addWorksheet(
+      locale === 'ar' ? 'أدلة تقنية داعمة' : 'Supporting technical evidence',
+    );
+    this.styleWorksheetForLocale(sheet, locale);
+
+    this.addSheetTitle(
+      sheet,
+      locale === 'ar' ? 'أدلة تقنية داعمة' : 'Supporting technical evidence',
+      locale === 'ar'
+        ? 'جدول WCAG الداعم المطابق لواجهة تقرير راوي.'
+        : 'The supporting WCAG table matching the Raawi report screen.',
+      4,
+    );
+
+    const headerRow = sheet.addRow([
+      locale === 'ar' ? 'الصفحة' : 'Page',
+      locale === 'ar' ? 'معرف WCAG' : 'WCAG ID',
+      locale === 'ar' ? 'الحالة' : 'Status',
+      locale === 'ar' ? 'الرسالة' : 'Message',
+    ]);
+    this.styleTableHeader(headerRow);
+
+    if (evidenceRows.length === 0) {
+      this.addEmptyStateRow(
+        sheet,
+        locale === 'ar' ? 'لا توجد نتائج WCAG داعمة محفوظة.' : 'No supporting WCAG findings were recorded.',
+        4,
+      );
+    } else {
+      const rows = evidenceRows.map((row) =>
+        sheet.addRow([row.pageNumber, row.wcagId, row.status, row.message]),
+      );
+      this.styleDataRows(rows);
+    }
+
+    sheet.getColumn(1).width = 10;
+    sheet.getColumn(2).width = 18;
+    sheet.getColumn(3).width = 16;
+    sheet.getColumn(4).width = 64;
+    sheet.views = [{ state: 'frozen', ySplit: 4, rightToLeft: locale === 'ar' }];
+  }
+
+  private async addRaawiPagesSheet(
+    workbook: ExcelJS.Workbook,
+    pagesRows: RaawiPagesRow[],
+    locale: 'en' | 'ar',
+  ) {
+    const sheet = workbook.addWorksheet(locale === 'ar' ? 'الصفحات' : 'Pages');
+    this.styleWorksheetForLocale(sheet, locale);
+
+    this.addSheetTitle(
+      sheet,
+      locale === 'ar' ? 'الصفحات' : 'Pages',
+      locale === 'ar'
+        ? 'ملخص كل صفحة بنفس أعمدة شاشة تقرير راوي.'
+        : 'Per-page summary using the same columns as the Raawi report screen.',
+      7,
+    );
+
+    const headerRow = sheet.addRow([
+      '#',
+      locale === 'ar' ? 'الرابط' : 'URL',
+      locale === 'ar' ? 'وكيل راوي' : 'Raawi Agent',
+      locale === 'ar' ? 'الطبقة 1 (WCAG)' : 'Layer 1 (WCAG)',
+      locale === 'ar' ? 'الطبقة 2 (الرؤية)' : 'Layer 2 (Vision)',
+      locale === 'ar' ? 'الطبقة 3 (الخريطة المساندة)' : 'Layer 3 (Assistive Map)',
+      locale === 'ar' ? 'الإجراءات' : 'Actions',
+    ]);
+    this.styleTableHeader(headerRow);
+
+    if (pagesRows.length === 0) {
+      this.addEmptyStateRow(
+        sheet,
+        locale === 'ar' ? 'لا توجد صفحات محفوظة لهذا الفحص.' : 'No pages were recorded for this scan.',
+        7,
+      );
+    } else {
+      const rows = pagesRows.map((page) =>
+        sheet.addRow([
+          page.pageNumber,
+          page.url,
+          page.raawiAgent,
+          page.layer1,
+          page.layer2,
+          page.layer3,
+          page.actions,
+        ]),
+      );
+      this.styleDataRows(rows);
+    }
+
+    sheet.getColumn(1).width = 8;
+    sheet.getColumn(2).width = 44;
+    sheet.getColumn(3).width = 24;
+    sheet.getColumn(4).width = 16;
+    sheet.getColumn(5).width = 20;
+    sheet.getColumn(6).width = 18;
+    sheet.getColumn(7).width = 16;
+    sheet.views = [{ state: 'frozen', ySplit: 4, rightToLeft: locale === 'ar' }];
   }
 
   /**
