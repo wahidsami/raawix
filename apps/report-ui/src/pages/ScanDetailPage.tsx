@@ -376,10 +376,26 @@ export default function ScanDetailPage() {
   const analysisAgentFindings = scanDetail.analysisAgent?.findings ?? [];
   const analysisAgentTrace = scanDetail.analysisAgent?.trace ?? [];
   const analysisAgentSummary = scanDetail.analysisAgent?.summary;
+  const isRaawiAgentReport = scanDetail.auditMode === 'raawi-agent';
+  const raawiPagesWithTrace = analysisAgentSummary?.pagesWithTrace ?? scanDetail.analysisAgent?.pagesWithArtifact ?? 0;
+  const raawiIssueCount = analysisAgentSummary?.totalIssues ?? scanDetail.summary.totalAgentFindings ?? scanDetail.analysisAgent?.count ?? 0;
   const auditModeLabel =
-    scanDetail.auditMode === 'raawi-agent'
+    isRaawiAgentReport
       ? (t('scanMonitor.auditModeRaawiAgentLabel') || 'Raawi agent')
       : (t('scanMonitor.auditModeClassicLabel') || 'Classic audit');
+  const reportModeTitle = isRaawiAgentReport
+    ? 'Raawi agent report'
+    : 'Classic technical audit report';
+  const reportModeIntro = isRaawiAgentReport
+    ? 'Raawi agent results are the primary report for this scan. DOM, vision, and assistive map results are kept as supporting technical evidence.'
+    : 'Classic audit results are based on DOM/WCAG rules, vision checks, and assistive map output.';
+  const technicalEvidenceTitle = isRaawiAgentReport
+    ? 'Supporting technical evidence'
+    : (t('scans.allFindings') || 'All scan findings');
+  const technicalEvidenceIntro = isRaawiAgentReport
+    ? 'These DOM/WCAG and vision tables support the Raawi agent assessment. They are not the primary Raawi result, but they explain what the technical layers observed.'
+    : (t('scans.allFindingsIntro') ||
+      'These tables aggregate results across every scanned page so nothing is hidden behind page selection.');
   const getAnalysisAgentStatusLabel = (status: 'pass' | 'fail' | 'not_run') => {
     if (status === 'pass') return 'Pass';
     if (status === 'fail') return 'Not pass';
@@ -394,6 +410,22 @@ export default function ScanDetailPage() {
     }
     return 'bg-muted text-muted-foreground ring-1 ring-border';
   };
+  const renderAgentCell = (page: ScanDetail['pages'][number]) => (
+    <td className="px-6 py-4">
+      <div className="space-y-1 text-sm">
+        <div className="flex items-center gap-2">
+          {page.layerAgent?.trace ? (
+            <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getAnalysisAgentStatusClass(page.layerAgent.trace.status)}`}>
+              {page.layerAgent.trace.statusLabel || getAnalysisAgentStatusLabel(page.layerAgent.trace.status)}
+            </span>
+          ) : (
+            <span className="text-muted-foreground text-xs">No trace</span>
+          )}
+        </div>
+        <div>{page.layerAgent?.count ?? 0} findings</div>
+      </div>
+    </td>
+  );
 
   return (
     <div className="space-y-6">
@@ -403,6 +435,40 @@ export default function ScanDetailPage() {
             'This scan did not run to completion. Figures below reflect only pages and results saved up to the stop or failure.'}
         </div>
       )}
+      <div className={`rounded-lg border px-5 py-4 ${
+        isRaawiAgentReport
+          ? 'border-emerald-500/25 bg-emerald-500/10'
+          : 'border-border bg-card'
+      }`}>
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t('scanMonitor.auditModeTitle') || 'Audit mode'}
+            </div>
+            <h1 className="mt-1 text-2xl font-bold">{reportModeTitle}</h1>
+            <p className="mt-2 max-w-4xl text-sm text-muted-foreground">{reportModeIntro}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 md:min-w-[420px]">
+            <div className="rounded border border-border bg-background/80 p-3">
+              <div className="text-xs text-muted-foreground">Pages</div>
+              <div className="text-lg font-semibold">{scanDetail.summary.totalPages}</div>
+            </div>
+            <div className="rounded border border-border bg-background/80 p-3">
+              <div className="text-xs text-muted-foreground">Raawi trace</div>
+              <div className="text-lg font-semibold">{raawiPagesWithTrace}</div>
+            </div>
+            <div className="rounded border border-border bg-background/80 p-3">
+              <div className="text-xs text-muted-foreground">Raawi issues</div>
+              <div className="text-lg font-semibold">{raawiIssueCount}</div>
+            </div>
+            <div className="rounded border border-border bg-background/80 p-3">
+              <div className="text-xs text-muted-foreground">DOM findings</div>
+              <div className="text-lg font-semibold">{scanDetail.summary.totalFindings}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -417,9 +483,16 @@ export default function ScanDetailPage() {
             <p className="text-muted-foreground text-sm mt-1">
               {scanDetail.scanId}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {t('scanMonitor.auditModeTitle') || 'Audit mode'}: <span className="font-medium text-foreground">{auditModeLabel}</span>
-            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span className={`inline-flex items-center rounded-full px-2.5 py-1 font-medium ring-1 ${
+                isRaawiAgentReport
+                  ? 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/20'
+                  : 'bg-muted text-muted-foreground ring-border'
+              }`}>
+                {auditModeLabel}
+              </span>
+              <span className="text-muted-foreground">{reportModeTitle}</span>
+            </div>
           </div>
         </div>
         <div className="flex gap-2">
@@ -541,7 +614,9 @@ export default function ScanDetailPage() {
           <div className="text-2xl font-bold mt-1">{scanDetail.summary.totalPages}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-sm text-muted-foreground">{t('scans.totalFindings') || 'Total Findings'}</div>
+          <div className="text-sm text-muted-foreground">
+            {isRaawiAgentReport ? 'DOM / WCAG findings' : (t('scans.totalFindings') || 'Total Findings')}
+          </div>
           <div className="text-2xl font-bold mt-1">{scanDetail.summary.totalFindings}</div>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
@@ -559,18 +634,25 @@ export default function ScanDetailPage() {
         <div className="bg-card border border-border rounded-lg p-4 sm:col-span-2 lg:col-span-1">
           <div className="text-sm text-muted-foreground flex items-center gap-1">
             <Bot className="w-3.5 h-3.5" />
-            {t('scans.analysisAgentFindings') || 'Analysis AI agent'}
+            {isRaawiAgentReport ? 'Raawi findings' : (t('scans.analysisAgentFindings') || 'Analysis AI agent')}
           </div>
           <div className="text-2xl font-bold mt-1">
-            {scanDetail.summary.totalAgentFindings ?? scanDetail.analysisAgent?.count ?? 0}
+            {raawiIssueCount}
           </div>
         </div>
       </div>
 
       <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-xl font-bold mb-4">DOM scan vs Raawi agent</h2>
+        <h2 className="text-xl font-bold mb-2">
+          {isRaawiAgentReport ? 'Raawi agent vs technical layers' : 'DOM scan vs Raawi agent'}
+        </h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          {isRaawiAgentReport
+            ? 'This scan was run in Raawi agent mode. Raawi trace and interaction results are shown first; DOM/WCAG remains available as technical evidence.'
+            : 'This comparison separates automated technical findings from interaction trace findings.'}
+        </p>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="rounded-lg border border-border bg-muted/30 p-4">
+          <div className={`rounded-lg border border-border bg-muted/30 p-4 ${isRaawiAgentReport ? 'order-2' : 'order-1'}`}>
             <div className="text-sm text-muted-foreground mb-2">Normal DOM / WCAG scan</div>
             <div className="text-3xl font-bold">{scanDetail.summary.totalFindings}</div>
             <div className="text-sm text-muted-foreground mt-1">
@@ -597,11 +679,15 @@ export default function ScanDetailPage() {
               </div>
             </div>
           </div>
-          <div className="rounded-lg border border-border bg-muted/30 p-4">
+          <div className={`rounded-lg border p-4 ${
+            isRaawiAgentReport
+              ? 'order-1 border-emerald-500/30 bg-emerald-500/10 ring-1 ring-emerald-500/10'
+              : 'order-2 border-border bg-muted/30'
+          }`}>
             <div className="text-sm text-muted-foreground mb-2">Raawi agent</div>
-            <div className="text-3xl font-bold">{analysisAgentSummary?.pagesWithTrace ?? scanDetail.analysisAgent?.pagesWithArtifact ?? 0}</div>
+            <div className="text-3xl font-bold">{raawiPagesWithTrace}</div>
             <div className="text-sm text-muted-foreground mt-1">
-              pages with trace · {analysisAgentSummary?.totalIssues ?? 0} issue(s)
+              pages with trace · {raawiIssueCount} issue(s)
             </div>
             <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
               <div className="rounded border border-border bg-background p-3">
@@ -623,7 +709,14 @@ export default function ScanDetailPage() {
 
       {/* Compliance Scores */}
       <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-xl font-bold mb-4">{t('scans.complianceScores')}</h2>
+        <h2 className="text-xl font-bold mb-2">
+          {isRaawiAgentReport ? 'Supporting WCAG compliance scores' : t('scans.complianceScores')}
+        </h2>
+        {isRaawiAgentReport && (
+          <p className="mb-4 text-sm text-muted-foreground">
+            These scores come from the technical DOM/WCAG layer. They support the Raawi report, but they are not the Raawi interaction result.
+          </p>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <div className="text-sm text-muted-foreground mb-2">{t('scans.wcagA')}</div>
@@ -685,17 +778,16 @@ export default function ScanDetailPage() {
       {/* All Findings */}
       <div className="bg-card border border-border rounded-lg p-6 space-y-6">
         <div>
-          <h2 className="text-xl font-bold">{t('scans.allFindings') || 'All scan findings'}</h2>
+          <h2 className="text-xl font-bold">{technicalEvidenceTitle}</h2>
           <p className="text-sm text-muted-foreground mt-2">
-            {t('scans.allFindingsIntro') ||
-              'These tables aggregate results across every scanned page so nothing is hidden behind page selection.'}
+            {technicalEvidenceIntro}
           </p>
         </div>
 
         <div>
           <h3 className="font-semibold mb-3 flex items-center gap-2">
             <Layers className="w-4 h-4" />
-            Layer 1: WCAG Findings ({allLayer1Findings.length})
+            {isRaawiAgentReport ? 'Supporting Layer 1: WCAG Findings' : 'Layer 1: WCAG Findings'} ({allLayer1Findings.length})
           </h3>
           {allLayer1Findings.length > 0 ? (
             <div className="overflow-x-auto">
@@ -747,7 +839,7 @@ export default function ScanDetailPage() {
         <div>
           <h3 className="font-semibold mb-3 flex items-center gap-2">
             <Eye className="w-4 h-4" />
-            Layer 2: Vision Findings ({allLayer2Findings.length})
+            {isRaawiAgentReport ? 'Supporting Layer 2: Vision Findings' : 'Layer 2: Vision Findings'} ({allLayer2Findings.length})
           </h3>
           {allLayer2Findings.length > 0 ? (
             <div className="overflow-x-auto">
@@ -789,15 +881,21 @@ export default function ScanDetailPage() {
         <div className="bg-card border border-border rounded-lg overflow-hidden">
           <div className="p-4 border-b border-border flex items-center gap-2">
             <Bot className="w-5 h-5 text-primary" />
-            <h2 className="text-xl font-bold">{t('scans.analysisAgentSectionTitle') || 'Analysis AI agent findings'}</h2>
+            <h2 className="text-xl font-bold">
+              {isRaawiAgentReport ? 'Raawi agent results' : (t('scans.analysisAgentSectionTitle') || 'Analysis AI agent findings')}
+            </h2>
           </div>
           <p className="px-4 pt-3 text-sm text-muted-foreground">
-            {t('scans.analysisAgentSectionIntro') ||
-              'Keyboard simulation and optional AI enrichment. Complements WCAG rule results above.'}
+            {isRaawiAgentReport
+              ? 'Per-page interaction trace, keyboard exploration, and Raawi findings for this scan. Technical DOM/WCAG tables are supporting evidence below.'
+              : (t('scans.analysisAgentSectionIntro') ||
+                'Keyboard simulation and optional AI enrichment. Complements WCAG rule results above.')}
           </p>
           {analysisAgentTrace.length > 0 && (
             <div className="overflow-x-auto p-4 pt-2">
-              <div className="mb-3 text-sm font-semibold">Per-page AI trace</div>
+              <div className="mb-3 text-sm font-semibold">
+                {isRaawiAgentReport ? 'Raawi per-page trace' : 'Per-page AI trace'}
+              </div>
               <table className="w-full text-sm">
                 <thead className="bg-muted">
                   <tr>
@@ -910,6 +1008,12 @@ export default function ScanDetailPage() {
             <tr>
               <th className="px-6 py-3 text-left text-sm font-medium">#</th>
               <th className="px-6 py-3 text-left text-sm font-medium">URL</th>
+              {isRaawiAgentReport && (
+                <th className="px-6 py-3 text-left text-sm font-medium">
+                  <Bot className="w-4 h-4 inline mr-2" />
+                  Raawi Agent
+                </th>
+              )}
               <th className="px-6 py-3 text-left text-sm font-medium">
                 <Layers className="w-4 h-4 inline mr-2" />
                 Layer 1 (WCAG)
@@ -918,10 +1022,12 @@ export default function ScanDetailPage() {
                 <Eye className="w-4 h-4 inline mr-2" />
                 Layer 2 (Vision)
               </th>
-              <th className="px-6 py-3 text-left text-sm font-medium">
-                <Bot className="w-4 h-4 inline mr-2" />
-                Layer Agent
-              </th>
+              {!isRaawiAgentReport && (
+                <th className="px-6 py-3 text-left text-sm font-medium">
+                  <Bot className="w-4 h-4 inline mr-2" />
+                  Interaction Trace
+                </th>
+              )}
               <th className="px-6 py-3 text-left text-sm font-medium">
                 <Map className="w-4 h-4 inline mr-2" />
                 Layer 3 (Assistive Map)
@@ -943,6 +1049,7 @@ export default function ScanDetailPage() {
                     {page.url}
                   </a>
                 </td>
+                {isRaawiAgentReport && renderAgentCell(page)}
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
                     {page.layer1.failCount > 0 && (
@@ -966,20 +1073,7 @@ export default function ScanDetailPage() {
                     )}
                   </div>
                 </td>
-                <td className="px-6 py-4">
-                  <div className="space-y-1 text-sm">
-                    <div className="flex items-center gap-2">
-                      {page.layerAgent?.trace ? (
-                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getAnalysisAgentStatusClass(page.layerAgent.trace.status)}`}>
-                          {page.layerAgent.trace.statusLabel || getAnalysisAgentStatusLabel(page.layerAgent.trace.status)}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">No trace</span>
-                      )}
-                    </div>
-                    <div>{page.layerAgent?.count ?? 0} findings</div>
-                  </div>
-                </td>
+                {!isRaawiAgentReport && renderAgentCell(page)}
                 <td className="px-6 py-4">
                   {page.layer3.hasAssistiveMap ? (
                     <CheckCircle className="w-4 h-4 text-green-600" />
@@ -1024,10 +1118,55 @@ export default function ScanDetailPage() {
             </button>
           </div>
           <div className="space-y-6">
+            {isRaawiAgentReport && (
+              <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-4">
+                <h3 className="font-semibold mb-2 flex items-center gap-2">
+                  <Bot className="w-4 h-4" />
+                  Raawi agent page result
+                </h3>
+                {selectedPageData.layerAgent?.trace ? (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getAnalysisAgentStatusClass(selectedPageData.layerAgent.trace.status)}`}>
+                        {selectedPageData.layerAgent.trace.statusLabel || getAnalysisAgentStatusLabel(selectedPageData.layerAgent.trace.status)}
+                      </span>
+                      <span className="text-sm text-muted-foreground">{selectedPageData.layerAgent.trace.traceSummary}</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                      <div className="rounded border border-border bg-background p-2">
+                        <div className="text-xs text-muted-foreground">Steps</div>
+                        <div className="font-semibold">{selectedPageData.layerAgent.trace.stepCount}</div>
+                      </div>
+                      <div className="rounded border border-border bg-background p-2">
+                        <div className="text-xs text-muted-foreground">Probes attempted</div>
+                        <div className="font-semibold">{selectedPageData.layerAgent.trace.probeAttemptCount}</div>
+                      </div>
+                      <div className="rounded border border-border bg-background p-2">
+                        <div className="text-xs text-muted-foreground">Probes passed</div>
+                        <div className="font-semibold">{selectedPageData.layerAgent.trace.probeSuccessCount}</div>
+                      </div>
+                      <div className="rounded border border-border bg-background p-2">
+                        <div className="text-xs text-muted-foreground">Raawi issues</div>
+                        <div className="font-semibold">{selectedPageData.layerAgent.trace.issueCount}</div>
+                      </div>
+                    </div>
+                    {(selectedPageData.layerAgent?.findings ?? []).length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Raawi did not record interaction findings for this page.</p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        {(selectedPageData.layerAgent?.findings ?? []).length} Raawi finding(s) recorded below in the interaction findings section.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No Raawi interaction trace was recorded for this page.</p>
+                )}
+              </div>
+            )}
             <div>
               <h3 className="font-semibold mb-2 flex items-center gap-2">
                 <FileText className="w-4 h-4" />
-                Layer 1: WCAG Findings ({selectedPageData.layer1.count})
+                {isRaawiAgentReport ? 'Supporting Layer 1: WCAG Findings' : 'Layer 1: WCAG Findings'} ({selectedPageData.layer1.count})
               </h3>
               <div className="space-y-2">
                 {selectedPageData.layer1.findings.map((finding, idx) => (
@@ -1050,7 +1189,7 @@ export default function ScanDetailPage() {
             <div>
               <h3 className="font-semibold mb-2 flex items-center gap-2">
                 <Eye className="w-4 h-4" />
-                Layer 2: Vision Findings ({selectedPageData.layer2.count})
+                {isRaawiAgentReport ? 'Supporting Layer 2: Vision Findings' : 'Layer 2: Vision Findings'} ({selectedPageData.layer2.count})
               </h3>
               <div className="space-y-3">
                 {selectedPageData.layer2.findings.map((finding, idx) => {
@@ -1109,7 +1248,7 @@ export default function ScanDetailPage() {
             <div>
               <h3 className="font-semibold mb-2 flex items-center gap-2">
                 <Bot className="w-4 h-4" />
-                Layer Agent: Interaction Findings ({(selectedPageData.layerAgent?.findings?.length ?? 0)})
+                {isRaawiAgentReport ? 'Raawi interaction findings' : 'Interaction Trace Findings'} ({(selectedPageData.layerAgent?.findings?.length ?? 0)})
               </h3>
               <div className="space-y-3">
                 {selectedPageData.layerAgent?.trace ? (
@@ -1190,7 +1329,7 @@ export default function ScanDetailPage() {
             <div>
               <h3 className="font-semibold mb-2 flex items-center gap-2">
                 <Map className="w-4 h-4" />
-                Layer 3: Assistive Map
+                {isRaawiAgentReport ? 'Supporting Layer 3: Assistive Map' : 'Layer 3: Assistive Map'}
               </h3>
               {selectedPageData.layer3.hasAssistiveMap ? (
                 <div className="border border-border rounded p-3">
