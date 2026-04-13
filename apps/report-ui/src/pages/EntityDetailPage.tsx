@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
 import { apiClient } from '../lib/api';
-import { Building2, Globe, ScanSearch, AlertTriangle, BarChart3, Users, Plus, ArrowLeft, FileText, Map, Download, X, ExternalLink, Search, Trash2, Pencil } from 'lucide-react';
+import { Building2, Globe, ScanSearch, AlertTriangle, BarChart3, Users, Plus, ArrowLeft, FileText, Map, Download, X, ExternalLink, Search, Trash2, Pencil, Loader2, ShieldCheck, ShieldAlert, ShieldOff, KeyRound } from 'lucide-react';
 import { getWCAGRuleTitle, getWCAGRuleDescription, getRuleMeta } from '../utils/wcag-rules';
 import ScanMonitorModal from '../components/ScanMonitorModal';
 
@@ -45,6 +45,66 @@ function stripLeadingUrlScheme(raw: string): {
     };
   }
   return { hostAndPath: trimmed };
+}
+
+interface PropertyAuthProfileState {
+  id: string;
+  propertyId: string;
+  authType: 'none' | 'cookie' | 'scripted_login';
+  loginUrl?: string | null;
+  successUrlPrefix?: string | null;
+  successSelector?: string | null;
+  usernameSelector?: string | null;
+  passwordSelector?: string | null;
+  submitSelector?: string | null;
+  usernameSecretSource?: 'missing' | 'stored' | 'env';
+  passwordSecretSource?: 'missing' | 'stored' | 'env';
+  usernameEnvVarName?: string | null;
+  passwordEnvVarName?: string | null;
+  usernameEnvVarPresent?: boolean | null;
+  passwordEnvVarPresent?: boolean | null;
+  hasUsernameValue?: boolean;
+  hasPasswordValue?: boolean;
+  secretHealth?: 'ready' | 'missing_env';
+  postLoginSeedPaths?: string[] | null;
+  isActive: boolean;
+  lastTestedAt?: string | null;
+  lastTestResult?: string | null;
+  lastTestError?: string | null;
+}
+
+interface AuthProfileEditorState {
+  authType: 'none' | 'cookie' | 'scripted_login';
+  loginUrl: string;
+  successUrlPrefix: string;
+  successSelector: string;
+  usernameSelector: string;
+  passwordSelector: string;
+  submitSelector: string;
+  usernameValue: string;
+  passwordValue: string;
+  usernameEnvVarName: string;
+  passwordEnvVarName: string;
+  postLoginSeedPathsText: string;
+  isActive: boolean;
+}
+
+function createEmptyAuthProfileEditor(): AuthProfileEditorState {
+  return {
+    authType: 'scripted_login',
+    loginUrl: '',
+    successUrlPrefix: '',
+    successSelector: '',
+    usernameSelector: '',
+    passwordSelector: '',
+    submitSelector: '',
+    usernameValue: '',
+    passwordValue: '',
+    usernameEnvVarName: '',
+    passwordEnvVarName: '',
+    postLoginSeedPathsText: '',
+    isActive: true,
+  };
 }
 
 export default function EntityDetailPage() {
@@ -112,6 +172,18 @@ export default function EntityDetailPage() {
   const [showScanMonitor, setShowScanMonitor] = useState(false);
   const [monitorScanId, setMonitorScanId] = useState<string | null>(null);
   const [monitorSeedUrl, setMonitorSeedUrl] = useState<string>('');
+  const [propertyAuthProfiles, setPropertyAuthProfiles] = useState<Record<string, PropertyAuthProfileState | null>>({});
+  const [propertyAuthLoading, setPropertyAuthLoading] = useState<Record<string, boolean>>({});
+  const [propertyAuthErrors, setPropertyAuthErrors] = useState<Record<string, string | null>>({});
+  const [selectedAuthPropertyId, setSelectedAuthPropertyId] = useState<string | null>(null);
+  const [showPropertyAuthEditor, setShowPropertyAuthEditor] = useState(false);
+  const [propertyAuthEditor, setPropertyAuthEditor] = useState<AuthProfileEditorState>(createEmptyAuthProfileEditor());
+  const [propertyAuthSaving, setPropertyAuthSaving] = useState(false);
+  const [propertyAuthTesting, setPropertyAuthTesting] = useState(false);
+  const [propertyAuthBanner, setPropertyAuthBanner] = useState<{
+    tone: 'success' | 'warning' | 'error' | 'info';
+    message: string;
+  } | null>(null);
 
   const tabParam = searchParams.get('tab');
   const activeTab = tabFromParam(tabParam);
@@ -194,6 +266,108 @@ export default function EntityDetailPage() {
     }
   }, [activeTab, id]);
 
+  useEffect(() => {
+    if (activeTab !== 'properties' || !entity?.properties?.length) {
+      if (activeTab !== 'properties') {
+        setShowPropertyAuthEditor(false);
+        setPropertyAuthBanner(null);
+      }
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadPropertyAuthProfiles = async () => {
+      const loadingState = entity.properties.reduce((acc: Record<string, boolean>, property: any) => {
+        acc[property.id] = true;
+        return acc;
+      }, {});
+      if (!cancelled) {
+        setPropertyAuthLoading(loadingState);
+        setPropertyAuthErrors({});
+      }
+
+      const entries = await Promise.all(
+        entity.properties.map(async (property: any) => {
+          try {
+            const profile = await apiClient.getPropertyAuthProfile(property.id);
+            return {
+              propertyId: property.id,
+              profile,
+              error: null,
+            };
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to load login profile';
+            if (/404/.test(message) || /not found/i.test(message)) {
+              return {
+                propertyId: property.id,
+                profile: null,
+                error: null,
+              };
+            }
+            return {
+              propertyId: property.id,
+              profile: null,
+              error: message,
+            };
+          }
+        })
+      );
+
+      if (cancelled) return;
+
+      const nextProfiles: Record<string, PropertyAuthProfileState | null> = {};
+      const nextErrors: Record<string, string | null> = {};
+      const nextLoading: Record<string, boolean> = {};
+
+      for (const entry of entries) {
+        nextProfiles[entry.propertyId] = entry.profile;
+        nextErrors[entry.propertyId] = entry.error;
+        nextLoading[entry.propertyId] = false;
+      }
+
+      setPropertyAuthProfiles(nextProfiles);
+      setPropertyAuthErrors(nextErrors);
+      setPropertyAuthLoading(nextLoading);
+      setSelectedAuthPropertyId((prev) => {
+        if (prev && entity.properties.some((property: any) => property.id === prev)) {
+          return prev;
+        }
+        return entity.properties[0]?.id ?? null;
+      });
+    };
+
+    void loadPropertyAuthProfiles();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, entity]);
+
+  useEffect(() => {
+    if (!showPropertyAuthEditor || !selectedAuthPropertyId) return;
+    const selectedProfile = propertyAuthProfiles[selectedAuthPropertyId] || null;
+    if (selectedProfile) {
+      setPropertyAuthEditor({
+        authType: selectedProfile.authType,
+        loginUrl: selectedProfile.loginUrl || '',
+        successUrlPrefix: selectedProfile.successUrlPrefix || '',
+        successSelector: selectedProfile.successSelector || '',
+        usernameSelector: selectedProfile.usernameSelector || '',
+        passwordSelector: '',
+        submitSelector: selectedProfile.submitSelector || '',
+        usernameValue: '',
+        passwordValue: '',
+        usernameEnvVarName: selectedProfile.usernameEnvVarName || '',
+        passwordEnvVarName: selectedProfile.passwordEnvVarName || '',
+        postLoginSeedPathsText: (selectedProfile.postLoginSeedPaths || []).join('\n'),
+        isActive: selectedProfile.isActive,
+      });
+      return;
+    }
+    setPropertyAuthEditor(createEmptyAuthProfileEditor());
+  }, [showPropertyAuthEditor, selectedAuthPropertyId, propertyAuthProfiles]);
+
   // Poll for scan status updates when scans tab is active
   // NOTE: Only poll if scan monitor is NOT open (to avoid rate limiting)
   useEffect(() => {
@@ -261,6 +435,150 @@ export default function EntityDetailPage() {
       }
     } catch (err) {
       console.error('Failed to fetch assistive maps:', err);
+    }
+  };
+
+  const refreshPropertyAuthProfile = async (propertyId: string) => {
+    setPropertyAuthLoading((prev) => ({ ...prev, [propertyId]: true }));
+    try {
+      const profile = await apiClient.getPropertyAuthProfile(propertyId);
+      setPropertyAuthProfiles((prev) => ({ ...prev, [propertyId]: profile }));
+      setPropertyAuthErrors((prev) => ({ ...prev, [propertyId]: null }));
+      return profile;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load login profile';
+      if (/404/.test(message) || /not found/i.test(message)) {
+        setPropertyAuthProfiles((prev) => ({ ...prev, [propertyId]: null }));
+        setPropertyAuthErrors((prev) => ({ ...prev, [propertyId]: null }));
+        return null;
+      }
+      setPropertyAuthProfiles((prev) => ({ ...prev, [propertyId]: null }));
+      setPropertyAuthErrors((prev) => ({ ...prev, [propertyId]: message }));
+      throw error;
+    } finally {
+      setPropertyAuthLoading((prev) => ({ ...prev, [propertyId]: false }));
+    }
+  };
+
+  const parsePropertyPostLoginSeedPaths = () =>
+    propertyAuthEditor.postLoginSeedPathsText
+      .split(/\r?\n/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+  const formatEnvSecretRef = (name: string): string | undefined => {
+    const trimmed = name.trim();
+    return trimmed ? `\${env:${trimmed}}` : undefined;
+  };
+
+  const openPropertyAuthManager = (propertyId: string) => {
+    setSelectedAuthPropertyId(propertyId);
+    setShowPropertyAuthEditor(true);
+    setPropertyAuthBanner(null);
+  };
+
+  const handleSavePropertyAuthProfile = async (runTestAfterSave = false) => {
+    if (!selectedAuthPropertyId) return;
+    try {
+      setPropertyAuthSaving(true);
+      setPropertyAuthBanner(null);
+      const payload = {
+        authType: propertyAuthEditor.authType,
+        loginUrl: propertyAuthEditor.loginUrl.trim() || undefined,
+        successUrlPrefix: propertyAuthEditor.successUrlPrefix.trim() || undefined,
+        successSelector: propertyAuthEditor.successSelector.trim() || undefined,
+        usernameSelector: propertyAuthEditor.usernameSelector.trim() || undefined,
+        passwordSelector: propertyAuthEditor.passwordSelector.trim() || undefined,
+        submitSelector: propertyAuthEditor.submitSelector.trim() || undefined,
+        usernameValue:
+          formatEnvSecretRef(propertyAuthEditor.usernameEnvVarName) ||
+          propertyAuthEditor.usernameValue.trim() ||
+          undefined,
+        passwordValue:
+          formatEnvSecretRef(propertyAuthEditor.passwordEnvVarName) ||
+          propertyAuthEditor.passwordValue.trim() ||
+          undefined,
+        postLoginSeedPaths: parsePropertyPostLoginSeedPaths(),
+        isActive: propertyAuthEditor.isActive,
+      };
+      const saved = await apiClient.savePropertyAuthProfile(selectedAuthPropertyId, payload);
+      setPropertyAuthProfiles((prev) => ({ ...prev, [selectedAuthPropertyId]: saved }));
+      setPropertyAuthErrors((prev) => ({ ...prev, [selectedAuthPropertyId]: null }));
+      setPropertyAuthBanner({
+        tone: 'success',
+        message: 'Saved the login profile for this property.',
+      });
+
+      if (runTestAfterSave) {
+        setPropertyAuthTesting(true);
+        const result = await apiClient.testPropertyAuthProfile(selectedAuthPropertyId);
+        await refreshPropertyAuthProfile(selectedAuthPropertyId);
+        setPropertyAuthBanner({
+          tone: result.success ? 'success' : 'warning',
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      setPropertyAuthBanner({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Failed to save the login profile.',
+      });
+    } finally {
+      setPropertyAuthSaving(false);
+      setPropertyAuthTesting(false);
+    }
+  };
+
+  const handleTestPropertyAuthProfile = async (propertyId: string) => {
+    try {
+      setPropertyAuthTesting(true);
+      if (propertyId === selectedAuthPropertyId) {
+        setPropertyAuthBanner(null);
+      }
+      const result = await apiClient.testPropertyAuthProfile(propertyId);
+      await refreshPropertyAuthProfile(propertyId);
+      if (propertyId === selectedAuthPropertyId) {
+        setPropertyAuthBanner({
+          tone: result.success ? 'success' : 'warning',
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      if (propertyId === selectedAuthPropertyId) {
+        setPropertyAuthBanner({
+          tone: 'error',
+          message: error instanceof Error ? error.message : 'Failed to test the login profile.',
+        });
+      } else {
+        setError(error instanceof Error ? error.message : 'Failed to test the login profile.');
+      }
+    } finally {
+      setPropertyAuthTesting(false);
+    }
+  };
+
+  const handleDeletePropertyAuthProfile = async (propertyId: string) => {
+    try {
+      setPropertyAuthBanner(null);
+      await apiClient.deletePropertyAuthProfile(propertyId);
+      setPropertyAuthProfiles((prev) => ({ ...prev, [propertyId]: null }));
+      setPropertyAuthErrors((prev) => ({ ...prev, [propertyId]: null }));
+      if (propertyId === selectedAuthPropertyId) {
+        setPropertyAuthEditor(createEmptyAuthProfileEditor());
+        setPropertyAuthBanner({
+          tone: 'success',
+          message: 'Removed the saved login profile for this property.',
+        });
+      }
+    } catch (error) {
+      if (propertyId === selectedAuthPropertyId) {
+        setPropertyAuthBanner({
+          tone: 'error',
+          message: error instanceof Error ? error.message : 'Failed to remove the login profile.',
+        });
+      } else {
+        setError(error instanceof Error ? error.message : 'Failed to remove the login profile.');
+      }
     }
   };
 
@@ -479,6 +797,31 @@ export default function EntityDetailPage() {
     { id: 'contacts', label: t('entities.contactsTab'), icon: Users },
   ];
 
+  const selectedAuthProperty = entity.properties.find((property: any) => property.id === selectedAuthPropertyId) || null;
+  const selectedAuthProfile = selectedAuthPropertyId ? propertyAuthProfiles[selectedAuthPropertyId] || null : null;
+  const selectedAuthError = selectedAuthPropertyId ? propertyAuthErrors[selectedAuthPropertyId] : null;
+  const selectedAuthLoading = selectedAuthPropertyId ? propertyAuthLoading[selectedAuthPropertyId] : false;
+  const authReadyCount = entity.properties.filter((property: any) => {
+    const profile = propertyAuthProfiles[property.id];
+    return (
+      profile &&
+      profile.authType === 'scripted_login' &&
+      profile.isActive &&
+      profile.secretHealth !== 'missing_env'
+    );
+  }).length;
+  const authNeedsAttentionCount = entity.properties.filter((property: any) => {
+    const profile = propertyAuthProfiles[property.id];
+    return (
+      !!profile &&
+      (!profile.isActive ||
+        profile.authType !== 'scripted_login' ||
+        profile.secretHealth === 'missing_env' ||
+        profile.lastTestResult === 'failure')
+    );
+  }).length;
+  const authMissingCount = Math.max(0, entity.properties.length - authReadyCount - authNeedsAttentionCount);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -626,6 +969,44 @@ export default function EntityDetailPage() {
       {activeTab === 'properties' && (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">{t('entities.propertiesTabSubtitle')}</p>
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-border bg-card p-4">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                Login ready
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-2xl font-semibold text-emerald-700 dark:text-emerald-400">
+                <ShieldCheck className="h-5 w-5" />
+                {authReadyCount}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Properties with an active scripted login profile and healthy secrets.
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-4">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                Needs attention
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-2xl font-semibold text-amber-700 dark:text-amber-400">
+                <ShieldAlert className="h-5 w-5" />
+                {authNeedsAttentionCount}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Inactive, failed, missing-secret, or unsupported login setups.
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-card p-4">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                No login profile
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-2xl font-semibold text-slate-700 dark:text-slate-300">
+                <ShieldOff className="h-5 w-5" />
+                {authMissingCount}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                These properties will scan unauthenticated until a login profile is added.
+              </p>
+            </div>
+          </div>
           <div className="flex justify-end">
             <button
               onClick={() => {
@@ -651,66 +1032,504 @@ export default function EntityDetailPage() {
                     <th className="px-6 py-3 text-left text-sm font-medium">{t('properties.domain')}</th>
                     <th className="px-6 py-3 text-left text-sm font-medium">{t('properties.displayName')}</th>
                     <th className="px-6 py-3 text-left text-sm font-medium">{t('properties.isPrimary')}</th>
+                    <th className="px-6 py-3 text-left text-sm font-medium">Authentication</th>
                     <th className="px-6 py-3 text-left text-sm font-medium">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {entity.properties.map((property: any) => (
-                    <tr key={property.id} className="hover:bg-muted/50">
-                      <td className="px-6 py-4 font-medium">{property.domain}</td>
-                      <td className="px-6 py-4">
-                        {property.displayNameEn || property.displayNameAr || '-'}
-                      </td>
-                      <td className="px-6 py-4">
-                        {property.isPrimary && (
-                          <span className="px-2 py-1 rounded text-xs bg-primary text-primary-foreground">
-                            {t('properties.isPrimary')}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-wrap items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setError(null);
-                              setShowAddProperty(false);
-                              setEditPropertyForm({
-                                id: property.id,
-                                domain: property.domain || '',
-                                displayNameEn: property.displayNameEn || '',
-                                displayNameAr: property.displayNameAr || '',
-                                isPrimary: !!property.isPrimary,
-                              });
-                            }}
-                            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                            {t('entities.editProperty')}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              let url = property.domain?.trim() || '';
-                              if (!url) {
-                                setError('Property domain is empty');
-                                return;
-                              }
-                              if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                                url = `https://${url}`;
-                              }
-                              handleStartScanClick(property.id, url);
-                            }}
-                            className="text-primary hover:underline text-sm"
-                          >
-                            {t('entities.startScanForProperty')}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {entity.properties.map((property: any) => {
+                    const authProfile = propertyAuthProfiles[property.id];
+                    const authError = propertyAuthErrors[property.id];
+                    const authLoading = propertyAuthLoading[property.id];
+                    const isSelected = selectedAuthPropertyId === property.id && showPropertyAuthEditor;
+
+                    let authLabel = 'No profile';
+                    let authTone = 'bg-slate-500/10 text-slate-700 dark:text-slate-300';
+                    let authDescription = 'This property will scan unauthenticated.';
+
+                    if (authLoading) {
+                      authLabel = 'Loading';
+                      authTone = 'bg-sky-500/10 text-sky-700 dark:text-sky-300';
+                      authDescription = 'Checking the saved login profile for this property.';
+                    } else if (authError) {
+                      authLabel = 'Error';
+                      authTone = 'bg-red-500/10 text-red-700 dark:text-red-300';
+                      authDescription = authError;
+                    } else if (authProfile) {
+                      if (authProfile.authType !== 'scripted_login') {
+                        authLabel = 'Unsupported';
+                        authTone = 'bg-amber-500/10 text-amber-700 dark:text-amber-300';
+                        authDescription = 'Only scripted login profiles can be used for automated scans right now.';
+                      } else if (!authProfile.isActive) {
+                        authLabel = 'Inactive';
+                        authTone = 'bg-amber-500/10 text-amber-700 dark:text-amber-300';
+                        authDescription = 'The saved login profile exists, but it is turned off.';
+                      } else if (authProfile.secretHealth === 'missing_env') {
+                        authLabel = 'Missing env secret';
+                        authTone = 'bg-red-500/10 text-red-700 dark:text-red-300';
+                        authDescription = 'One or more referenced environment secrets are missing on the scanner server.';
+                      } else if (authProfile.lastTestResult === 'failure') {
+                        authLabel = 'Test failed';
+                        authTone = 'bg-red-500/10 text-red-700 dark:text-red-300';
+                        authDescription = authProfile.lastTestError || 'The latest login test failed.';
+                      } else if (authProfile.lastTestResult === 'success') {
+                        authLabel = 'Ready';
+                        authTone = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
+                        authDescription = 'Saved scripted login is healthy and ready for authenticated scans.';
+                      } else {
+                        authLabel = 'Configured';
+                        authTone = 'bg-sky-500/10 text-sky-700 dark:text-sky-300';
+                        authDescription = 'A scripted login profile is saved, but it has not been verified yet.';
+                      }
+                    }
+
+                    return (
+                      <tr key={property.id} className={`hover:bg-muted/50 ${isSelected ? 'bg-muted/30' : ''}`}>
+                        <td className="px-6 py-4 font-medium">{property.domain}</td>
+                        <td className="px-6 py-4">
+                          {property.displayNameEn || property.displayNameAr || '-'}
+                        </td>
+                        <td className="px-6 py-4">
+                          {property.isPrimary && (
+                            <span className="px-2 py-1 rounded text-xs bg-primary text-primary-foreground">
+                              {t('properties.isPrimary')}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              {authLoading ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-600" />
+                              ) : (
+                                <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
+                              )}
+                              <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${authTone}`}>
+                                {authLabel}
+                              </span>
+                            </div>
+                            <p className="max-w-sm text-xs text-muted-foreground">{authDescription}</p>
+                            {authProfile?.lastTestedAt && (
+                              <p className="text-xs text-muted-foreground">
+                                Last checked {new Date(authProfile.lastTestedAt).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setError(null);
+                                setShowAddProperty(false);
+                                setEditPropertyForm({
+                                  id: property.id,
+                                  domain: property.domain || '',
+                                  displayNameEn: property.displayNameEn || '',
+                                  displayNameAr: property.displayNameAr || '',
+                                  isPrimary: !!property.isPrimary,
+                                });
+                              }}
+                              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                              {t('entities.editProperty')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openPropertyAuthManager(property.id)}
+                              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                            >
+                              <KeyRound className="w-3.5 h-3.5" />
+                              {isSelected ? 'Editing login' : 'Manage login'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                let url = property.domain?.trim() || '';
+                                if (!url) {
+                                  setError('Property domain is empty');
+                                  return;
+                                }
+                                if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                                  url = `https://${url}`;
+                                }
+                                handleStartScanClick(property.id, url);
+                              }}
+                              className="text-primary hover:underline text-sm"
+                            >
+                              {t('entities.startScanForProperty')}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
+            </div>
+          )}
+          {showPropertyAuthEditor && selectedAuthProperty && (
+            <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Property login profile
+                  </div>
+                  <h3 className="mt-1 text-lg font-semibold">
+                    {selectedAuthProperty.displayNameEn ||
+                      selectedAuthProperty.displayNameAr ||
+                      selectedAuthProperty.domain}
+                  </h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Configure reusable login access before scan start. If the signed-in journey later
+                    reaches a verification code step, Raawi can pause and wait for operator input.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPropertyAuthEditor(false);
+                    setPropertyAuthBanner(null);
+                  }}
+                  className="rounded border border-input px-3 py-1.5 text-xs hover:bg-muted"
+                >
+                  Close
+                </button>
+              </div>
+
+              {selectedAuthLoading && (
+                <div className="mt-4 flex items-center gap-2 rounded-md border border-sky-500/20 bg-sky-500/5 px-3 py-2 text-sm text-sky-700 dark:text-sky-300">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading the saved login profile for this property.
+                </div>
+              )}
+
+              {selectedAuthError && !selectedAuthLoading && (
+                <div className="mt-4 rounded-md border border-red-500/20 bg-red-500/5 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                  {selectedAuthError}
+                </div>
+              )}
+
+              {propertyAuthBanner && (
+                <div
+                  className={`mt-4 rounded-md border px-3 py-2 text-sm ${
+                    propertyAuthBanner.tone === 'success'
+                      ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300'
+                      : propertyAuthBanner.tone === 'warning'
+                        ? 'border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-300'
+                        : propertyAuthBanner.tone === 'info'
+                          ? 'border-sky-500/20 bg-sky-500/5 text-sky-700 dark:text-sky-300'
+                          : 'border-red-500/20 bg-red-500/5 text-red-700 dark:text-red-300'
+                  }`}
+                >
+                  {propertyAuthBanner.message}
+                </div>
+              )}
+
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="rounded-md border border-border bg-muted/20 p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Status</div>
+                  <div className="mt-2 text-sm font-medium">
+                    {selectedAuthProfile
+                      ? selectedAuthProfile.lastTestResult === 'success'
+                        ? 'Ready'
+                        : selectedAuthProfile.lastTestResult === 'failure'
+                          ? 'Needs attention'
+                          : selectedAuthProfile.isActive
+                            ? 'Configured'
+                            : 'Inactive'
+                      : 'No saved profile'}
+                  </div>
+                </div>
+                <div className="rounded-md border border-border bg-muted/20 p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Username secret</div>
+                  <div className="mt-2 text-sm font-medium">
+                    {selectedAuthProfile?.usernameSecretSource === 'env'
+                      ? `Env: ${selectedAuthProfile.usernameEnvVarName || 'unnamed'}`
+                      : selectedAuthProfile?.usernameSecretSource === 'stored'
+                        ? 'Stored secret'
+                        : 'Not configured'}
+                  </div>
+                  {selectedAuthProfile?.usernameSecretSource === 'env' ? (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Server status: {selectedAuthProfile.usernameEnvVarPresent ? 'present' : 'missing'}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="rounded-md border border-border bg-muted/20 p-3">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Password secret</div>
+                  <div className="mt-2 text-sm font-medium">
+                    {selectedAuthProfile?.passwordSecretSource === 'env'
+                      ? `Env: ${selectedAuthProfile.passwordEnvVarName || 'unnamed'}`
+                      : selectedAuthProfile?.passwordSecretSource === 'stored'
+                        ? 'Stored secret'
+                        : 'Not configured'}
+                  </div>
+                  {selectedAuthProfile?.passwordSecretSource === 'env' ? (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Server status: {selectedAuthProfile.passwordEnvVarPresent ? 'present' : 'missing'}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleTestPropertyAuthProfile(selectedAuthProperty.id)}
+                  disabled={
+                    propertyAuthTesting ||
+                    !selectedAuthProfile ||
+                    !selectedAuthProfile.isActive ||
+                    selectedAuthProfile.authType !== 'scripted_login'
+                  }
+                  className="rounded border border-input px-3 py-1.5 text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {propertyAuthTesting ? 'Testing...' : 'Test login'}
+                </button>
+                {selectedAuthProfile && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDeletePropertyAuthProfile(selectedAuthProperty.id)}
+                    className="rounded border border-red-500/30 px-3 py-1.5 text-sm text-red-700 hover:bg-red-500/5 dark:text-red-300"
+                  >
+                    Remove profile
+                  </button>
+                )}
+              </div>
+
+              <div className="mt-5 rounded-md border border-border bg-background/70 p-4">
+                <div className="text-sm font-semibold">
+                  {selectedAuthProfile ? 'Edit saved login profile' : 'Create login profile'}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Use scripted login to sign in before scan start. Leave the username/password
+                  values blank if you want to keep the existing secret.
+                </p>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-foreground">Auth type</label>
+                    <select
+                      value={propertyAuthEditor.authType}
+                      onChange={(e) =>
+                        setPropertyAuthEditor((prev) => ({
+                          ...prev,
+                          authType: e.target.value as AuthProfileEditorState['authType'],
+                        }))
+                      }
+                      className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="scripted_login">Scripted login</option>
+                      <option value="none">None</option>
+                      <option value="cookie">Cookie</option>
+                    </select>
+                  </div>
+                  <label className="flex items-center gap-2 rounded border border-border px-3 py-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={propertyAuthEditor.isActive}
+                      onChange={(e) =>
+                        setPropertyAuthEditor((prev) => ({ ...prev, isActive: e.target.checked }))
+                      }
+                    />
+                    Profile is active for future scans
+                  </label>
+                </div>
+
+                {propertyAuthEditor.authType === 'scripted_login' ? (
+                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-foreground">Login URL</label>
+                      <input
+                        value={propertyAuthEditor.loginUrl}
+                        onChange={(e) =>
+                          setPropertyAuthEditor((prev) => ({ ...prev, loginUrl: e.target.value }))
+                        }
+                        placeholder="https://example.com/login"
+                        className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-foreground">Success URL prefix</label>
+                      <input
+                        value={propertyAuthEditor.successUrlPrefix}
+                        onChange={(e) =>
+                          setPropertyAuthEditor((prev) => ({ ...prev, successUrlPrefix: e.target.value }))
+                        }
+                        placeholder="https://example.com/app"
+                        className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-foreground">Success selector</label>
+                      <input
+                        value={propertyAuthEditor.successSelector}
+                        onChange={(e) =>
+                          setPropertyAuthEditor((prev) => ({ ...prev, successSelector: e.target.value }))
+                        }
+                        placeholder="[data-testid='dashboard']"
+                        className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-foreground">Submit selector</label>
+                      <input
+                        value={propertyAuthEditor.submitSelector}
+                        onChange={(e) =>
+                          setPropertyAuthEditor((prev) => ({ ...prev, submitSelector: e.target.value }))
+                        }
+                        placeholder="button[type='submit']"
+                        className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-foreground">Username selector</label>
+                      <input
+                        value={propertyAuthEditor.usernameSelector}
+                        onChange={(e) =>
+                          setPropertyAuthEditor((prev) => ({ ...prev, usernameSelector: e.target.value }))
+                        }
+                        placeholder="input[name='email']"
+                        className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-foreground">Password selector</label>
+                      <input
+                        value={propertyAuthEditor.passwordSelector}
+                        onChange={(e) =>
+                          setPropertyAuthEditor((prev) => ({ ...prev, passwordSelector: e.target.value }))
+                        }
+                        placeholder="input[name='password']"
+                        className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-foreground">Username value</label>
+                      <input
+                        value={propertyAuthEditor.usernameValue}
+                        onChange={(e) =>
+                          setPropertyAuthEditor((prev) => ({ ...prev, usernameValue: e.target.value }))
+                        }
+                        placeholder="Leave blank to keep stored value"
+                        className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                      />
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Current source:{' '}
+                        {selectedAuthProfile?.usernameSecretSource === 'env'
+                          ? `env (${selectedAuthProfile.usernameEnvVarName || 'unnamed'})`
+                          : selectedAuthProfile?.usernameSecretSource === 'stored'
+                            ? 'stored'
+                            : 'missing'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-foreground">Password value</label>
+                      <input
+                        type="password"
+                        value={propertyAuthEditor.passwordValue}
+                        onChange={(e) =>
+                          setPropertyAuthEditor((prev) => ({ ...prev, passwordValue: e.target.value }))
+                        }
+                        placeholder="Leave blank to keep stored value"
+                        className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                      />
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Current source:{' '}
+                        {selectedAuthProfile?.passwordSecretSource === 'env'
+                          ? `env (${selectedAuthProfile.passwordEnvVarName || 'unnamed'})`
+                          : selectedAuthProfile?.passwordSecretSource === 'stored'
+                            ? 'stored'
+                            : 'missing'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-foreground">Username env var</label>
+                      <input
+                        value={propertyAuthEditor.usernameEnvVarName}
+                        onChange={(e) =>
+                          setPropertyAuthEditor((prev) => ({ ...prev, usernameEnvVarName: e.target.value }))
+                        }
+                        placeholder="SCAN_LOGIN_USERNAME"
+                        className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                      />
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Server status:{' '}
+                        {selectedAuthProfile?.usernameSecretSource === 'env'
+                          ? selectedAuthProfile.usernameEnvVarPresent
+                            ? 'present'
+                            : 'missing'
+                          : 'set to use env on next save'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-foreground">Password env var</label>
+                      <input
+                        value={propertyAuthEditor.passwordEnvVarName}
+                        onChange={(e) =>
+                          setPropertyAuthEditor((prev) => ({ ...prev, passwordEnvVarName: e.target.value }))
+                        }
+                        placeholder="SCAN_LOGIN_PASSWORD"
+                        className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                      />
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Server status:{' '}
+                        {selectedAuthProfile?.passwordSecretSource === 'env'
+                          ? selectedAuthProfile.passwordEnvVarPresent
+                            ? 'present'
+                            : 'missing'
+                          : 'set to use env on next save'}
+                      </div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="mb-1 block text-xs font-medium text-foreground">
+                        Post-login seed paths
+                      </label>
+                      <textarea
+                        value={propertyAuthEditor.postLoginSeedPathsText}
+                        onChange={(e) =>
+                          setPropertyAuthEditor((prev) => ({
+                            ...prev,
+                            postLoginSeedPathsText: e.target.value,
+                          }))
+                        }
+                        rows={4}
+                        placeholder={'/dashboard\n/account'}
+                        className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                      />
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        One path per line. These help authenticated discovery start in the signed-in area.
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+                    Only scripted login is currently supported for automated authenticated scans.
+                  </div>
+                )}
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleSavePropertyAuthProfile(false)}
+                    disabled={propertyAuthSaving || propertyAuthTesting}
+                    className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {propertyAuthSaving ? 'Saving...' : 'Save profile'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSavePropertyAuthProfile(true)}
+                    disabled={propertyAuthSaving || propertyAuthTesting}
+                    className="rounded border border-input px-4 py-2 text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {propertyAuthSaving || propertyAuthTesting ? 'Working...' : 'Save and test'}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -1965,4 +2784,3 @@ export default function EntityDetailPage() {
     </div>
   );
 }
-
