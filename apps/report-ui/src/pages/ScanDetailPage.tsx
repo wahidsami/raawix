@@ -190,6 +190,35 @@ type AnalysisTaskAssessment = {
   evidence: Record<string, unknown>;
 };
 
+type ManualCheckpointDetail = {
+  kind: 'verification_code';
+  pageNumber: number;
+  pageUrl: string;
+  message: string;
+  source: 'analysis-agent';
+  formPurpose?: 'login' | 'register' | 'contact' | 'search' | 'generic';
+  checkpointHeading?: string | null;
+  otpLikeFields?: number;
+  hasResendCode?: boolean;
+  hasForgotPassword?: boolean;
+};
+
+type ManualCheckpointHistoryItem = {
+  id: string;
+  event: 'paused' | 'resumed' | 'resume_failed';
+  timestamp: string;
+  pageNumber: number;
+  pageUrl: string;
+  message: string;
+  source: 'analysis-agent';
+  formPurpose?: 'login' | 'register' | 'contact' | 'search' | 'generic';
+  checkpointHeading?: string | null;
+  otpLikeFields?: number;
+  hasResendCode?: boolean;
+  hasForgotPassword?: boolean;
+  verificationCodeLength?: number;
+};
+
 interface ScanDetail {
   scanId: string;
   seedUrl: string;
@@ -274,6 +303,8 @@ interface ScanDetail {
     findings: AuditorFinding[];
     categorySummary: Record<string, number>;
   };
+  manualCheckpoint?: ManualCheckpointDetail | null;
+  manualCheckpointHistory?: ManualCheckpointHistoryItem[];
   pages: Array<{
     pageNumber: number;
     url: string;
@@ -475,6 +506,8 @@ export default function ScanDetailPage() {
   const analysisAgentTrace = scanDetail.analysisAgent?.trace ?? [];
   const analysisAgentSummary = scanDetail.analysisAgent?.summary;
   const auditorFindings = scanDetail.auditorFindings?.findings ?? [];
+  const manualCheckpoint = scanDetail.manualCheckpoint;
+  const manualCheckpointHistory = scanDetail.manualCheckpointHistory ?? [];
   const isRaawiAgentReport = scanDetail.auditMode === 'raawi-agent';
   const raawiPagesWithTrace = analysisAgentSummary?.pagesWithTrace ?? scanDetail.analysisAgent?.pagesWithArtifact ?? 0;
   const raawiIssueCount = analysisAgentSummary?.totalIssues ?? scanDetail.summary.totalAgentFindings ?? scanDetail.analysisAgent?.count ?? 0;
@@ -522,6 +555,16 @@ export default function ScanDetailPage() {
     if (result === 'not_working') return 'bg-red-500/15 text-red-700 ring-1 ring-red-500/20';
     if (result === 'needs_review') return 'bg-amber-500/15 text-amber-700 ring-1 ring-amber-500/20';
     return 'bg-muted text-muted-foreground ring-1 ring-border';
+  };
+  const getManualContinuationEventLabel = (event: ManualCheckpointHistoryItem['event']) => {
+    if (event === 'paused') return 'Paused for code entry';
+    if (event === 'resumed') return 'Resumed';
+    return 'Resume failed';
+  };
+  const getManualContinuationEventClass = (event: ManualCheckpointHistoryItem['event']) => {
+    if (event === 'paused') return 'bg-amber-500/15 text-amber-700 ring-1 ring-amber-500/20';
+    if (event === 'resumed') return 'bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-500/20';
+    return 'bg-red-500/15 text-red-700 ring-1 ring-red-500/20';
   };
   const getTaskAssessmentClass = (result: string) => {
     if (result === 'working') return 'text-emerald-700';
@@ -811,6 +854,86 @@ export default function ScanDetailPage() {
             </div>
           </div>
         </>
+      )}
+
+      {(manualCheckpoint || manualCheckpointHistory.length > 0) && (
+        <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <div className="p-4 border-b border-border">
+            <h2 className="text-xl font-bold">Manual continuation timeline</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              This records when Raawi paused at a verification checkpoint and what happened when the scan resumed.
+            </p>
+          </div>
+
+          {manualCheckpoint && (
+            <div className="border-b border-border bg-amber-500/5 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex rounded px-2 py-1 text-xs font-medium bg-amber-500/15 text-amber-700 ring-1 ring-amber-500/20">
+                  Awaiting manual verification
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  Page {manualCheckpoint.pageNumber}
+                </span>
+                <span className="text-sm text-primary break-all">{manualCheckpoint.pageUrl}</span>
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">{manualCheckpoint.message}</p>
+              {(manualCheckpoint.formPurpose || manualCheckpoint.otpLikeFields || manualCheckpoint.checkpointHeading) && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  {manualCheckpoint.formPurpose ? `Form: ${manualCheckpoint.formPurpose}` : null}
+                  {manualCheckpoint.formPurpose && manualCheckpoint.otpLikeFields ? ' • ' : null}
+                  {manualCheckpoint.otpLikeFields ? `${manualCheckpoint.otpLikeFields} OTP-like field(s)` : null}
+                  {(manualCheckpoint.formPurpose || manualCheckpoint.otpLikeFields) && manualCheckpoint.checkpointHeading ? ' • ' : null}
+                  {manualCheckpoint.checkpointHeading ? manualCheckpoint.checkpointHeading : null}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium">Time</th>
+                  <th className="px-4 py-3 text-left font-medium">Event</th>
+                  <th className="px-4 py-3 text-left font-medium">Page</th>
+                  <th className="px-4 py-3 text-left font-medium">Details</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {manualCheckpointHistory.map((entry) => (
+                  <tr key={entry.id} className="hover:bg-muted/40 align-top">
+                    <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
+                      {new Date(entry.timestamp).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`inline-flex rounded px-2 py-1 text-xs font-medium ${getManualContinuationEventClass(entry.event)}`}>
+                        {getManualContinuationEventLabel(entry.event)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 min-w-[220px]">
+                      <div className="text-xs text-muted-foreground">Page {entry.pageNumber}</div>
+                      <div className="break-all text-xs text-primary">{entry.pageUrl}</div>
+                    </td>
+                    <td className="px-4 py-3 min-w-[280px] text-xs text-muted-foreground">
+                      <div>{entry.message}</div>
+                      {(entry.formPurpose || entry.otpLikeFields || entry.checkpointHeading || entry.verificationCodeLength) && (
+                        <div className="mt-1">
+                          {entry.formPurpose ? `Form: ${entry.formPurpose}` : null}
+                          {entry.formPurpose && entry.otpLikeFields ? ' • ' : null}
+                          {entry.otpLikeFields ? `${entry.otpLikeFields} OTP-like field(s)` : null}
+                          {(entry.formPurpose || entry.otpLikeFields) && entry.checkpointHeading ? ' • ' : null}
+                          {entry.checkpointHeading ? entry.checkpointHeading : null}
+                          {(entry.formPurpose || entry.otpLikeFields || entry.checkpointHeading) && entry.verificationCodeLength ? ' • ' : null}
+                          {entry.verificationCodeLength ? `Code length: ${entry.verificationCodeLength}` : null}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* Compliance Scores */}

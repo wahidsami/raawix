@@ -26,6 +26,8 @@ import {
   loadAnalysisAgentPageSummaries,
 } from '../utils/analysis-agent-summary.js';
 import { renderFallbackScanPdf } from '../utils/pdf-lib-fallback-report.js';
+import type { ManualCheckpointHistoryEntry } from '@raawi-x/core';
+import { loadManualCheckpointHistory } from '../utils/manual-checkpoint-history.js';
 
 const router: Router = Router();
 
@@ -211,6 +213,8 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
     const auditMode = (scan as any).auditMode === 'raawi-agent' ? 'raawi-agent' : 'classic';
     const isRaawiAgentReport = auditMode === 'raawi-agent';
     const auditModeText = getPDFTranslation(auditMode === 'raawi-agent' ? 'auditModeRaawiAgent' : 'auditModeClassic', locale);
+    const scanOutputDir = `${config.outputDir}/${scanId}`;
+    const manualCheckpointHistory = await loadManualCheckpointHistory(scanOutputDir);
 
     const scoreAText = scores.scoreA !== null ? `${scores.scoreA.toFixed(1)}%` : 'N/A';
     const scoreAAText = scores.scoreAA !== null ? `${scores.scoreAA.toFixed(1)}%` : 'N/A';
@@ -452,6 +456,16 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
             traceIntro: 'صف واحد لكل صفحة يوضح حالة التفاعل وعدد الخطوات والاختبارات والمشكلات.',
             findingsLabel: 'نتائج راوي',
             domFindingsLabel: 'نتائج DOM/WCAG',
+            continuationTitle: 'سجل الاستكمال اليدوي',
+            continuationIntro:
+              'يوضح هذا القسم متى توقّف فحص راوي عند نقطة تحقق يدوية ومتى تم استئناف الفحص بعد إدخال رمز التحقق.',
+            continuationTime: 'الوقت',
+            continuationEvent: 'الحدث',
+            continuationPage: 'الصفحة',
+            continuationDetails: 'التفاصيل',
+            continuationPaused: 'توقّف بانتظار إدخال يدوي',
+            continuationResumed: 'تم الاستئناف',
+            continuationResumeFailed: 'تعذّر الاستئناف',
           }
         : {
             reportTitle: 'Raawi Agent Accessibility Report',
@@ -476,7 +490,63 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
             traceIntro: 'One row per page showing interaction status, steps, probes, and issues.',
             findingsLabel: 'Raawi findings',
             domFindingsLabel: 'DOM/WCAG findings',
+            continuationTitle: 'Manual Continuation Timeline',
+            continuationIntro:
+              'This section records when the Raawi scan paused at a manual verification checkpoint and when it resumed after operator input.',
+            continuationTime: 'Time',
+            continuationEvent: 'Event',
+            continuationPage: 'Page',
+            continuationDetails: 'Details',
+            continuationPaused: 'Paused for manual checkpoint',
+            continuationResumed: 'Resumed after code entry',
+            continuationResumeFailed: 'Resume failed',
           };
+
+    const getContinuationEventLabel = (event: ManualCheckpointHistoryEntry['event']) => {
+      if (event === 'paused') return raawiLabels.continuationPaused;
+      if (event === 'resumed') return raawiLabels.continuationResumed;
+      return raawiLabels.continuationResumeFailed;
+    };
+
+    const continuationHistorySummaryText =
+      manualCheckpointHistory.length > 0
+        ? locale === 'ar'
+          ? `تم تسجيل ${manualCheckpointHistory.length} حدث(أحداث) استكمال يدوي خلال هذا الفحص.`
+          : `${manualCheckpointHistory.length} manual continuation event(s) were recorded during this scan.`
+        : '';
+
+    const continuationHistorySectionHtml =
+      manualCheckpointHistory.length > 0
+        ? `<div class="section">
+          <h2 class="section-title">${escapeHtml(raawiLabels.continuationTitle)}</h2>
+          <p class="intro-content">${escapeHtml(raawiLabels.continuationIntro)}</p>
+          <div class="intro-content" style="margin-bottom: 12px;">${escapeHtml(continuationHistorySummaryText)}</div>
+          <table class="findings-table"><thead><tr>
+            <th>${escapeHtml(raawiLabels.continuationTime)}</th>
+            <th>${escapeHtml(raawiLabels.continuationEvent)}</th>
+            <th>${escapeHtml(raawiLabels.continuationPage)}</th>
+            <th>${escapeHtml(raawiLabels.continuationDetails)}</th>
+          </tr></thead><tbody>
+          ${manualCheckpointHistory
+            .map((entry) => {
+              const detailParts = [
+                entry.formPurpose ? `Form: ${entry.formPurpose}` : '',
+                entry.otpLikeFields ? `OTP-like fields: ${entry.otpLikeFields}` : '',
+                entry.checkpointHeading ? `Heading: ${entry.checkpointHeading}` : '',
+                entry.verificationCodeLength ? `Code length: ${entry.verificationCodeLength}` : '',
+                entry.message || '',
+              ].filter(Boolean);
+              return `<tr>
+                <td>${escapeHtml(new Date(entry.timestamp).toLocaleString(locale === 'ar' ? 'ar-SA' : 'en-US'))}</td>
+                <td>${escapeHtml(getContinuationEventLabel(entry.event))}</td>
+                <td style="font-size:9px;word-break:break-all;">${escapeHtml(entry.pageUrl.slice(0, 100))}</td>
+                <td>${escapeHtml(detailParts.join(' | '))}</td>
+              </tr>`;
+            })
+            .join('')}
+          </tbody></table>
+        </div>`
+        : '';
 
     const modeOverviewHtml = isRaawiAgentReport
       ? `<div class="section">
@@ -525,8 +595,8 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
     </div>`;
 
     const findingsBodyHtml = isRaawiAgentReport
-      ? `${agentSectionHtml}${wcagFindingsSectionHtml}`
-      : `${wcagFindingsSectionHtml}${agentSectionHtml}`;
+      ? `${agentSectionHtml}${continuationHistorySectionHtml}${wcagFindingsSectionHtml}`
+      : `${wcagFindingsSectionHtml}${agentSectionHtml}${continuationHistorySectionHtml}`;
 
     const findingsForFallback = reportFindings.map((f: any) => {
       const statusText =
@@ -577,6 +647,21 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       probeSuccessCount: row.probeSuccessCount,
       issueCount: row.issueCount,
       traceSummary: row.traceSummary,
+    }));
+
+    const continuationRowsForFallback = manualCheckpointHistory.map((entry) => ({
+      timestamp: new Date(entry.timestamp).toLocaleString(locale === 'ar' ? 'ar-SA' : 'en-US'),
+      eventLabel: getContinuationEventLabel(entry.event),
+      pageUrl: entry.pageUrl,
+      details: [
+        entry.formPurpose ? `Form: ${entry.formPurpose}` : '',
+        entry.otpLikeFields ? `OTP-like fields: ${entry.otpLikeFields}` : '',
+        entry.checkpointHeading ? `Heading: ${entry.checkpointHeading}` : '',
+        entry.verificationCodeLength ? `Code length: ${entry.verificationCodeLength}` : '',
+        entry.message || '',
+      ]
+        .filter(Boolean)
+        .join(' | '),
     }));
 
     const fallbackSubtitle = isPartialExport
@@ -750,6 +835,9 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
         analysisAgentEmpty:
           agentRowsForFallback.length > 0 ? '—' : analysisAgentNoRowsPlain,
         agentRows: agentRowsForFallback,
+        manualContinuationTitle: manualCheckpointHistory.length > 0 ? raawiLabels.continuationTitle : '',
+        manualContinuationIntro: continuationHistorySummaryText,
+        continuationRows: continuationRowsForFallback,
         footerText: templateData.footerText,
         reportGeneratedBy: templateData.reportGeneratedBy,
       });

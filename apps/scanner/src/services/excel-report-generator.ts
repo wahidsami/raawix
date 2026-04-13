@@ -6,6 +6,9 @@ import {
   formatAnalysisAgentPageStatus,
   loadAnalysisAgentPageSummaries,
 } from '../utils/analysis-agent-summary.js';
+import { config } from '../config.js';
+import { loadManualCheckpointHistory } from '../utils/manual-checkpoint-history.js';
+import type { ManualCheckpointHistoryEntry } from '@raawi-x/core';
 
 /**
  * Excel Report Generator
@@ -37,11 +40,13 @@ export class ExcelReportGenerator {
     workbook.created = new Date();
     workbook.modified = new Date();
     const isRaawiAgentReport = scan.auditMode === 'raawi-agent';
+    const manualCheckpointHistory = await loadManualCheckpointHistory(`${config.outputDir}/${scanId}`);
 
     const agentFindings = (scanData.agentFindings || []) as any[];
     if (isRaawiAgentReport) {
       await this.addRaawiSummarySheet(workbook, scan, pages, agentFindings, locale);
       await this.addAnalysisTraceSheet(workbook, pages, locale, true);
+      await this.addManualContinuationSheet(workbook, manualCheckpointHistory, locale, true);
       await this.addAnalysisAgentSheet(workbook, agentFindings, pages, locale, true);
       await this.addSummarySheet(workbook, scan, wcagFindings, pages, locale, true);
       await this.addFindingsSheet(workbook, wcagFindings, pages, locale, true);
@@ -54,6 +59,7 @@ export class ExcelReportGenerator {
 
       await this.addAnalysisAgentSheet(workbook, agentFindings, pages, locale);
       await this.addAnalysisTraceSheet(workbook, pages, locale);
+      await this.addManualContinuationSheet(workbook, manualCheckpointHistory, locale);
     }
 
     return workbook;
@@ -585,6 +591,96 @@ export class ExcelReportGenerator {
     sheet.getColumn(6).width = 16;
     sheet.getColumn(7).width = 10;
     sheet.getColumn(8).width = 55;
+    sheet.views = [{ state: 'frozen', ySplit: 2, rightToLeft: locale === 'ar' }];
+  }
+
+  private async addManualContinuationSheet(
+    workbook: ExcelJS.Workbook,
+    history: ManualCheckpointHistoryEntry[],
+    locale: 'en' | 'ar',
+    raawiPrimary = false
+  ) {
+    if (history.length === 0) {
+      return;
+    }
+
+    const sheet = workbook.addWorksheet(
+      raawiPrimary
+        ? locale === 'ar'
+          ? 'استكمال يدوي'
+          : 'Raawi Continuation'
+        : locale === 'ar'
+          ? 'استكمال يدوي'
+          : 'Manual Continuation'
+    );
+
+    if (locale === 'ar') {
+      sheet.views = [{ rightToLeft: true }];
+    }
+
+    const summaryRow = sheet.addRow([
+      locale === 'ar'
+        ? 'يسجل هذا التبويب نقاط التحقق اليدوية وعمليات استئناف الفحص.'
+        : 'This sheet records manual verification checkpoints and scan resume events.',
+    ]);
+    sheet.mergeCells(`A${summaryRow.number}:D${summaryRow.number}`);
+    summaryRow.font = { italic: true, color: { argb: 'FF6B7280' } };
+    summaryRow.alignment = { wrapText: true, vertical: 'top' };
+
+    const headerRow = sheet.addRow([
+      locale === 'ar' ? 'الوقت' : 'Time',
+      locale === 'ar' ? 'الحدث' : 'Event',
+      locale === 'ar' ? 'رابط الصفحة' : 'Page URL',
+      locale === 'ar' ? 'التفاصيل' : 'Details',
+    ]);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF2563EB' },
+    };
+    headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+
+    const getEventLabel = (event: ManualCheckpointHistoryEntry['event']) => {
+      if (locale === 'ar') {
+        if (event === 'paused') return 'توقّف';
+        if (event === 'resumed') return 'استئناف';
+        return 'تعذّر الاستئناف';
+      }
+      if (event === 'paused') return 'Paused';
+      if (event === 'resumed') return 'Resumed';
+      return 'Resume failed';
+    };
+
+    for (const entry of history) {
+      const details = [
+        entry.formPurpose ? `Form: ${entry.formPurpose}` : '',
+        entry.otpLikeFields ? `OTP-like fields: ${entry.otpLikeFields}` : '',
+        entry.checkpointHeading ? `Heading: ${entry.checkpointHeading}` : '',
+        entry.verificationCodeLength ? `Code length: ${entry.verificationCodeLength}` : '',
+        entry.message || '',
+      ]
+        .filter(Boolean)
+        .join(' | ');
+
+      const row = sheet.addRow([
+        new Date(entry.timestamp).toLocaleString(locale === 'ar' ? 'ar-SA' : 'en-US'),
+        getEventLabel(entry.event),
+        entry.pageUrl,
+        details,
+      ]);
+      row.alignment = { wrapText: true, vertical: 'top' };
+    }
+
+    sheet.autoFilter = {
+      from: 'A2',
+      to: `D${history.length + 2}`,
+    };
+
+    sheet.getColumn(1).width = 24;
+    sheet.getColumn(2).width = 18;
+    sheet.getColumn(3).width = 44;
+    sheet.getColumn(4).width = 70;
     sheet.views = [{ state: 'frozen', ySplit: 2, rightToLeft: locale === 'ar' }];
   }
 

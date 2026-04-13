@@ -1,4 +1,10 @@
-import type { ManualCheckpoint, ScanRequest, ScanRun, PageArtifact, PageScanResult } from '@raawi-x/core';
+import type {
+  ManualCheckpoint,
+  ScanRequest,
+  ScanRun,
+  PageArtifact,
+  PageScanResult,
+} from '@raawi-x/core';
 import { generateScanId } from '@raawi-x/core';
 import { config } from './config.js';
 import { validateUrl } from './security/ssrf.js';
@@ -15,6 +21,12 @@ import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { mkdir, rm, readFile, writeFile } from 'node:fs/promises';
 import { resolveScanPipeline, defaultScanPipeline } from './scan-pipeline.js';
+import {
+  appendManualCheckpointHistory,
+  clearManualCheckpoint,
+  createManualCheckpointHistoryEntry,
+  saveManualCheckpoint,
+} from './utils/manual-checkpoint-history.js';
 
 /**
  * Strict scan state machine: queued -> running -> paused|completed|failed|canceled
@@ -90,14 +102,6 @@ export class JobQueue {
       ),
       'utf-8'
     );
-  }
-
-  private async saveManualCheckpointArtifact(
-    outputDir: string,
-    checkpoint: ManualCheckpoint
-  ): Promise<void> {
-    const checkpointPath = join(outputDir, 'manual-checkpoint.json');
-    await writeFile(checkpointPath, JSON.stringify(checkpoint, null, 2), 'utf-8');
   }
 
   private async runSequentialPages(
@@ -586,11 +590,28 @@ export class JobQueue {
     const seedUrl = job.request.seedUrl || job.request.url || job.manualCheckpoint.pageUrl;
     const pipeline = resolveScanPipeline(job.request);
     const outputDir = join(config.outputDir, scanId);
+    const activeCheckpoint = job.manualCheckpoint;
 
     const resumeResult = await pageCapture.resumeManualCheckpoint(verificationCode);
     if (!resumeResult.success || !resumeResult.resolved) {
+      await appendManualCheckpointHistory(
+        outputDir,
+        createManualCheckpointHistoryEntry('resume_failed', activeCheckpoint, {
+          message: resumeResult.message,
+          verificationCodeLength: verificationCode.trim().length,
+        })
+      );
       return { ok: false, message: resumeResult.message };
     }
+
+    await clearManualCheckpoint(outputDir);
+    await appendManualCheckpointHistory(
+      outputDir,
+      createManualCheckpointHistoryEntry('resumed', activeCheckpoint, {
+        message: resumeResult.message,
+        verificationCodeLength: verificationCode.trim().length,
+      })
+    );
 
     this.transitionState(job, 'running', logger);
     this.running.add(scanId);
@@ -653,6 +674,7 @@ export class JobQueue {
           analysisAgent: pipeline.analysisAgent,
         });
         await scanRepository.updateScanStatus(scanId, 'completed', new Date());
+        await clearManualCheckpoint(outputDir);
 
         this.running.delete(scanId);
         this.activePageCaptures.delete(scanId);
@@ -863,7 +885,11 @@ export class JobQueue {
     outputDir: string
   ): Promise<void> {
     try {
-      await this.saveManualCheckpointArtifact(outputDir, checkpoint);
+      await saveManualCheckpoint(outputDir, checkpoint);
+      await appendManualCheckpointHistory(
+        outputDir,
+        createManualCheckpointHistoryEntry('paused', checkpoint)
+      );
     } catch (error) {
       logger.warn('Failed to save manual checkpoint artifact', {
         scanId,
@@ -1337,6 +1363,7 @@ export class JobQueue {
         analysisAgent: pipeline.analysisAgent,
       });
       await scanRepository.updateScanStatus(scanId, 'completed', new Date());
+      await clearManualCheckpoint(outputDir);
 
       // Clean up pageCapture reference
       this.activePageCaptures.delete(scanId);

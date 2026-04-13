@@ -114,6 +114,24 @@ export interface ManualCheckpoint {
   hasForgotPassword?: boolean;
 }
 
+export type ManualCheckpointHistoryEvent = 'paused' | 'resumed' | 'resume_failed';
+
+export interface ManualCheckpointHistoryEntry {
+  id: string;
+  event: ManualCheckpointHistoryEvent;
+  timestamp: string;
+  pageNumber: number;
+  pageUrl: string;
+  message: string;
+  source: 'analysis-agent';
+  formPurpose?: 'login' | 'register' | 'contact' | 'search' | 'generic';
+  checkpointHeading?: string | null;
+  otpLikeFields?: number;
+  hasResendCode?: boolean;
+  hasForgotPassword?: boolean;
+  verificationCodeLength?: number;
+}
+
 export interface PageScanResult {
   pageNumber: number;
   url: string;

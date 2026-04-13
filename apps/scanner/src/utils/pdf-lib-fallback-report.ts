@@ -106,6 +106,13 @@ export interface FallbackAgentTraceRow {
   traceSummary: string;
 }
 
+export interface FallbackContinuationRow {
+  timestamp: string;
+  eventLabel: string;
+  pageUrl: string;
+  details: string;
+}
+
 export interface FallbackScanPdfParams {
   logoDataUrl?: string;
   poweredByLogoDataUrl?: string;
@@ -155,6 +162,9 @@ export interface FallbackScanPdfParams {
   traceRows: FallbackAgentTraceRow[];
   analysisAgentEmpty: string;
   agentRows: FallbackAgentRow[];
+  manualContinuationTitle?: string;
+  manualContinuationIntro?: string;
+  continuationRows?: FallbackContinuationRow[];
   footerText: string;
   reportGeneratedBy: string;
 }
@@ -298,6 +308,20 @@ export async function renderFallbackScanPdf(params: FallbackScanPdfParams): Prom
   } else {
     for (const r of params.agentRows) {
       const block = `${r.kind} | ${r.source} | ${r.confidence}\n${r.message}\n${r.howToVerify}\nWCAG: ${r.suggestedWcag}\n${r.pageUrl}`;
+      drawLines(block, bodySize - 0.5, 3);
+      y -= 6;
+    }
+  }
+
+  // —— Manual continuation history
+  if (params.continuationRows?.length) {
+    drawHeading(params.manualContinuationTitle || 'Manual Continuation Timeline');
+    if (params.manualContinuationIntro?.trim()) {
+      drawLines(params.manualContinuationIntro, bodySize - 0.5, 3);
+      y -= 4;
+    }
+    for (const row of params.continuationRows) {
+      const block = `${row.timestamp} | ${row.eventLabel}\n${row.details}\n${row.pageUrl}`;
       drawLines(block, bodySize - 0.5, 3);
       y -= 6;
     }
