@@ -1,6 +1,11 @@
 import { getPrismaClient } from './client.js';
 import { SecureStorage } from '../security/storage.js';
 import { config } from '../config.js';
+import {
+  decryptAuthSecret,
+  encryptAuthSecret,
+  isEncryptedAuthSecret,
+} from '../security/auth-secret-crypto.js';
 
 export interface AuthProfileData {
   id: string;
@@ -116,12 +121,39 @@ export class AuthProfileRepository {
     return { source: 'stored', envVarName: null };
   }
 
+  private prepareSecretForPersistence(
+    value: string | undefined,
+    options?: { allowLegacyPlaintext?: boolean }
+  ): string | undefined {
+    if (value === undefined) return undefined;
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    if (this.parseSecretReference(trimmed)) {
+      return trimmed;
+    }
+    if (isEncryptedAuthSecret(trimmed)) {
+      return trimmed;
+    }
+    if (!config.auth.credentialEncryptionKey) {
+      if (options?.allowLegacyPlaintext) {
+        return trimmed;
+      }
+      throw new Error(
+        'Stored auth secrets require AUTH_CREDENTIAL_ENCRYPTION_KEY. Use env-backed secrets until the encryption key is configured.'
+      );
+    }
+    return encryptAuthSecret(trimmed, config.auth.credentialEncryptionKey);
+  }
+
   private resolveSecretValue(value?: string | null): string | null {
     if (!value || !value.trim()) {
       return null;
     }
     const ref = this.parseSecretReference(value);
     if (!ref) {
+      if (isEncryptedAuthSecret(value)) {
+        return decryptAuthSecret(value, config.auth.credentialEncryptionKey);
+      }
       return value;
     }
     const resolved = process.env[ref.envVarName];
@@ -179,14 +211,21 @@ export class AuthProfileRepository {
       where: { propertyId },
     });
 
-    const normalizedUsernameValue =
+    const nextUsernameValue =
       data.usernameValue !== undefined && data.usernameValue.trim() !== ''
         ? data.usernameValue.trim()
         : existing?.usernameValue ?? undefined;
-    const normalizedPasswordValue =
+    const nextPasswordValue =
       data.passwordValue !== undefined && data.passwordValue.trim() !== ''
         ? data.passwordValue.trim()
         : existing?.passwordValue ?? undefined;
+
+    const normalizedUsernameValue = this.prepareSecretForPersistence(nextUsernameValue, {
+      allowLegacyPlaintext: data.usernameValue === undefined || data.usernameValue.trim() === '',
+    });
+    const normalizedPasswordValue = this.prepareSecretForPersistence(nextPasswordValue, {
+      allowLegacyPlaintext: data.passwordValue === undefined || data.passwordValue.trim() === '',
+    });
 
     const profile = await prisma.scanAuthProfile.upsert({
       where: { propertyId },

@@ -55,6 +55,9 @@ export const config = {
     enabled: process.env.AUDIT_LOGGING !== 'false',
     logDir: process.env.AUDIT_LOG_DIR || './logs',
   },
+  auth: {
+    credentialEncryptionKey: process.env.AUTH_CREDENTIAL_ENCRYPTION_KEY || '',
+  },
   retention: {
     enabled: process.env.SCAN_RETENTION_ENABLED !== 'false',
     days: parseInt(process.env.SCAN_RETENTION_DAYS || '7', 10), // Default 7 days
