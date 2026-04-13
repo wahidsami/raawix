@@ -20,6 +20,7 @@ export interface AnalysisAgentPageSummary {
   stepCount: number;
   probeAttemptCount: number;
   probeSuccessCount: number;
+  probeMessages: string[];
   issueCount: number;
   issueKinds: string[];
   issueMessages: string[];
@@ -88,6 +89,7 @@ function summarizeArtifact(
 
   const probeAttemptCount = artifact?.probes?.filter((p) => p.attempted).length ?? 0;
   const probeSuccessCount = artifact?.probes?.filter((p) => p.success).length ?? 0;
+  const probeMessages = artifact?.probes?.map((probe) => probe.message).filter(Boolean) ?? [];
   const issueKinds = artifact?.issues?.map((issue) => issue.kind).filter(Boolean) ?? [];
   const issueMessages = artifact?.issues?.map((issue) => issue.message).filter(Boolean) ?? [];
   const stepCount = artifact?.steps?.length ?? 0;
@@ -103,6 +105,7 @@ function summarizeArtifact(
     stepCount,
     probeAttemptCount,
     probeSuccessCount,
+    probeMessages: [...new Set(probeMessages)],
     issueCount,
     issueKinds: [...new Set(issueKinds)],
     issueMessages: [...new Set(issueMessages)],

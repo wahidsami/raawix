@@ -250,6 +250,7 @@ interface ScanDetail {
       stepCount: number;
       probeAttemptCount: number;
       probeSuccessCount: number;
+      probeMessages: string[];
       issueCount: number;
       issueKinds: string[];
       issueMessages: string[];
@@ -306,6 +307,7 @@ interface ScanDetail {
         stepCount: number;
         probeAttemptCount: number;
         probeSuccessCount: number;
+        probeMessages: string[];
         issueCount: number;
         issueKinds: string[];
         issueMessages: string[];
@@ -1141,7 +1143,18 @@ export default function ScanDetailPage() {
                         {trace.probeAttemptCount} attempted / {trace.probeSuccessCount} passed
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">{trace.issueCount}</td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">{trace.traceSummary}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">
+                        <div>{trace.traceSummary}</div>
+                        {trace.probeMessages?.length ? (
+                          <div className="mt-1 space-y-1">
+                            {trace.probeMessages.slice(0, 2).map((message, index) => (
+                              <div key={`${trace.pageNumber}-probe-${index}`} className="text-[11px]">
+                                {message}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

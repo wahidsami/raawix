@@ -80,6 +80,7 @@ export type InteractionArtifact = {
       | 'missing_page_structure'
       | 'unnamed_task_control'
       | 'missing_form_instructions'
+      | 'unclear_error_recovery'
       | 'image_alt_task_issue'
       | 'verification_checkpoint_requires_manual_input';
     message: string;
@@ -95,6 +96,23 @@ export type InteractionArtifact = {
     message: string;
     evidence: unknown;
   }>;
+};
+
+type FormSubmitProbeCandidate = {
+  selector: string;
+  tag: string;
+  formSelector: string;
+  formPurpose: 'login' | 'register' | 'contact' | 'search' | 'generic';
+  fieldCount: number;
+  requiredCount: number;
+  emptyFieldCount: number;
+  emptyRequiredCount: number;
+  passwordCount: number;
+  otpLikeCount: number;
+  hasFileInput: boolean;
+  hasSensitiveKeyword: boolean;
+  safeToProbe: boolean;
+  skipReason?: string;
 };
 
 const INTERACTIVE_ROLES = new Set([
@@ -324,14 +342,45 @@ async function findCandidateElements(
 ): Promise<{
   modalTriggers: Array<{ selector: string; tag: string }>;
   menuToggles: Array<{ selector: string; tag: string; expanded: string | null }>;
-  submitButtons: Array<{ selector: string; tag: string }>;
+  submitButtons: FormSubmitProbeCandidate[];
 }> {
   return page.evaluate((max: number) => {
     const out: {
       modalTriggers: Array<{ selector: string; tag: string }>;
       menuToggles: Array<{ selector: string; tag: string; expanded: string | null }>;
-      submitButtons: Array<{ selector: string; tag: string }>;
+      submitButtons: FormSubmitProbeCandidate[];
     } = { modalTriggers: [], menuToggles: [], submitButtons: [] };
+    const controlName = (el: Element): string => {
+      const ariaLabel = el.getAttribute('aria-label');
+      if (ariaLabel?.trim()) return ariaLabel.trim();
+      const labelledBy = el.getAttribute('aria-labelledby');
+      if (labelledBy?.trim()) {
+        const text = labelledBy
+          .split(/\s+/)
+          .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+        if (text) return text;
+      }
+      return (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+    };
+    const simpleSelector = (el: Element): string => {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.id) return `#${htmlEl.id}`;
+      const name = el.getAttribute('name');
+      if (name) return `${el.tagName}[name="${name}"]`;
+      const className = htmlEl.className ? String(htmlEl.className).split(/\s+/).slice(0, 2).join('.') : '';
+      return `${el.tagName}${className ? `.${className}` : ''}`;
+    };
+    const inferFormPurpose = (form: HTMLFormElement): FormSubmitProbeCandidate['formPurpose'] => {
+      const formText = `${(form.textContent ?? '').replace(/\s+/g, ' ').trim()} ${form.getAttribute('aria-label') ?? ''}`.toLowerCase();
+      if (/login|sign in|signin|دخول|تسجيل الدخول/.test(formText) || form.querySelector('input[type="password"]')) return 'login';
+      if (/register|sign up|signup|create account|تسجيل|إنشاء حساب/.test(formText)) return 'register';
+      if (/contact|message|support|تواصل|رسالة/.test(formText)) return 'contact';
+      if (form.querySelector('input[type="search"]') || /search|بحث/.test(formText)) return 'search';
+      return 'generic';
+    };
     const selModal = '[aria-haspopup="dialog"], [data-modal], button[aria-expanded][aria-controls]';
     document.querySelectorAll(selModal).forEach((n) => {
       if (out.modalTriggers.length >= max) return;
@@ -362,8 +411,59 @@ async function findCandidateElements(
       if (out.submitButtons.length >= max) return;
       const el = sb as HTMLElement;
       if (el.offsetParent === null) return;
-      const ssel = el.id ? `#${el.id}` : el.tagName + (el.getAttribute('name') ? `[name="${el.getAttribute('name')}"]` : '');
-      out.submitButtons.push({ selector: ssel, tag: el.tagName });
+      const form = el.closest('form') as HTMLFormElement | null;
+      if (!form) return;
+      const fields = Array.from(form.querySelectorAll('input, select, textarea')) as Array<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>;
+      const requiredFields = fields.filter((field) => field.required || field.getAttribute('aria-required') === 'true');
+      const emptyFields = fields.filter((field) => {
+        if (field instanceof HTMLSelectElement) return !field.value;
+        if ((field as HTMLInputElement).type === 'checkbox' || (field as HTMLInputElement).type === 'radio') {
+          return !(field as HTMLInputElement).checked;
+        }
+        return !(field.value ?? '').trim();
+      });
+      const emptyRequiredFields = requiredFields.filter((field) => {
+        if (field instanceof HTMLSelectElement) return !field.value;
+        if ((field as HTMLInputElement).type === 'checkbox' || (field as HTMLInputElement).type === 'radio') {
+          return !(field as HTMLInputElement).checked;
+        }
+        return !((field.value ?? '').trim());
+      });
+      const formPurpose = inferFormPurpose(form);
+      const allText = `${(form.textContent ?? '').replace(/\s+/g, ' ').trim()} ${controlName(el)}`.toLowerCase();
+      const hasSensitiveKeyword = /delete|remove|purchase|pay|payment|checkout|order|book now|apply now|unsubscribe|cancel plan|حذف|إزالة|شراء|دفع|الدفع|إتمام الطلب|إلغاء/.test(allText);
+      const hasFileInput = fields.some((field) => (field as HTMLInputElement).type === 'file');
+      const passwordCount = fields.filter((field) => (field as HTMLInputElement).type === 'password').length;
+      const otpLikeCount = fields.filter((field) => {
+        const input = field as HTMLInputElement | HTMLTextAreaElement;
+        const signature = `${controlName(field)} ${field.getAttribute('name') ?? ''} ${field.getAttribute('id') ?? ''} ${field.getAttribute('autocomplete') ?? ''}`.toLowerCase();
+        return input.inputMode === 'numeric' || /otp|verification|code|token|رمز|كود/.test(signature);
+      }).length;
+      const safeBecauseValidationLikely = emptyRequiredFields.length > 0 || (formPurpose !== 'generic' && emptyFields.length > 0);
+      const safeToProbe = !hasSensitiveKeyword && !hasFileInput && safeBecauseValidationLikely;
+      const skipReason = safeToProbe
+        ? undefined
+        : hasSensitiveKeyword
+          ? 'Form looks transactional or destructive.'
+          : hasFileInput
+            ? 'Form contains file upload fields.'
+            : 'Form does not present an obvious invalid empty-state validation path.';
+      out.submitButtons.push({
+        selector: simpleSelector(el),
+        tag: el.tagName,
+        formSelector: simpleSelector(form),
+        formPurpose,
+        fieldCount: fields.length,
+        requiredCount: requiredFields.length,
+        emptyFieldCount: emptyFields.length,
+        emptyRequiredCount: emptyRequiredFields.length,
+        passwordCount,
+        otpLikeCount,
+        hasFileInput,
+        hasSensitiveKeyword,
+        safeToProbe,
+        ...(skipReason ? { skipReason } : {}),
+      });
     });
     return out;
   }, maxPerType);
@@ -406,8 +506,55 @@ async function getExpandedState(page: Page, selector: string): Promise<string | 
 /** Run in page: check validation state (aria-invalid, role=alert, focus). */
 async function checkValidationState(
   page: Page
-): Promise<{ hasValidation: boolean; focusOnInvalid: boolean; focusOnAlert: boolean; invalidCount: number }> {
+): Promise<{
+  hasValidation: boolean;
+  focusOnInvalid: boolean;
+  focusOnAlert: boolean;
+  invalidCount: number;
+  alertCount: number;
+  alertTexts: string[];
+  describedErrorCount: number;
+  invalidFields: Array<{ name: string; type: string | null; selector: string; describedByText: string }>;
+}> {
   return page.evaluate(() => {
+    const selectorFor = (el: Element): string => {
+      const htmlEl = el as HTMLElement;
+      if (htmlEl.id) return `#${htmlEl.id}`;
+      const name = el.getAttribute('name');
+      if (name) return `${el.tagName}[name="${name}"]`;
+      const className = htmlEl.className ? String(htmlEl.className).split(/\s+/).slice(0, 2).join('.') : '';
+      return `${el.tagName}${className ? `.${className}` : ''}`;
+    };
+    const accessibleName = (el: Element): string => {
+      const ariaLabel = el.getAttribute('aria-label');
+      if (ariaLabel?.trim()) return ariaLabel.trim();
+      const labelledBy = el.getAttribute('aria-labelledby');
+      if (labelledBy?.trim()) {
+        const text = labelledBy
+          .split(/\s+/)
+          .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+        if (text) return text;
+      }
+      if ((el as HTMLInputElement).labels?.length) {
+        return Array.from((el as HTMLInputElement).labels ?? [])
+          .map((label) => label.textContent?.trim() ?? '')
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+      }
+      return '';
+    };
+    const describedByText = (el: Element): string => {
+      const ids = (el.getAttribute('aria-describedby') ?? '').trim().split(/\s+/).filter(Boolean);
+      return ids
+        .map((id) => document.getElementById(id)?.textContent?.replace(/\s+/g, ' ').trim() ?? '')
+        .filter(Boolean)
+        .join(' ')
+        .slice(0, 200);
+    };
     const invalid = document.querySelectorAll('input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"]');
     const alerts = document.querySelectorAll('[role="alert"]');
     const firstInvalid = invalid.length ? invalid[0] : null;
@@ -415,11 +562,53 @@ async function checkValidationState(
     const focusOnInvalid = !!(firstInvalid && document.activeElement === firstInvalid);
     const focusOnAlert = !!(firstAlert && document.activeElement === firstAlert);
     const alertText = firstAlert ? (firstAlert.textContent ?? '').trim().length > 0 : false;
+    const invalidFields = Array.from(invalid)
+      .slice(0, 5)
+      .map((field) => ({
+        name: accessibleName(field),
+        type: field.getAttribute('type'),
+        selector: selectorFor(field),
+        describedByText: describedByText(field),
+      }));
+    const describedErrorCount = invalidFields.filter((field) => field.describedByText.trim().length > 0).length;
     return {
       hasValidation: invalid.length > 0 || (alerts.length > 0 && alertText),
       focusOnInvalid,
       focusOnAlert,
       invalidCount: invalid.length,
+      alertCount: alerts.length,
+      alertTexts: Array.from(alerts).slice(0, 3).map((alert) => (alert.textContent ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean),
+      describedErrorCount,
+      invalidFields,
+    };
+  });
+}
+
+async function detectVerificationCheckpoint(page: Page): Promise<{
+  detected: boolean;
+  otpLikeFields: number;
+  hasResendCode: boolean;
+  hasForgotPassword: boolean;
+  heading: string | null;
+}> {
+  return page.evaluate(() => {
+    const text = (document.body?.innerText ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const fields = Array.from(document.querySelectorAll('input, textarea, select'));
+    const otpLikeFields = fields.filter((field) => {
+      const input = field as HTMLInputElement | HTMLTextAreaElement;
+      const signature = `${field.getAttribute('aria-label') ?? ''} ${field.getAttribute('name') ?? ''} ${field.getAttribute('id') ?? ''} ${field.getAttribute('autocomplete') ?? ''}`.toLowerCase();
+      return input.inputMode === 'numeric' || /otp|verification|code|token|رمز|كود/.test(signature);
+    }).length;
+    const hasResendCode = /resend code|send again|إعادة إرسال|إرسال مرة أخرى/.test(text);
+    const hasForgotPassword = /forgot password|reset password|نسيت كلمة المرور|استعادة كلمة المرور/.test(text);
+    const heading =
+      document.querySelector('h1, h2, [role="heading"]')?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 120) ?? null;
+    return {
+      detected: otpLikeFields > 0 || hasResendCode,
+      otpLikeFields,
+      hasResendCode,
+      hasForgotPassword,
+      heading,
     };
   });
 }
@@ -901,8 +1090,27 @@ export async function runInteractionAgent(
         }
 
         if (runProbe() && !stopFurtherProbesRef.current) {
-          const submitBtn = candidates.submitButtons[0];
+          const submitBtn = candidates.submitButtons.find((candidate) => candidate.safeToProbe) ?? candidates.submitButtons[0];
           if (submitBtn) {
+            if (!submitBtn.safeToProbe) {
+              probes.push({
+                name: 'form_validation_probe',
+                attempted: false,
+                success: false,
+                message: `Skipped form validation probe: ${submitBtn.skipReason ?? 'form was not safe to probe automatically.'}`,
+                evidence: {
+                  selector: submitBtn.selector,
+                  formSelector: submitBtn.formSelector,
+                  formPurpose: submitBtn.formPurpose,
+                  fieldCount: submitBtn.fieldCount,
+                  requiredCount: submitBtn.requiredCount,
+                  emptyFieldCount: submitBtn.emptyFieldCount,
+                  emptyRequiredCount: submitBtn.emptyRequiredCount,
+                  passwordCount: submitBtn.passwordCount,
+                  otpLikeCount: submitBtn.otpLikeCount,
+                },
+              });
+            } else {
             const nav = await runProbeWithNavGuard(
               page,
               probeStartUrl,
@@ -918,6 +1126,7 @@ export async function runInteractionAgent(
                 await page.waitForTimeout(PROBE_WAIT_MS);
 
                 const validation = await checkValidationState(page);
+                const verificationCheckpoint = await detectVerificationCheckpoint(page);
                 const afterFingerprint = await getDomChangeFingerprint(page);
                 const liveAfter = await getAriaLiveTexts(page, ARIA_LIVE_SAMPLE_SIZE);
                 const afterSnapshot = await page.evaluate(captureFocusScript);
@@ -933,9 +1142,58 @@ export async function runInteractionAgent(
                     kind: 'validation_error_not_focused',
                     message: 'Validation errors appeared but focus did not move to the first invalid field or error summary.',
                     confidence: 0.75,
-                    evidence: { invalidCount: validation.invalidCount, focusOnInvalid: validation.focusOnInvalid, focusOnAlert: validation.focusOnAlert },
+                    evidence: {
+                      invalidCount: validation.invalidCount,
+                      focusOnInvalid: validation.focusOnInvalid,
+                      focusOnAlert: validation.focusOnAlert,
+                      invalidFields: validation.invalidFields,
+                      alertTexts: validation.alertTexts,
+                      selector: submitBtn.selector,
+                      formPurpose: submitBtn.formPurpose,
+                    },
                     suggestedWcagIds: ['3.3.1', '3.3.3', '4.1.3'],
                     howToVerify: 'Submit invalid form; focus should move to first error or role="alert" summary.',
+                  });
+                }
+                if (
+                  submitBtn.emptyRequiredCount > 0 &&
+                  !validation.hasValidation &&
+                  !verificationCheckpoint.detected &&
+                  !domChanged
+                ) {
+                  issues.push({
+                    kind: 'unclear_error_recovery',
+                    message: 'Submitting an incomplete form did not surface clear validation feedback.',
+                    confidence: 0.72,
+                    evidence: {
+                      selector: submitBtn.selector,
+                      formPurpose: submitBtn.formPurpose,
+                      emptyRequiredCount: submitBtn.emptyRequiredCount,
+                      requiredCount: submitBtn.requiredCount,
+                    },
+                    suggestedWcagIds: ['3.3.1', '3.3.3', '4.1.3'],
+                    howToVerify: 'Submit the form with empty required fields and confirm the error is announced and explained.',
+                  });
+                }
+                if (
+                  validation.hasValidation &&
+                  validation.invalidCount > 0 &&
+                  validation.describedErrorCount === 0 &&
+                  validation.alertCount === 0
+                ) {
+                  issues.push({
+                    kind: 'unclear_error_recovery',
+                    message: 'Invalid fields were detected, but no clear inline or alert-based error explanation was captured.',
+                    confidence: 0.68,
+                    evidence: {
+                      selector: submitBtn.selector,
+                      formPurpose: submitBtn.formPurpose,
+                      invalidFields: validation.invalidFields,
+                      describedErrorCount: validation.describedErrorCount,
+                      alertCount: validation.alertCount,
+                    },
+                    suggestedWcagIds: ['3.3.1', '3.3.3'],
+                    howToVerify: 'Check whether each invalid field exposes an inline error message or associated description that a screen reader can announce.',
                   });
                 }
                 if (domChanged && !focusMovedToInvalidOrAlert && !ariaLiveChanged) {
@@ -948,6 +1206,23 @@ export async function runInteractionAgent(
                     howToVerify: 'Ensure validation messages are announced or focus moves to error.',
                   });
                 }
+                if (verificationCheckpoint.detected) {
+                  issues.push({
+                    kind: 'verification_checkpoint_requires_manual_input',
+                    message: 'Form submission reached a verification-code checkpoint that will require a manual user-provided code.',
+                    confidence: 0.8,
+                    evidence: {
+                      selector: submitBtn.selector,
+                      formPurpose: submitBtn.formPurpose,
+                      checkpointHeading: verificationCheckpoint.heading,
+                      otpLikeFields: verificationCheckpoint.otpLikeFields,
+                      hasResendCode: verificationCheckpoint.hasResendCode,
+                      hasForgotPassword: verificationCheckpoint.hasForgotPassword,
+                    },
+                    suggestedWcagIds: ['3.3.2'],
+                    howToVerify: 'Continue the authentication flow and confirm the verification step exposes clear instructions, resend options, and enough time.',
+                  });
+                }
                 return {
                   afterSnapshot,
                   beforeFocusSig,
@@ -956,9 +1231,19 @@ export async function runInteractionAgent(
                   focusOnInvalid: validation.focusOnInvalid,
                   focusOnAlert: validation.focusOnAlert,
                   invalidCount: validation.invalidCount,
+                  alertCount: validation.alertCount,
+                  alertTexts: validation.alertTexts,
+                  invalidFields: validation.invalidFields,
+                  describedErrorCount: validation.describedErrorCount,
+                  verificationCheckpoint,
                   ariaLiveChanged,
                   domChanged,
                   selector: submitBtn.selector,
+                  formSelector: submitBtn.formSelector,
+                  formPurpose: submitBtn.formPurpose,
+                  fieldCount: submitBtn.fieldCount,
+                  requiredCount: submitBtn.requiredCount,
+                  emptyRequiredCount: submitBtn.emptyRequiredCount,
                 };
               }
             );
@@ -968,8 +1253,10 @@ export async function runInteractionAgent(
               ? nav.error.message
               : !hasResult
                 ? 'Probe did not complete.'
+                : nav.result!.verificationCheckpoint.detected
+                  ? 'Verification checkpoint reached; manual code-entry flow is required.'
                 : !nav.result!.hasValidation
-                  ? 'No validation errors detected.'
+                  ? 'No validation feedback was detected after probing the incomplete form.'
                   : nav.result!.focusOnInvalid || nav.result!.focusOnAlert
                     ? 'Validation shown and focus moved to error.'
                     : 'Validation shown but focus did not move.';
@@ -988,10 +1275,21 @@ export async function runInteractionAgent(
                 hasValidation: hasResult ? nav.result!.hasValidation : undefined,
                 focusOnInvalid: hasResult ? nav.result!.focusOnInvalid : undefined,
                 focusOnAlert: hasResult ? nav.result!.focusOnAlert : undefined,
+                alertCount: hasResult ? nav.result!.alertCount : undefined,
+                alertTexts: hasResult ? nav.result!.alertTexts : undefined,
+                invalidFields: hasResult ? nav.result!.invalidFields : undefined,
+                describedErrorCount: hasResult ? nav.result!.describedErrorCount : undefined,
+                verificationCheckpoint: hasResult ? nav.result!.verificationCheckpoint : undefined,
                 afterActive: hasResult ? { tag: nav.result!.afterSnapshot.tag, id: nav.result!.afterSnapshot.id } : undefined,
                 selector: submitBtn.selector,
+                formSelector: submitBtn.formSelector,
+                formPurpose: submitBtn.formPurpose,
+                fieldCount: submitBtn.fieldCount,
+                requiredCount: submitBtn.requiredCount,
+                emptyRequiredCount: submitBtn.emptyRequiredCount,
               },
             });
+            }
           } else {
             probes.push({
               name: 'form_validation_probe',
