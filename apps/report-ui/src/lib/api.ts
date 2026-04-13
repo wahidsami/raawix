@@ -587,9 +587,30 @@ class ApiClient {
     return this.request(`/api/entities/properties/list${query ? `?${query}` : ''}`);
   }
 
+  async getPropertyAuthProfile(propertyId: string): Promise<{
+    id: string;
+    propertyId: string;
+    authType: 'none' | 'cookie' | 'scripted_login';
+    loginUrl?: string | null;
+    successUrlPrefix?: string | null;
+    successSelector?: string | null;
+    usernameSelector?: string | null;
+    passwordSelector?: string | null;
+    submitSelector?: string | null;
+    postLoginSeedPaths?: string[] | null;
+    extraHeaders?: Record<string, string> | null;
+    isActive: boolean;
+    lastTestedAt?: string | null;
+    lastTestResult?: string | null;
+    lastTestError?: string | null;
+  }> {
+    return this.request(`/api/properties/${propertyId}/auth-profile`);
+  }
+
   async startScan(data: {
     entityId?: string;
     propertyId?: string;
+    authProfileId?: string;
     seedUrl: string;
     maxPages: number;
     maxDepth: number;

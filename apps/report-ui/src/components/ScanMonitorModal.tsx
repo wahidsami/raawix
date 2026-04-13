@@ -83,6 +83,20 @@ interface ManualCheckpointState {
   hasForgotPassword?: boolean;
 }
 
+interface PropertyAuthProfileState {
+  id: string;
+  propertyId: string;
+  authType: 'none' | 'cookie' | 'scripted_login';
+  loginUrl?: string | null;
+  successUrlPrefix?: string | null;
+  successSelector?: string | null;
+  postLoginSeedPaths?: string[] | null;
+  isActive: boolean;
+  lastTestedAt?: string | null;
+  lastTestResult?: string | null;
+  lastTestError?: string | null;
+}
+
 export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain', maxPages, maxDepth, entityId, propertyId, onClose, onComplete }: ScanMonitorModalProps) {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
@@ -113,6 +127,10 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   const [pipelineScreenshotMode, setPipelineScreenshotMode] = useState<'full' | 'viewport'>('full');
   const [auditMode, setAuditMode] = useState<'classic' | 'raawi-agent'>('classic');
   const isRaawiAgentMode = auditMode === 'raawi-agent';
+  const [authProfile, setAuthProfile] = useState<PropertyAuthProfileState | null>(null);
+  const [authProfileLoading, setAuthProfileLoading] = useState(false);
+  const [authProfileError, setAuthProfileError] = useState<string | null>(null);
+  const [useSavedAuthProfile, setUseSavedAuthProfile] = useState(true);
   const propertyDefaultsAppliedRef = useRef(false);
   const scanPipelineInvalid = !pipelineLayer1 && !pipelineLayer2;
 
@@ -154,6 +172,50 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       cancelled = true;
     };
   }, [propertyId, entityId, scanId]);
+
+  useEffect(() => {
+    if (!propertyId) {
+      setAuthProfile(null);
+      setAuthProfileError(null);
+      setAuthProfileLoading(false);
+      setUseSavedAuthProfile(false);
+      return;
+    }
+
+    let cancelled = false;
+    setAuthProfileLoading(true);
+    setAuthProfileError(null);
+
+    apiClient
+      .getPropertyAuthProfile(propertyId)
+      .then((profile) => {
+        if (cancelled) return;
+        setAuthProfile(profile);
+        setUseSavedAuthProfile(profile.isActive && profile.authType === 'scripted_login');
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : 'Failed to load auth profile';
+        if (/404/.test(message) || /not found/i.test(message)) {
+          setAuthProfile(null);
+          setUseSavedAuthProfile(false);
+          setAuthProfileError(null);
+        } else {
+          setAuthProfile(null);
+          setUseSavedAuthProfile(false);
+          setAuthProfileError(message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAuthProfileLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId]);
 
   const [currentPage, setCurrentPage] = useState<string | null>(null);
   /** Scan output folder index — used to load screenshot.png while the scan runs */
@@ -312,6 +374,16 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
     const rounded = remainingMin < 2 ? 1 : Math.round(remainingMin);
     return `~${rounded} min`;
   }, [phase, stats.pagesScanned, stats.pagesDiscovered]);
+
+  const canUseSavedAuthProfile =
+    !!authProfile && authProfile.isActive && authProfile.authType === 'scripted_login';
+  const authCoveragePreviewLabel = canUseSavedAuthProfile && useSavedAuthProfile
+    ? 'Authenticated scan planned'
+    : authProfile?.isActive && authProfile.authType !== 'scripted_login'
+      ? 'Saved profile not yet automatable'
+      : authProfile && !authProfile.isActive
+        ? 'Saved profile is inactive'
+        : 'Unauthenticated scan';
 
   const elapsedLabel = useMemo(() => {
     const totalSeconds = Math.floor(Math.max(0, elapsedMs) / 1000);
@@ -1740,6 +1812,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
             auditMode,
             entityId, // Pass entity ID for proper report generation
             propertyId, // Pass property ID for proper report generation
+            authProfileId: canUseSavedAuthProfile && useSavedAuthProfile ? propertyId : undefined,
           }),
         });
 
@@ -1760,6 +1833,9 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         maxPages: selectedUrls.size,
         maxDepth: 3,
         auditMode,
+        entityId,
+        propertyId,
+        authProfileId: canUseSavedAuthProfile && useSavedAuthProfile ? propertyId : undefined,
         scanPipeline: isRaawiAgentMode
           ? {
               layer1: true,
@@ -2481,6 +2557,86 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                         </span>
                       </span>
                     </label>
+                  </div>
+                  <div className="space-y-2 rounded-md border border-border bg-background/60 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Authentication
+                    </div>
+                    {authProfileLoading ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Checking saved login profile...</span>
+                      </div>
+                    ) : authProfileError ? (
+                      <div className="rounded border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-muted-foreground">
+                        Could not load the saved login profile. The scan can still run unauthenticated.
+                      </div>
+                    ) : authProfile ? (
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`inline-flex rounded px-2 py-1 text-xs font-medium ring-1 ${
+                            canUseSavedAuthProfile
+                              ? 'bg-emerald-500/15 text-emerald-700 ring-emerald-500/20'
+                              : authProfile.isActive
+                                ? 'bg-amber-500/15 text-amber-700 ring-amber-500/20'
+                                : 'bg-muted text-muted-foreground ring-border'
+                          }`}>
+                            {authCoveragePreviewLabel}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            Type: {authProfile.authType}
+                          </span>
+                          {authProfile.lastTestResult ? (
+                            <span className="text-xs text-muted-foreground">
+                              Last test: {authProfile.lastTestResult}
+                            </span>
+                          ) : null}
+                        </div>
+                        {authProfile.loginUrl ? (
+                          <div className="text-xs text-muted-foreground break-all">
+                            Login URL: {authProfile.loginUrl}
+                          </div>
+                        ) : null}
+                        {typeof authProfile.postLoginSeedPaths?.length === 'number' && authProfile.postLoginSeedPaths.length > 0 ? (
+                          <div className="text-xs text-muted-foreground">
+                            Post-login seed paths: {authProfile.postLoginSeedPaths.length}
+                          </div>
+                        ) : null}
+                        {authProfile.lastTestError ? (
+                          <div className="text-xs text-amber-700">
+                            Last test error: {authProfile.lastTestError}
+                          </div>
+                        ) : null}
+                        <label className="flex items-start gap-2 text-sm text-foreground cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 rounded border-border"
+                            checked={useSavedAuthProfile}
+                            disabled={!canUseSavedAuthProfile}
+                            onChange={(e) => setUseSavedAuthProfile(e.target.checked)}
+                          />
+                          <span>
+                            <span className="font-medium">Use saved login profile for this scan</span>
+                            <span className="block text-xs text-muted-foreground font-normal">
+                              {canUseSavedAuthProfile
+                                ? 'The scanner will sign in before crawling and the report will mark this run as authenticated.'
+                                : authProfile.authType !== 'scripted_login'
+                                  ? 'This saved auth profile exists, but only scripted login profiles are automated right now.'
+                                  : 'This saved auth profile is inactive, so this run will stay unauthenticated.'}
+                            </span>
+                          </span>
+                        </label>
+                        {isRaawiAgentMode && canUseSavedAuthProfile && useSavedAuthProfile ? (
+                          <div className="rounded border border-sky-500/25 bg-sky-500/5 p-2 text-xs text-muted-foreground">
+                            If the signed-in flow reaches a verification code step, Raawi can pause and ask for the code before continuing.
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="rounded border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
+                        No saved login profile was found for this property. This scan will run unauthenticated.
+                      </div>
+                    )}
                   </div>
                   {isRaawiAgentMode ? (
                     <div className="rounded-md border border-emerald-500/25 bg-emerald-500/5 p-3">

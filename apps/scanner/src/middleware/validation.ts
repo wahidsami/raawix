@@ -26,6 +26,7 @@ const scanRequestSchema = z.object({
   // Entity/Property linking
   entityId: z.string().uuid('Invalid entityId format').optional(),
   propertyId: z.string().uuid('Invalid propertyId format').optional(),
+  authProfileId: z.string().uuid('Invalid authProfileId format').optional(),
   // Sequential scanning support (for phase 3: scan selected pages)
   scanId: z.string().optional(), // Allow passing existing scan ID
   selectedUrls: z.array(z.string().url('Invalid URL in selectedUrls')).optional(), // Allow passing selected URLs
