@@ -89,6 +89,25 @@ interface AuthProfileEditorState {
   isActive: boolean;
 }
 
+interface AuthProfileDetectionState {
+  success: boolean;
+  message: string;
+  error?: string;
+  loginSucceeded: boolean;
+  verificationCheckpointDetected: boolean;
+  detected: {
+    loginUrl: string;
+    usernameSelector?: string;
+    passwordSelector?: string;
+    submitSelector?: string;
+    successUrlPrefix?: string | null;
+    successSelector?: string | null;
+    postLoginSeedPaths: string[];
+    confidence: 'high' | 'medium' | 'low';
+    notes: string[];
+  };
+}
+
 function createEmptyAuthProfileEditor(): AuthProfileEditorState {
   return {
     authType: 'scripted_login',
@@ -180,6 +199,9 @@ export default function EntityDetailPage() {
   const [propertyAuthEditor, setPropertyAuthEditor] = useState<AuthProfileEditorState>(createEmptyAuthProfileEditor());
   const [propertyAuthSaving, setPropertyAuthSaving] = useState(false);
   const [propertyAuthTesting, setPropertyAuthTesting] = useState(false);
+  const [propertyAuthDetecting, setPropertyAuthDetecting] = useState(false);
+  const [showPropertyAuthAdvanced, setShowPropertyAuthAdvanced] = useState(false);
+  const [propertyAuthDetection, setPropertyAuthDetection] = useState<AuthProfileDetectionState | null>(null);
   const [propertyAuthBanner, setPropertyAuthBanner] = useState<{
     tone: 'success' | 'warning' | 'error' | 'info';
     message: string;
@@ -347,6 +369,8 @@ export default function EntityDetailPage() {
   useEffect(() => {
     if (!showPropertyAuthEditor || !selectedAuthPropertyId) return;
     const selectedProfile = propertyAuthProfiles[selectedAuthPropertyId] || null;
+    setPropertyAuthDetection(null);
+    setShowPropertyAuthAdvanced(false);
     if (selectedProfile) {
       setPropertyAuthEditor({
         authType: selectedProfile.authType,
@@ -475,6 +499,7 @@ export default function EntityDetailPage() {
     setSelectedAuthPropertyId(propertyId);
     setShowPropertyAuthEditor(true);
     setPropertyAuthBanner(null);
+    setPropertyAuthDetection(null);
   };
 
   const handleSavePropertyAuthProfile = async (runTestAfterSave = false) => {
@@ -526,6 +551,45 @@ export default function EntityDetailPage() {
     } finally {
       setPropertyAuthSaving(false);
       setPropertyAuthTesting(false);
+    }
+  };
+
+  const handleDetectPropertyAuthProfile = async () => {
+    if (!selectedAuthPropertyId) return;
+    try {
+      setPropertyAuthDetecting(true);
+      setPropertyAuthBanner(null);
+      setPropertyAuthDetection(null);
+      const result = await apiClient.detectPropertyAuthProfile(selectedAuthPropertyId, {
+        loginUrl: propertyAuthEditor.loginUrl.trim(),
+        usernameValue: propertyAuthEditor.usernameValue.trim(),
+        passwordValue: propertyAuthEditor.passwordValue.trim() || undefined,
+      });
+      setPropertyAuthDetection(result);
+      setPropertyAuthEditor((prev) => ({
+        ...prev,
+        loginUrl: result.detected.loginUrl || prev.loginUrl,
+        usernameSelector: result.detected.usernameSelector || prev.usernameSelector,
+        passwordSelector: result.detected.passwordSelector || prev.passwordSelector,
+        submitSelector: result.detected.submitSelector || prev.submitSelector,
+        successUrlPrefix: result.detected.successUrlPrefix || '',
+        successSelector: result.detected.successSelector || '',
+        postLoginSeedPathsText: result.detected.postLoginSeedPaths.join('\n'),
+      }));
+      setPropertyAuthBanner({
+        tone: result.success ? 'success' : 'warning',
+        message: result.message,
+      });
+      if (!result.success) {
+        setShowPropertyAuthAdvanced(true);
+      }
+    } catch (error) {
+      setPropertyAuthBanner({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Failed to detect the login flow.',
+      });
+    } finally {
+      setPropertyAuthDetecting(false);
     }
   };
 
@@ -817,7 +881,7 @@ export default function EntityDetailPage() {
       (!profile.isActive ||
         profile.authType !== 'scripted_login' ||
         profile.secretHealth === 'missing_env' ||
-        profile.lastTestResult === 'failure')
+        profile.lastTestResult === 'failed')
     );
   }).length;
   const authMissingCount = Math.max(0, entity.properties.length - authReadyCount - authNeedsAttentionCount);
@@ -1068,7 +1132,7 @@ export default function EntityDetailPage() {
                         authLabel = 'Missing env secret';
                         authTone = 'bg-red-500/10 text-red-700 dark:text-red-300';
                         authDescription = 'One or more referenced environment secrets are missing on the scanner server.';
-                      } else if (authProfile.lastTestResult === 'failure') {
+                      } else if (authProfile.lastTestResult === 'failed') {
                         authLabel = 'Test failed';
                         authTone = 'bg-red-500/10 text-red-700 dark:text-red-300';
                         authDescription = authProfile.lastTestError || 'The latest login test failed.';
@@ -1235,7 +1299,7 @@ export default function EntityDetailPage() {
                     {selectedAuthProfile
                       ? selectedAuthProfile.lastTestResult === 'success'
                         ? 'Ready'
-                        : selectedAuthProfile.lastTestResult === 'failure'
+                        : selectedAuthProfile.lastTestResult === 'failed'
                           ? 'Needs attention'
                           : selectedAuthProfile.isActive
                             ? 'Configured'
@@ -1305,11 +1369,67 @@ export default function EntityDetailPage() {
                   {selectedAuthProfile ? 'Edit saved login profile' : 'Create login profile'}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Use scripted login to sign in before scan start. Leave the username/password
-                  values blank if you want to keep the existing secret.
+                  Start with the login URL, username, and password. The system can auto-detect the
+                  technical selectors, then you can open advanced settings only if something needs manual correction.
                 </p>
 
                 <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <label className="flex items-center gap-2 rounded border border-border px-3 py-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={propertyAuthEditor.isActive}
+                      onChange={(e) =>
+                        setPropertyAuthEditor((prev) => ({ ...prev, isActive: e.target.checked }))
+                      }
+                    />
+                    Profile is active for future scans
+                  </label>
+                  <div className="rounded border border-sky-500/20 bg-sky-500/5 px-3 py-2 text-xs text-sky-700 dark:text-sky-300">
+                    The profile will be saved as scripted login. Raawi can pause later if the authenticated flow reaches a verification code step.
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-foreground">Login URL</label>
+                    <input
+                      value={propertyAuthEditor.loginUrl}
+                      onChange={(e) =>
+                        setPropertyAuthEditor((prev) => ({ ...prev, loginUrl: e.target.value }))
+                      }
+                      placeholder="https://example.com/login"
+                      className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-foreground">Username</label>
+                    <input
+                      value={propertyAuthEditor.usernameValue}
+                      onChange={(e) =>
+                        setPropertyAuthEditor((prev) => ({ ...prev, usernameValue: e.target.value }))
+                      }
+                      placeholder="user@example.com"
+                      className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                    />
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Leave blank only if you are using a saved or env-backed secret.
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-foreground">Password</label>
+                    <input
+                      type="password"
+                      value={propertyAuthEditor.passwordValue}
+                      onChange={(e) =>
+                        setPropertyAuthEditor((prev) => ({ ...prev, passwordValue: e.target.value }))
+                      }
+                      placeholder="Enter password"
+                      className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                    />
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Leave blank only if you are keeping an existing saved/env secret.
+                    </div>
+                  </div>
                   <div>
                     <label className="mb-1 block text-xs font-medium text-foreground">Auth type</label>
                     <select
@@ -1327,31 +1447,99 @@ export default function EntityDetailPage() {
                       <option value="cookie">Cookie</option>
                     </select>
                   </div>
-                  <label className="flex items-center gap-2 rounded border border-border px-3 py-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={propertyAuthEditor.isActive}
-                      onChange={(e) =>
-                        setPropertyAuthEditor((prev) => ({ ...prev, isActive: e.target.checked }))
-                      }
-                    />
-                    Profile is active for future scans
-                  </label>
                 </div>
 
-                {propertyAuthEditor.authType === 'scripted_login' ? (
-                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-foreground">Login URL</label>
-                      <input
-                        value={propertyAuthEditor.loginUrl}
-                        onChange={(e) =>
-                          setPropertyAuthEditor((prev) => ({ ...prev, loginUrl: e.target.value }))
-                        }
-                        placeholder="https://example.com/login"
-                        className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                      />
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleDetectPropertyAuthProfile()}
+                    disabled={
+                      propertyAuthDetecting ||
+                      propertyAuthSaving ||
+                      propertyAuthEditor.authType !== 'scripted_login' ||
+                      !propertyAuthEditor.loginUrl.trim() ||
+                      !(propertyAuthEditor.usernameValue.trim() || selectedAuthProfile?.hasUsernameValue)
+                    }
+                    className="rounded border border-input px-4 py-2 text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {propertyAuthDetecting ? 'Detecting...' : 'Detect login flow'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowPropertyAuthAdvanced((prev) => !prev)}
+                    className="rounded border border-input px-4 py-2 text-sm hover:bg-muted"
+                  >
+                    {showPropertyAuthAdvanced ? 'Hide advanced settings' : 'Show advanced settings'}
+                  </button>
+                </div>
+
+                {propertyAuthDetection && (
+                  <div className="mt-4 rounded-md border border-border bg-muted/20 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold">Detected login flow</div>
+                        <div className="text-xs text-muted-foreground">
+                          Confidence: {propertyAuthDetection.detected.confidence}
+                        </div>
+                      </div>
+                      <div className={`rounded-full px-2 py-1 text-xs font-medium ${
+                        propertyAuthDetection.success
+                          ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                          : 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                      }`}>
+                        {propertyAuthDetection.loginSucceeded
+                          ? 'Login confirmed'
+                          : propertyAuthDetection.verificationCheckpointDetected
+                            ? 'Verification checkpoint reached'
+                            : 'Review needed'}
+                      </div>
                     </div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <div className="rounded border border-border bg-background px-3 py-2 text-xs">
+                        <div className="font-medium text-foreground">Detected username field</div>
+                        <div className="mt-1 text-muted-foreground">
+                          {propertyAuthDetection.detected.usernameSelector || 'Not detected'}
+                        </div>
+                      </div>
+                      <div className="rounded border border-border bg-background px-3 py-2 text-xs">
+                        <div className="font-medium text-foreground">Detected submit action</div>
+                        <div className="mt-1 text-muted-foreground">
+                          {propertyAuthDetection.detected.submitSelector || 'Not detected'}
+                        </div>
+                      </div>
+                      <div className="rounded border border-border bg-background px-3 py-2 text-xs">
+                        <div className="font-medium text-foreground">Detected password field</div>
+                        <div className="mt-1 text-muted-foreground">
+                          {propertyAuthDetection.detected.passwordSelector || 'Not detected'}
+                        </div>
+                      </div>
+                      <div className="rounded border border-border bg-background px-3 py-2 text-xs">
+                        <div className="font-medium text-foreground">Detected success signal</div>
+                        <div className="mt-1 text-muted-foreground">
+                          {propertyAuthDetection.detected.successUrlPrefix ||
+                            propertyAuthDetection.detected.successSelector ||
+                            'Fallback heuristics only'}
+                        </div>
+                      </div>
+                    </div>
+                    {propertyAuthDetection.detected.notes.length > 0 && (
+                      <div className="mt-3 space-y-1">
+                        {propertyAuthDetection.detected.notes.map((note) => (
+                          <div key={note} className="text-xs text-muted-foreground">
+                            - {note}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {showPropertyAuthAdvanced ? (
+                  <>
+                    <div className="mt-4 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                      Advanced settings are only needed if auto-detect misses something or you want to use env-backed secrets instead of typing credentials here.
+                    </div>
+                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div>
                       <label className="mb-1 block text-xs font-medium text-foreground">Success URL prefix</label>
                       <input
@@ -1408,13 +1596,13 @@ export default function EntityDetailPage() {
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-foreground">Username value</label>
+                      <label className="mb-1 block text-xs font-medium text-foreground">Username env var</label>
                       <input
-                        value={propertyAuthEditor.usernameValue}
+                        value={propertyAuthEditor.usernameEnvVarName}
                         onChange={(e) =>
-                          setPropertyAuthEditor((prev) => ({ ...prev, usernameValue: e.target.value }))
+                          setPropertyAuthEditor((prev) => ({ ...prev, usernameEnvVarName: e.target.value }))
                         }
-                        placeholder="Leave blank to keep stored value"
+                        placeholder="SCAN_LOGIN_USERNAME"
                         className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
                       />
                       <div className="mt-1 text-xs text-muted-foreground">
@@ -1425,37 +1613,6 @@ export default function EntityDetailPage() {
                             ? 'stored'
                             : 'missing'}
                       </div>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-foreground">Password value</label>
-                      <input
-                        type="password"
-                        value={propertyAuthEditor.passwordValue}
-                        onChange={(e) =>
-                          setPropertyAuthEditor((prev) => ({ ...prev, passwordValue: e.target.value }))
-                        }
-                        placeholder="Leave blank to keep stored value"
-                        className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                      />
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        Current source:{' '}
-                        {selectedAuthProfile?.passwordSecretSource === 'env'
-                          ? `env (${selectedAuthProfile.passwordEnvVarName || 'unnamed'})`
-                          : selectedAuthProfile?.passwordSecretSource === 'stored'
-                            ? 'stored'
-                            : 'missing'}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-foreground">Username env var</label>
-                      <input
-                        value={propertyAuthEditor.usernameEnvVarName}
-                        onChange={(e) =>
-                          setPropertyAuthEditor((prev) => ({ ...prev, usernameEnvVarName: e.target.value }))
-                        }
-                        placeholder="SCAN_LOGIN_USERNAME"
-                        className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                      />
                       <div className="mt-1 text-xs text-muted-foreground">
                         Server status:{' '}
                         {selectedAuthProfile?.usernameSecretSource === 'env'
@@ -1475,6 +1632,14 @@ export default function EntityDetailPage() {
                         placeholder="SCAN_LOGIN_PASSWORD"
                         className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
                       />
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Current source:{' '}
+                        {selectedAuthProfile?.passwordSecretSource === 'env'
+                          ? `env (${selectedAuthProfile.passwordEnvVarName || 'unnamed'})`
+                          : selectedAuthProfile?.passwordSecretSource === 'stored'
+                            ? 'stored'
+                            : 'missing'}
+                      </div>
                       <div className="mt-1 text-xs text-muted-foreground">
                         Server status:{' '}
                         {selectedAuthProfile?.passwordSecretSource === 'env'
@@ -1504,12 +1669,9 @@ export default function EntityDetailPage() {
                         One path per line. These help authenticated discovery start in the signed-in area.
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="mt-4 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
-                    Only scripted login is currently supported for automated authenticated scans.
-                  </div>
-                )}
+                    </div>
+                  </>
+                ) : null}
 
                 <div className="mt-5 flex flex-wrap gap-2">
                   <button

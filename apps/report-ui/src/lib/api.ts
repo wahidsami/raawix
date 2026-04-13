@@ -674,6 +674,37 @@ class ApiClient {
     });
   }
 
+  async detectPropertyAuthProfile(
+    propertyId: string,
+    data: {
+      loginUrl: string;
+      usernameValue: string;
+      passwordValue?: string;
+    }
+  ): Promise<{
+    success: boolean;
+    message: string;
+    error?: string;
+    loginSucceeded: boolean;
+    verificationCheckpointDetected: boolean;
+    detected: {
+      loginUrl: string;
+      usernameSelector?: string;
+      passwordSelector?: string;
+      submitSelector?: string;
+      successUrlPrefix?: string | null;
+      successSelector?: string | null;
+      postLoginSeedPaths: string[];
+      confidence: 'high' | 'medium' | 'low';
+      notes: string[];
+    };
+  }> {
+    return this.request(`/api/properties/${propertyId}/auth-profile/detect`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async deletePropertyAuthProfile(propertyId: string): Promise<{ success: boolean }> {
     return this.request(`/api/properties/${propertyId}/auth-profile`, {
       method: 'DELETE',

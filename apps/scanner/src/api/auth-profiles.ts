@@ -145,9 +145,6 @@ router.post('/properties/:propertyId/auth-profile', requireAuth, async (req: Req
       if (!submitSelector) {
         return res.status(400).json({ error: 'submitSelector is required for scripted_login' });
       }
-      if (!successUrlPrefix && !successSelector) {
-        return res.status(400).json({ error: 'Either successUrlPrefix or successSelector is required for scripted_login' });
-      }
     }
 
     const profile = await authProfileRepository.upsert(propertyId, {
@@ -169,6 +166,50 @@ router.post('/properties/:propertyId/auth-profile', requireAuth, async (req: Req
   } catch (error) {
     console.error('[AUTH-PROFILE] Error creating/updating auth profile:', error);
     res.status(500).json({ error: 'Failed to create/update auth profile' });
+  }
+});
+
+/**
+ * POST /api/properties/:propertyId/auth-profile/detect
+ * Detect likely scripted-login selectors from a login URL and credentials
+ */
+router.post('/properties/:propertyId/auth-profile/detect', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { propertyId } = req.params;
+    const { loginUrl, usernameValue, passwordValue } = req.body || {};
+
+    const prisma = await getPrismaClient();
+    if (!prisma) {
+      return res.status(503).json({ error: 'Database not available' });
+    }
+
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { id: true },
+    });
+
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found' });
+    }
+
+    if (!loginUrl || typeof loginUrl !== 'string') {
+      return res.status(400).json({ error: 'loginUrl is required' });
+    }
+    if (!usernameValue || typeof usernameValue !== 'string') {
+      return res.status(400).json({ error: 'usernameValue is required for detection' });
+    }
+
+    const { detectScriptedLoginProfile } = await import('../crawler/auth-helper.js');
+    const result = await detectScriptedLoginProfile({
+      loginUrl,
+      usernameValue,
+      passwordValue: typeof passwordValue === 'string' ? passwordValue : undefined,
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('[AUTH-PROFILE] Error auto-detecting login profile:', error);
+    res.status(500).json({ error: 'Failed to auto-detect login profile' });
   }
 });
 
