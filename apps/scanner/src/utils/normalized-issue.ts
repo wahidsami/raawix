@@ -161,31 +161,64 @@ function parseJsonish(raw: unknown): unknown {
   }
 }
 
+function compactWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function truncateEvidenceText(value: string, maxLength = 220): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function normalizeEvidenceEntry(raw: unknown): string {
+  if (typeof raw === 'string') return compactWhitespace(raw);
+  if (!raw || typeof raw !== 'object') return '';
+  const evidence = raw as Partial<EvidenceItem> & Record<string, unknown>;
+  const candidate = evidence.description || evidence.value || evidence.selector;
+  if (typeof candidate === 'string') return compactWhitespace(candidate);
+  return compactWhitespace(JSON.stringify(evidence));
+}
+
+function summarizeEvidenceParts(parts: string[]): string {
+  const counts = new Map<string, number>();
+  const orderedParts: string[] = [];
+
+  for (const part of parts) {
+    const normalized = compactWhitespace(part);
+    if (!normalized) continue;
+    if (!counts.has(normalized)) {
+      orderedParts.push(normalized);
+      counts.set(normalized, 1);
+    } else {
+      counts.set(normalized, (counts.get(normalized) || 0) + 1);
+    }
+  }
+
+  const summarized = orderedParts.map((part) => {
+    const count = counts.get(part) || 1;
+    return count > 1 ? `${part} (repeated ${count}x)` : part;
+  });
+
+  return truncateEvidenceText(summarized.join(' | '));
+}
+
 function stringifyEvidence(raw: unknown): string {
   const parsed = parseJsonish(raw);
   if (!parsed) return '';
 
   if (Array.isArray(parsed)) {
-    return parsed
-      .map((item) => {
-        if (typeof item === 'string') return item;
-        if (!item || typeof item !== 'object') return '';
-        const evidence = item as Partial<EvidenceItem> & Record<string, unknown>;
-        return evidence.description || evidence.value || evidence.selector || JSON.stringify(evidence);
-      })
-      .filter(Boolean)
-      .join(' | ');
+    return summarizeEvidenceParts(parsed.map((item) => normalizeEvidenceEntry(item)).filter(Boolean));
   }
 
   if (typeof parsed === 'object') {
     const objectValue = parsed as Record<string, unknown>;
     if (Array.isArray(objectValue.evidence)) return stringifyEvidence(objectValue.evidence);
-    if (typeof objectValue.selector === 'string') return objectValue.selector;
-    if (typeof objectValue.message === 'string') return objectValue.message;
-    return JSON.stringify(objectValue);
+    if (typeof objectValue.selector === 'string') return truncateEvidenceText(compactWhitespace(objectValue.selector));
+    if (typeof objectValue.message === 'string') return truncateEvidenceText(compactWhitespace(objectValue.message));
+    return truncateEvidenceText(compactWhitespace(JSON.stringify(objectValue)));
   }
 
-  return String(parsed);
+  return truncateEvidenceText(compactWhitespace(String(parsed)));
 }
 
 function extractSelector(raw: unknown): string | undefined {

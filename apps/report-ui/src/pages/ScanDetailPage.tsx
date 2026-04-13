@@ -1262,7 +1262,17 @@ export default function ScanDetailPage() {
                       <span className="break-all text-xs text-primary">{finding.pageUrl}</span>
                     </td>
                     <td className="px-4 py-3 min-w-[260px] text-xs text-muted-foreground">
-                      {finding.evidence || finding.selector || finding.howToVerify || '—'}
+                      <div
+                        title={finding.evidence || finding.selector || finding.howToVerify || '—'}
+                        style={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 4,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {finding.evidence || finding.selector || finding.howToVerify || '—'}
+                      </div>
                     </td>
                   </tr>
                 ))}
