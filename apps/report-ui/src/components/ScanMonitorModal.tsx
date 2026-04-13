@@ -305,13 +305,17 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
     return `${hh}:${mm}:${ss}`;
   }, [elapsedMs]);
 
+  const freezeElapsedTimer = () => {
+    setElapsedMs(Date.now() - scanStartedAtRef.current);
+  };
+
   useEffect(() => {
-    if (!isScanning && !scanCompleted && phase === 'selection') return;
+    if (!isScanning) return;
     const tick = () => setElapsedMs(Date.now() - scanStartedAtRef.current);
     tick();
     const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
-  }, [isScanning, scanCompleted, phase]);
+  }, [isScanning]);
 
   const formatRecentEventLabel = (event: ScanEvent): string => {
     try {
@@ -629,6 +633,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       }
       case 'scan_canceled': {
         addDebugLog('warning', `Scan canceled: ${(event as any).message || 'Canceled by user'}`);
+        freezeElapsedTimer();
         setIsScanning(false);
         setScanCompleted(true);
         setCurrentPage(null);
@@ -1284,6 +1289,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       setCurrentActivity(''); // Clear activity
       setCurrentStep(t('scanMonitor.completed'));
       setScanCompleted(true);
+      freezeElapsedTimer();
       console.log('[SCAN] State after completion:', { isScanning: false, phase: 'scanning', scanCompleted: true });
 
       // Update final stats
@@ -1417,6 +1423,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
     console.error('[SCAN] Error event received:', { error: errorMessage, isTimeout, event });
 
     // Stop scanning state
+    freezeElapsedTimer();
     setIsScanning(false);
     setScanCompleted(true);
     setCurrentPage(null);
@@ -1460,6 +1467,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       addDebugLog('info', 'Stopping scan...');
       await apiClient.cancelScan(scanId);
       addDebugLog('success', 'Scan stopped successfully');
+      freezeElapsedTimer();
       setIsScanning(false);
       setCurrentStep(t('scanMonitor.stopped') || 'Stopped');
 

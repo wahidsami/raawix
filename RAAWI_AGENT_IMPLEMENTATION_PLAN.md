@@ -10,6 +10,7 @@ Build a two-mode accessibility scanning system that keeps the current technical 
 - Add a new `Raawi agent` scan mode that evaluates page experience using keyboard navigation, accessibility-tree reading, form and modal probes, image and content interpretation, and guided task flows.
 - Produce a single, powerful report model that combines technical findings and assistive-tech experience findings.
 - Preserve strong evidence and traceability without relying on video capture.
+- Support authenticated portals through reusable login profiles, human verification checkpoints, and authenticated session reuse.
 
 ## Mode Definition
 
@@ -33,6 +34,115 @@ New mode focused on how a screen reader-style auditor experiences the page.
 - Image meaning and alt-text judgment
 - Task-based flows for common page types
 - AI-assisted trace interpretation and UX judgment
+
+## Authenticated Scanning Model
+
+Authenticated scanning should be a shared foundation used by both classic mode and Raawi agent mode.
+
+Authentication belongs primarily to the website/property settings, not only to the scan popup.
+
+Recommended product model:
+
+- Website/property owns reusable authentication profiles.
+- Scan popup lets the user choose public access or a saved authentication profile.
+- Scanner logs in before discovery.
+- Discovery and selected-page scanning reuse the same authenticated browser session.
+- Reports show safe authentication metadata without exposing credentials.
+
+Initial authentication methods:
+
+- Public access
+- Saved login form
+- Manual verification checkpoint
+- Manual login session capture
+
+Future authentication methods:
+
+- Cookie/session import
+- Basic auth/header auth
+- Step-based scripted login builder
+- Multiple role profiles per website
+
+Required auth profile fields:
+
+- profile name
+- login URL
+- username selector
+- encrypted username
+- password selector
+- encrypted password
+- submit selector
+- success URL prefix
+- success selector
+- extra headers
+- active/inactive state
+- session reuse enabled
+
+Optional verification fields:
+
+- verification required
+- verification type: `code`, `external_approval`, or `manual_step`
+- verification code selector
+- verification submit selector
+- verification success selector
+- verification prompt hint
+- verification timeout
+
+Human-in-the-loop verification flow:
+
+1. Scanner opens login page.
+2. Scanner fills saved credentials.
+3. Scanner submits login form.
+4. If a verification challenge appears, scan status becomes `waiting_for_verification`.
+5. UI asks the user for the code or external approval.
+6. User submits the code or confirms approval.
+7. Scanner completes login and verifies success.
+8. Scanner saves Playwright storage state.
+9. Discovery and scanning continue with the authenticated session.
+
+Verification principles:
+
+- OTP/check codes are never stored.
+- OTP/check codes are never logged.
+- OTP/check codes are never included in reports.
+- The waiting state must expire automatically.
+- Users can cancel the scan during verification.
+
+Suggested auth events:
+
+- `auth_started`
+- `auth_verification_required`
+- `auth_verification_submitted`
+- `auth_succeeded`
+- `auth_failed`
+
+Suggested auth scan statuses:
+
+- `authenticating`
+- `waiting_for_verification`
+- `auth_failed`
+
+Suggested environment variables:
+
+- `AUTH_CREDENTIAL_ENCRYPTION_KEY`
+- `AUTH_VERIFICATION_TIMEOUT_MS`
+
+Security requirements:
+
+- Disable stored credential profiles if encryption key is missing.
+- Encrypt credentials at rest.
+- Never return stored secrets to the frontend.
+- Redact auth values from logs and exports.
+- Audit auth profile creation, update, use, success, and failure.
+- Scope auth profiles to a property/website and authorized users.
+
+Report metadata should include:
+
+- authenticated scan: yes/no
+- auth profile name
+- login result
+- verification used: yes/no
+- credentials included: never
 
 ## Reporting Taxonomy
 
@@ -226,7 +336,28 @@ This avoids mixing crawl scope with audit methodology.
 - Raawi agent can reason about page flow, not just tab order.
 - Findings include comments that describe why the experience helps or blocks task completion.
 
-## Phase 4 - Unified Reporting
+## Phase 4 - Authenticated Scanning Foundation
+
+### Work
+
+- Add authentication profiles to website/property settings.
+- Store credentials securely with encrypted fields.
+- Add a login test action.
+- Add auth profile selection to the scan popup.
+- Perform login before discovery.
+- Reuse authenticated browser storage state during discovery and scan capture.
+- Add OTP/manual verification checkpoints.
+- Add manual login session capture for complex portals.
+- Add safe auth metadata to reports.
+
+### Exit Criteria
+
+- Classic scans can discover and scan authenticated pages.
+- Raawi agent scans can use the same authenticated session.
+- OTP/check-code flows pause the scan and resume after user input.
+- Reports identify authenticated scans without exposing secrets.
+
+## Phase 5 - Unified Reporting
 
 ### Work
 
@@ -245,7 +376,7 @@ This avoids mixing crawl scope with audit methodology.
 - PDF and Excel reports contain the Raawi agent section and evidence references.
 - The dashboard clearly separates technical findings and Raawi agent findings.
 
-## Phase 5 - Validation and Calibration
+## Phase 6 - Validation and Calibration
 
 ### Work
 
@@ -266,7 +397,7 @@ This avoids mixing crawl scope with audit methodology.
 - Raawi agent produces stable, useful findings on the benchmark set.
 - False positives and missed issues are documented and reduced.
 
-## Phase 6 - Release and Rollout
+## Phase 7 - Release and Rollout
 
 ### Work
 
@@ -310,14 +441,17 @@ For the unified issue table, use:
 - Should issue codes be global across the system or generated per scan mode?
 - Should the report prioritize category grouping or page grouping first?
 - Which task playbooks should ship in the first Raawi agent release?
+- Should OTP handling ship before manual login session capture, or should both ship together?
+- Should auth profiles support multiple roles per website in the first release?
 
 ## Suggested First Delivery
 
 1. Scan mode plumbing.
 2. Shared issue schema and taxonomy mapping.
 3. Raawi agent trace artifacts.
-4. Unified dashboard and export reporting.
-5. Validation against benchmark pages.
+4. Authenticated scanning foundation.
+5. Unified dashboard and export reporting.
+6. Validation against benchmark pages.
 
 ## Sprint-By-Sprint Checklist
 
@@ -393,7 +527,38 @@ Checklist:
 - [ ] Expand current OpenAI analyst flow for Raawi agent reasoning.
 - [ ] Log AI decisions separately from raw trace events.
 
-### Sprint 4 - Unified Reporting
+### Sprint 4 - Authenticated Scanning Foundation
+
+Priority: high
+
+Owner focus:
+
+- Scanner backend
+- Report UI
+- Database/security
+
+Deliverables:
+
+- Add reusable authentication profiles to website/property settings.
+- Add encrypted credential storage.
+- Add auth profile selection to the scanner popup.
+- Login before discovery and reuse the authenticated session for capture.
+- Add human-in-the-loop verification for OTP/check-code flows.
+
+Checklist:
+
+- [ ] Add auth profile schema and encrypted secret fields.
+- [ ] Add backend auth profile CRUD and test-login endpoint.
+- [ ] Add website settings UI for auth profiles.
+- [ ] Add scan popup auth selection: public scan or saved profile.
+- [ ] Save and reuse Playwright storage state for authenticated sessions.
+- [ ] Add `waiting_for_verification` scan status.
+- [ ] Add OTP/check-code submission endpoint.
+- [ ] Add external approval/manual-step checkpoint.
+- [ ] Ensure OTP/check-code values are never logged or stored.
+- [ ] Add safe auth metadata to PDF/Excel/dashboard reports.
+
+### Sprint 5 - Unified Reporting
 
 Priority: high
 
@@ -418,7 +583,7 @@ Checklist:
 - [ ] Add mode comparison summaries.
 - [ ] Keep classic findings and Raawi findings separate but comparable.
 
-### Sprint 5 - Calibration and Benchmarking
+### Sprint 6 - Calibration and Benchmarking
 
 Priority: medium-high
 
@@ -441,7 +606,7 @@ Checklist:
 - [ ] Add regression checks for known tricky pages.
 - [ ] Document gap cases and follow-up work.
 
-### Sprint 6 - Rollout and Hardening
+### Sprint 7 - Rollout and Hardening
 
 Priority: medium
 
@@ -468,9 +633,11 @@ Checklist:
 
 - `apps/scanner/src/agent/*` - Raawi agent trace engine and AI planning.
 - `apps/scanner/src/api/*` - scan mode plumbing and report data APIs.
+- `apps/scanner/src/crawler/auth-helper.ts` - authenticated login and session capture.
 - `apps/scanner/src/db/*` - persistence for mode, traces, and normalized issues.
 - `apps/scanner/src/services/*` - PDF and Excel reporting.
 - `apps/report-ui/src/pages/*` - dashboard and scan detail presentation.
+- `apps/report-ui/src/components/*` - scan popup, auth profile management, and verification prompts.
 - `categories-and-subcategories.md` - taxonomy mapping source.
 
 ## Dependency Order
@@ -479,9 +646,10 @@ Checklist:
 2. Scan mode plumbing.
 3. Raawi trace engine.
 4. AI planning and interpretation.
-5. Unified reporting.
-6. Validation.
-7. Rollout.
+5. Authenticated scanning foundation.
+6. Unified reporting.
+7. Validation.
+8. Rollout.
 
 ## Definition Of Done
 
