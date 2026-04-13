@@ -21,6 +21,18 @@ async function blobLooksLikePng(blob: Blob): Promise<boolean> {
   );
 }
 
+async function readApiErrorMessage(response: Response, fallback: string): Promise<string> {
+  try {
+    const payload = await response.json();
+    if (payload && typeof payload.error === 'string' && payload.error.trim()) {
+      return payload.error;
+    }
+  } catch {
+    // Fall back to the provided message when the response is not JSON.
+  }
+  return fallback;
+}
+
 interface ScanEvent {
   type: string;
   scanId: string;
@@ -191,6 +203,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   const [pipelineFastMode, setPipelineFastMode] = useState(false);
   const [pipelineScreenshotMode, setPipelineScreenshotMode] = useState<'full' | 'viewport'>('full');
   const [auditMode, setAuditMode] = useState<'classic' | 'raawi-agent'>('classic');
+  const [raawiAgentEnabled, setRaawiAgentEnabled] = useState(true);
   const isRaawiAgentMode = auditMode === 'raawi-agent';
   const [authProfile, setAuthProfile] = useState<PropertyAuthProfileState | null>(null);
   const [authProfileLoading, setAuthProfileLoading] = useState(false);
@@ -209,6 +222,31 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   useEffect(() => {
     propertyDefaultsAppliedRef.current = false;
   }, [scanId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    apiClient
+      .getScannerConfig()
+      .then((scannerConfig) => {
+        if (cancelled) return;
+        setRaawiAgentEnabled(scannerConfig.raawiAgentEnabled !== false);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRaawiAgentEnabled(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (raawiAgentEnabled || auditMode !== 'raawi-agent') return;
+    setAuditMode('classic');
+  }, [raawiAgentEnabled, auditMode]);
 
   useEffect(() => {
     if (!propertyId || !entityId || propertyDefaultsAppliedRef.current) return;
@@ -486,6 +524,9 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       : authProfile && !authProfile.isActive
         ? 'Saved profile is inactive'
         : 'Unauthenticated scan';
+  const raawiModeUnavailableMessage =
+    t('scanMonitor.auditModeRaawiAgentDisabled') ||
+    'Raawi agent is disabled for this environment right now. Classic audit remains available.';
 
   const refreshAuthProfile = useCallback(async () => {
     if (!propertyId) {
@@ -2097,6 +2138,11 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       setBanner({ tone: 'warning', message: t('scanMonitor.noPagesSelected') || 'Please select at least one page to scan.' });
       return;
     }
+    if (auditMode === 'raawi-agent' && !raawiAgentEnabled) {
+      setAuditMode('classic');
+      setBanner({ tone: 'warning', message: raawiModeUnavailableMessage });
+      return;
+    }
     if (scanPipelineInvalid) {
       setBanner({
         tone: 'warning',
@@ -2141,7 +2187,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         });
 
         if (!initResponse.ok) {
-          throw new Error('Failed to create scan record');
+          throw new Error(await readApiErrorMessage(initResponse, 'Failed to create scan record'));
         }
         addDebugLog('success', 'Scan record created in database');
       } catch (err) {
@@ -2192,7 +2238,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to start scan: ${response.statusText}`);
+        throw new Error(await readApiErrorMessage(response, `Failed to start scan: ${response.statusText}`));
       }
 
       const result = await response.json();
@@ -2200,8 +2246,9 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
       // The SSE connection will handle the rest
     } catch (error) {
-      addDebugLog('error', `Failed to start scan: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setBanner({ tone: 'error', message: t('scanMonitor.startScanError') || 'Failed to start scan. Please try again.' });
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      addDebugLog('error', `Failed to start scan: ${message}`);
+      setBanner({ tone: 'error', message: message || t('scanMonitor.startScanError') || 'Failed to start scan. Please try again.' });
       setPhase('selection'); // Go back to selection phase
       setIsScanning(false);
     }
@@ -2861,6 +2908,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                         name={`audit-mode-${scanId}`}
                         className="mt-1"
                         checked={auditMode === 'raawi-agent'}
+                        disabled={!raawiAgentEnabled}
                         onChange={() => {
                           setAuditMode('raawi-agent');
                           setPipelineFastMode(false);
@@ -2876,11 +2924,18 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                           {t('scanMonitor.auditModeRaawiAgentLabel') || 'Raawi agent'}
                         </span>
                         <span className="block text-xs text-muted-foreground font-normal">
-                          {t('scanMonitor.auditModeRaawiAgentHint') ||
-                            'Runs the full layered scan and marks the report for the Raawi agent methodology.'}
+                          {raawiAgentEnabled
+                            ? (t('scanMonitor.auditModeRaawiAgentHint') ||
+                              'Runs the full layered scan and marks the report for the Raawi agent methodology.')
+                            : raawiModeUnavailableMessage}
                         </span>
                       </span>
                     </label>
+                    {!raawiAgentEnabled && (
+                      <div className="rounded-md border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                        {raawiModeUnavailableMessage}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2 rounded-md border border-border bg-background/60 p-3">
                     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

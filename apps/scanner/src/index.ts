@@ -47,6 +47,12 @@ import type { ScanRun } from '@raawi-x/core';
 const app = express();
 const jobQueue = new JobQueue();
 
+function assertAuditModeEnabled(auditMode: unknown): void {
+  if (auditMode === 'raawi-agent' && !config.raawi.enabled) {
+    throw new Error('Raawi agent mode is currently disabled by configuration.');
+  }
+}
+
 function enforceProductionSecrets(): void {
   if (process.env.NODE_ENV !== 'production') return;
 
@@ -206,6 +212,7 @@ app.post('/api/scans/start', requireAuth, validateScanRequest, async (req, res) 
   try {
     const requestBody = req.body as any;
     const existingScanId = requestBody.scanId;
+    assertAuditModeEnabled(requestBody.auditMode);
 
     let scanId: string;
 
@@ -289,6 +296,7 @@ app.post('/api/scans/:scanId/init', requireAuth, async (req, res) => {
   try {
     const { scanId } = req.params;
     const { seedUrl, entityId, propertyId, maxPages = 25, maxDepth = 5, auditMode = 'classic' } = req.body;
+    assertAuditModeEnabled(auditMode);
 
     if (!seedUrl) {
       res.status(400).json({ error: 'seedUrl is required' });

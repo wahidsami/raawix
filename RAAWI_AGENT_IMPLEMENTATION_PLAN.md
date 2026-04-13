@@ -4,15 +4,15 @@
 
 Status as of 2026-04-13.
 
-- Overall progress: about `82%`
+- Overall progress: about `92%`
 - Phase 0: `done`
 - Phase 1: `done`
 - Phase 2: `largely done`
 - Phase 3: `partially done`
 - Phase 4: `largely done`
 - Phase 5: `largely done`
-- Phase 6: `not started`
-- Phase 7: `partially done`
+- Phase 6: `partially done`
+- Phase 7: `largely done`
 
 Implemented highlights:
 
@@ -32,14 +32,16 @@ Implemented highlights:
   - dynamic update announcement readiness
 - Added authenticated scanning with reusable login profiles, auto-detect login setup, storage-state reuse, manual verification pause/resume, and continuation trail.
 - Added auth coverage and continuation metadata to dashboard, PDF, and Excel reports.
+- Added Raawi calibration fixtures and regression tests for key task-assessment cases.
+- Added encrypted-at-rest stored auth secrets with env-key decryption at runtime.
+- Added rollout gating for Raawi agent mode through scanner config and UI-aware feature flags.
 
 Still open at a high level:
 
 - deeper multi-step authenticated journeys after login
 - stronger AI planning and assistive-tech reasoning
-- encrypted secrets at rest
-- benchmark calibration and regression datasets
-- rollout feature flags and final production hardening
+- broader benchmark calibration and regression datasets
+- final production hardening and rollout validation
 
 ## Purpose
 
@@ -431,7 +433,7 @@ Status: largely done
 
 ## Phase 6 - Validation and Calibration
 
-Status: not started
+Status: partially done
 
 ### Work
 
@@ -447,6 +449,14 @@ Status: not started
 - Tune thresholds and task playbooks.
 - Reduce noise and duplicate findings.
 
+Current progress:
+
+- Added first deterministic calibration fixtures and tests for:
+  - dynamic updates
+  - authenticated workspace clarity
+  - form instruction quality
+  - content structure
+
 ### Exit Criteria
 
 - Raawi agent produces stable, useful findings on the benchmark set.
@@ -454,7 +464,7 @@ Status: not started
 
 ## Phase 7 - Release and Rollout
 
-Status: partially done
+Status: largely done
 
 ### Work
 
@@ -463,6 +473,12 @@ Status: partially done
 - Update admin UI wording and help text.
 - Update exports, summaries, and documentation.
 - Add rollout checks and regression validation.
+
+Current progress:
+
+- Added backend/UI feature-flag gating for Raawi agent mode.
+- Added rollout documentation and environment guidance.
+- Classic mode remains available when Raawi agent is disabled.
 
 ### Exit Criteria
 
@@ -657,10 +673,10 @@ Deliverables:
 
 Checklist:
 
-- [ ] Build benchmark pages for forms, menus, dialogs, content, and media.
+- [~] Build benchmark pages for forms, menus, dialogs, content, and media.
 - [ ] Compare results across classic and Raawi modes.
 - [ ] Reduce duplicate or low-value findings.
-- [ ] Add regression checks for known tricky pages.
+- [x] Add regression checks for known tricky pages.
 - [ ] Document gap cases and follow-up work.
 
 ### Sprint 7 - Rollout and Hardening
@@ -680,11 +696,11 @@ Deliverables:
 
 Checklist:
 
-- [ ] Add feature flag controls for Raawi mode.
+- [x] Add feature flag controls for Raawi mode.
 - [~] Update docs and report descriptions.
 - [~] Add operational logs and failure fallbacks.
 - [~] Verify both scan modes can run independently.
-- [~] Prepare Coolify deployment notes and regression checklist.
+- [x] Prepare Coolify deployment notes and regression checklist.
 
 ## Component Ownership Map
 

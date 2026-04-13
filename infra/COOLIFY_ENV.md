@@ -19,4 +19,5 @@ Optional:
 - `OPENAI_ENABLED`, `OPENAI_API_KEY`, `OPENAI_MODEL`
 - `GEMINI_ENABLED`, `GEMINI_API_KEY`
 - `AGENT_ENABLED`, `AGENT_PROBES_ENABLED`
+- `RAAWI_AGENT_ENABLED` (`true` to expose Raawi agent mode in the UI, `false` to keep rollout limited to classic mode)
 - `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (for user welcome and password-reset emails)

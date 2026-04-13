@@ -393,6 +393,7 @@
     "auditModeClassicHint": "Current layered scan: page structure, vision, assistive map, and optional interaction trace.",
     "auditModeRaawiAgentLabel": "Raawi agent",
     "auditModeRaawiAgentHint": "Runs the full layered scan and marks the report for the Raawi agent methodology.",
+    "auditModeRaawiAgentDisabled": "Raawi agent is disabled for this environment right now. Classic audit remains available.",
     "raawiScanTitle": "Raawi agent scan in progress",
     "raawiScanSubtitle": "Raawi is combining page structure, visual review, assistive mapping, and keyboard interaction trace.",
     "raawiIncludedTitle": "Raawi agent includes",

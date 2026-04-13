@@ -68,6 +68,13 @@ const scanRequestSchema = z.object({
 export function validateScanRequest(req: Request, res: Response, next: NextFunction): void {
   try {
     const validated = scanRequestSchema.parse(req.body);
+
+    if (validated.auditMode === 'raawi-agent' && !config.raawi.enabled) {
+      res.status(403).json({
+        error: 'Raawi agent mode is currently disabled by configuration.',
+      });
+      return;
+    }
     
     // Sanitize regex patterns
     if (validated.includePatterns) {

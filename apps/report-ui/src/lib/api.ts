@@ -199,6 +199,7 @@ class ApiClient {
     allowLocalhost: boolean;
     maxPagesHardLimit: number;
     maxDepthHardLimit: number;
+    raawiAgentEnabled: boolean;
   }> {
     // No auth required - this endpoint returns safe config values only
     return this.request<{
@@ -207,6 +208,7 @@ class ApiClient {
       allowLocalhost: boolean;
       maxPagesHardLimit: number;
       maxDepthHardLimit: number;
+      raawiAgentEnabled: boolean;
     }>('/api/scanner/config');
   }
 

@@ -18,6 +18,7 @@ router.get('/scanner/config', (req: Request, res: Response) => {
       allowLocalhost: config.allowLocalhost,
       maxPagesHardLimit: config.quotas.maxPagesHardLimit,
       maxDepthHardLimit: config.quotas.maxDepthHardLimit,
+      raawiAgentEnabled: config.raawi.enabled,
       // Note: We don't expose sensitive values like API keys, database URLs, etc.
     });
   } catch (error) {
