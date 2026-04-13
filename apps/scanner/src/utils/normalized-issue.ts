@@ -93,6 +93,7 @@ const wcagTaxonomy: Record<string, TaxonomyMatch> = {
 
 const agentKindTaxonomy: Record<string, TaxonomyMatch> = {
   ambiguous_control: { category: 'Structure & Semantics', subcategory: 'Inaccessible custom components' },
+  authenticated_workspace_navigation_unclear: { category: 'Authentication & Security', subcategory: 'Cognitive complexity' },
   confusing_focus_order: { category: 'Keyboard & Navigation', subcategory: 'Incorrect tab order' },
   focus_lost: { category: 'Keyboard & Navigation', subcategory: 'Incorrect tab order' },
   form_blocked: { category: 'Forms & Inputs', subcategory: 'No input instructions' },

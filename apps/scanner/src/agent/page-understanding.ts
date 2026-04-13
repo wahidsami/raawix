@@ -41,6 +41,7 @@ export interface RaawiTaskAssessment {
     kind:
       | 'missing_page_structure'
       | 'missing_skip_link'
+      | 'authenticated_workspace_navigation_unclear'
       | 'unnamed_task_control'
       | 'missing_form_instructions'
       | 'image_alt_task_issue'
@@ -77,6 +78,8 @@ export interface RaawiPageProfile {
     images: number;
     imagesWithoutAlt: number;
     media: number;
+    accountControls: number;
+    logoutControls: number;
     buttonsWithoutName: number;
     linksWithoutName: number;
   };
@@ -91,6 +94,9 @@ export interface RaawiPageProfile {
     hasForgotPassword: boolean;
     hasResendCode: boolean;
     hasContact: boolean;
+    hasAccountArea: boolean;
+    hasLogout: boolean;
+    hasAuthenticatedWorkspace: boolean;
     hasModalTrigger: boolean;
     hasMenuToggle: boolean;
   };
@@ -258,6 +264,16 @@ function buildTaskIntents(raw: RawPageProfile, pageType: RaawiPageType): RaawiTa
     });
   }
 
+  if (pageType === 'dashboard' || raw.signals.hasAuthenticatedWorkspace) {
+    tasks.push({
+      id: 'navigate-authenticated-workspace',
+      label: 'Navigate authenticated workspace and account controls',
+      category: 'Authentication & Security',
+      reason: 'Signed-in areas should expose clear headings, navigation regions, account context, and predictable exit/profile controls.',
+      confidence: pageType === 'dashboard' ? 0.86 : 0.74,
+    });
+  }
+
   return tasks.slice(0, 8);
 }
 
@@ -380,6 +396,8 @@ export async function captureRaawiPageProfile(page: Page, url: string): Promise<
         images: images.length,
         imagesWithoutAlt: images.filter((img) => !img.hasAttribute('alt')).length,
         media,
+        accountControls: [...links, ...buttons].filter((element) => /account|profile|dashboard|settings|workspace|portal|الحساب|الملف|لوحة|الإعدادات/.test(accessibleName(element).toLowerCase())).length,
+        logoutControls: [...links, ...buttons].filter((element) => /logout|log out|sign out|signout|تسجيل الخروج|خروج/.test(accessibleName(element).toLowerCase())).length,
         buttonsWithoutName: buttons.filter((button) => !accessibleName(button)).length,
         linksWithoutName: links.filter((link) => !accessibleName(link)).length,
       },
@@ -399,6 +417,21 @@ export async function captureRaawiPageProfile(page: Page, url: string): Promise<
         hasForgotPassword: hasWord(['forgot password', 'reset password', 'نسيت كلمة المرور', 'استعادة كلمة المرور']),
         hasResendCode: hasWord(['resend code', 'send again', 'إعادة إرسال', 'إرسال مرة أخرى']),
         hasContact: hasWord(['contact', 'support', 'message', 'تواصل', 'اتصل', 'الدعم']),
+        hasAccountArea: hasWord(['account', 'profile', 'dashboard', 'settings', 'workspace', 'portal', 'الحساب', 'الملف', 'لوحة التحكم', 'الإعدادات']),
+        hasLogout: hasWord(['logout', 'log out', 'sign out', 'signout', 'تسجيل الخروج', 'خروج']),
+        hasAuthenticatedWorkspace: hasWord([
+          'dashboard',
+          'workspace',
+          'account',
+          'profile',
+          'settings',
+          'portal',
+          'my account',
+          'لوحة',
+          'الحساب',
+          'الملف',
+          'الإعدادات',
+        ]),
         hasModalTrigger: document.querySelector('[aria-haspopup="dialog"], [data-modal], [role="dialog"], [aria-modal="true"]') != null,
         hasMenuToggle: document.querySelector('[aria-expanded], [aria-haspopup="menu"]') != null,
       },
@@ -693,6 +726,97 @@ export function assessRaawiTaskIntents(profile: RaawiPageProfile): RaawiTaskAsse
         evidence: {
           images: profile.counts.images,
           imagesWithoutAlt: profile.counts.imagesWithoutAlt,
+        },
+      };
+    }
+
+    if (task.id === 'navigate-authenticated-workspace') {
+      const hasWorkspaceStructure =
+        !!profile.mainHeading &&
+        (profile.landmarks.includes('main') || profile.landmarks.includes('navigation') || profile.landmarks.length >= 2);
+      if (profile.counts.buttonsWithoutName > 0 || profile.counts.linksWithoutName > 0) {
+        return {
+          taskId: task.id,
+          label: task.label,
+          category: task.category,
+          result: 'not_working',
+          confidence: 0.8,
+          summary: 'Authenticated workspace cues were detected, but some account/navigation controls appear unnamed.',
+          evidence: {
+            pageType: profile.pageType,
+            accountControls: profile.counts.accountControls,
+            logoutControls: profile.counts.logoutControls,
+            buttonsWithoutName: profile.counts.buttonsWithoutName,
+            linksWithoutName: profile.counts.linksWithoutName,
+          },
+          issue: {
+            kind: 'unnamed_task_control',
+            message: 'Authenticated workspace controls appear to lack clear accessible names.',
+            confidence: 0.8,
+            evidence: {
+              pageType: profile.pageType,
+              accountControls: profile.counts.accountControls,
+              logoutControls: profile.counts.logoutControls,
+              buttonsWithoutName: profile.counts.buttonsWithoutName,
+              linksWithoutName: profile.counts.linksWithoutName,
+            },
+            suggestedWcagIds: ['4.1.2', '2.4.4'],
+            howToVerify: 'Move through account, profile, and logout controls with a screen reader and confirm that each announces a clear purpose.',
+          },
+        };
+      }
+
+      if (!hasWorkspaceStructure || (!profile.signals.hasLogout && profile.counts.logoutControls === 0)) {
+        return {
+          taskId: task.id,
+          label: task.label,
+          category: task.category,
+          result: 'needs_review',
+          confidence: 0.72,
+          summary: 'This looks like an authenticated area, but the page does not expose a strong workspace structure or clear logout/account cues.',
+          evidence: {
+            pageType: profile.pageType,
+            mainHeading: profile.mainHeading,
+            landmarks: profile.landmarks,
+            hasAccountArea: profile.signals.hasAccountArea,
+            hasLogout: profile.signals.hasLogout,
+            accountControls: profile.counts.accountControls,
+            logoutControls: profile.counts.logoutControls,
+          },
+          issue: {
+            kind: 'authenticated_workspace_navigation_unclear',
+            message: 'Authenticated workspace navigation cues are weak, so account context or exit controls may be hard to discover.',
+            confidence: 0.72,
+            evidence: {
+              pageType: profile.pageType,
+              mainHeading: profile.mainHeading,
+              landmarks: profile.landmarks,
+              hasAccountArea: profile.signals.hasAccountArea,
+              hasLogout: profile.signals.hasLogout,
+              accountControls: profile.counts.accountControls,
+              logoutControls: profile.counts.logoutControls,
+            },
+            suggestedWcagIds: ['2.4.6', '2.4.3', '3.3.2'],
+            howToVerify: 'From the signed-in landing page, verify that account context, navigation landmarks, and logout/profile controls are easy to find with keyboard and assistive technology.',
+          },
+        };
+      }
+
+      return {
+        taskId: task.id,
+        label: task.label,
+        category: task.category,
+        result: 'working',
+        confidence: 0.68,
+        summary: 'Authenticated workspace cues were present, including account-oriented navigation and page structure.',
+        evidence: {
+          pageType: profile.pageType,
+          mainHeading: profile.mainHeading,
+          landmarks: profile.landmarks,
+          hasAccountArea: profile.signals.hasAccountArea,
+          hasLogout: profile.signals.hasLogout,
+          accountControls: profile.counts.accountControls,
+          logoutControls: profile.counts.logoutControls,
         },
       };
     }

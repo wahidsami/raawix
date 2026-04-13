@@ -49,6 +49,8 @@ export interface AnalysisAgentPageSummary {
       otpLikeFields: number;
       images: number;
       media: number;
+      accountControls: number;
+      logoutControls: number;
     };
     signals: {
       hasPrimaryNavigation: boolean;
@@ -59,6 +61,9 @@ export interface AnalysisAgentPageSummary {
       hasForgotPassword: boolean;
       hasResendCode: boolean;
       hasContact: boolean;
+      hasAccountArea: boolean;
+      hasLogout: boolean;
+      hasAuthenticatedWorkspace: boolean;
       hasModalTrigger: boolean;
       hasMenuToggle: boolean;
     };
@@ -140,6 +145,8 @@ function summarizeArtifact(
               otpLikeFields: artifact.pageProfile.counts.otpLikeFields,
               images: artifact.pageProfile.counts.images,
               media: artifact.pageProfile.counts.media,
+              accountControls: artifact.pageProfile.counts.accountControls,
+              logoutControls: artifact.pageProfile.counts.logoutControls,
             },
             signals: {
               hasPrimaryNavigation: artifact.pageProfile.signals.hasPrimaryNavigation,
@@ -150,6 +157,9 @@ function summarizeArtifact(
               hasForgotPassword: artifact.pageProfile.signals.hasForgotPassword,
               hasResendCode: artifact.pageProfile.signals.hasResendCode,
               hasContact: artifact.pageProfile.signals.hasContact,
+              hasAccountArea: artifact.pageProfile.signals.hasAccountArea,
+              hasLogout: artifact.pageProfile.signals.hasLogout,
+              hasAuthenticatedWorkspace: artifact.pageProfile.signals.hasAuthenticatedWorkspace,
               hasModalTrigger: artifact.pageProfile.signals.hasModalTrigger,
               hasMenuToggle: artifact.pageProfile.signals.hasMenuToggle,
             },

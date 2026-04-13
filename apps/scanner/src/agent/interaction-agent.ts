@@ -80,6 +80,7 @@ export type InteractionArtifact = {
       | 'validation_error_not_focused'
       | 'missing_page_structure'
       | 'missing_skip_link'
+      | 'authenticated_workspace_navigation_unclear'
       | 'unnamed_task_control'
       | 'missing_form_instructions'
       | 'unclear_error_recovery'
@@ -1084,6 +1085,35 @@ function buildJourneyRuns(
           ...(assessment?.evidence ?? {}),
           probe: probe?.evidence,
         },
+      };
+    }
+
+    if (task.id === 'navigate-authenticated-workspace') {
+      const relatedIssueKinds = getIssueKinds([
+        'authenticated_workspace_navigation_unclear',
+        'unnamed_task_control',
+      ]);
+      return {
+        ...fallback,
+        status:
+          relatedIssueKinds.length > 0
+            ? relatedIssueKinds.includes('unnamed_task_control')
+              ? 'not_working'
+              : 'needs_review'
+            : fallback.status,
+        confidence: relatedIssueKinds.length > 0 ? 0.76 : fallback.confidence,
+        summary:
+          getIssueMessages(relatedIssueKinds)[0] ??
+          assessment?.summary ??
+          'Authenticated workspace cues were detected; account navigation needs a clearer journey evaluation.',
+        usedSignals: uniqueStrings([
+          pageProfile.pageType === 'dashboard' ? 'dashboard/account page type' : null,
+          pageProfile.signals.hasAccountArea ? 'account/profile cues present' : null,
+          pageProfile.signals.hasLogout ? 'logout cue present' : null,
+          pageProfile.counts.accountControls > 0 ? `${pageProfile.counts.accountControls} account control(s)` : null,
+          pageProfile.counts.logoutControls > 0 ? `${pageProfile.counts.logoutControls} logout control(s)` : null,
+        ]),
+        relatedIssueKinds,
       };
     }
 

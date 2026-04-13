@@ -150,6 +150,8 @@ type AnalysisTracePageProfile = {
     otpLikeFields: number;
     images: number;
     media: number;
+    accountControls: number;
+    logoutControls: number;
   };
   signals: {
     hasPrimaryNavigation: boolean;
@@ -160,6 +162,9 @@ type AnalysisTracePageProfile = {
     hasForgotPassword: boolean;
     hasResendCode: boolean;
     hasContact: boolean;
+    hasAccountArea: boolean;
+    hasLogout: boolean;
+    hasAuthenticatedWorkspace: boolean;
     hasModalTrigger: boolean;
     hasMenuToggle: boolean;
   };
@@ -1325,6 +1330,11 @@ export default function ScanDetailPage() {
                             {(trace.pageProfile.counts.passwordFields > 0 || trace.pageProfile.counts.otpLikeFields > 0) && (
                               <div className="mt-1 text-[11px] text-muted-foreground">
                                 {trace.pageProfile.counts.passwordFields} password • {trace.pageProfile.counts.otpLikeFields} OTP-like
+                              </div>
+                            )}
+                            {(trace.pageProfile.signals.hasAuthenticatedWorkspace || trace.pageProfile.counts.accountControls > 0 || trace.pageProfile.counts.logoutControls > 0) && (
+                              <div className="mt-1 text-[11px] text-muted-foreground">
+                                {trace.pageProfile.counts.accountControls} account cues • {trace.pageProfile.counts.logoutControls} logout cues
                               </div>
                             )}
                           </div>
