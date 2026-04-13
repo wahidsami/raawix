@@ -84,11 +84,42 @@ function extractManualCheckpoint(
   };
 }
 
+async function detectVerificationCheckpoint(page: Page): Promise<{
+  detected: boolean;
+  otpLikeFields: number;
+  hasResendCode: boolean;
+  hasForgotPassword: boolean;
+  heading: string | null;
+}> {
+  return page.evaluate(() => {
+    const text = (document.body?.innerText ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const fields = Array.from(document.querySelectorAll('input, textarea, select'));
+    const otpLikeFields = fields.filter((field) => {
+      const input = field as HTMLInputElement | HTMLTextAreaElement;
+      const signature = `${field.getAttribute('aria-label') ?? ''} ${field.getAttribute('name') ?? ''} ${field.getAttribute('id') ?? ''} ${field.getAttribute('autocomplete') ?? ''}`.toLowerCase();
+      return input.inputMode === 'numeric' || /otp|verification|code|token|رمز|كود/.test(signature);
+    }).length;
+    const hasResendCode = /resend code|send again|إعادة إرسال|إرسال مرة أخرى/.test(text);
+    const hasForgotPassword = /forgot password|reset password|نسيت كلمة المرور|استعادة كلمة المرور/.test(text);
+    const heading =
+      document.querySelector('h1, h2, [role="heading"]')?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 120) ?? null;
+    return {
+      detected: otpLikeFields > 0 || hasResendCode,
+      otpLikeFields,
+      hasResendCode,
+      hasForgotPassword,
+      heading,
+    };
+  });
+}
+
 export class PageCapture {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private scanId?: string;
   private storageStatePath?: string;
+  private pausedPage: Page | null = null;
+  private pausedCheckpoint: ManualCheckpoint | null = null;
 
   constructor(scanId?: string, storageStatePath?: string) {
     this.scanId = scanId;
@@ -606,13 +637,23 @@ export class PageCapture {
         status: result.status,
         ...timings,
       });
-      await page.close();
+      if (result.manualCheckpoint) {
+        this.pausedPage = page;
+        this.pausedCheckpoint = result.manualCheckpoint;
+      } else {
+        await page.close();
+      }
     }
 
     return result;
   }
 
   async close(): Promise<void> {
+    if (this.pausedPage) {
+      await this.pausedPage.close().catch(() => {});
+      this.pausedPage = null;
+      this.pausedCheckpoint = null;
+    }
     if (this.context) {
       await this.context.close();
       this.context = null;
@@ -620,6 +661,158 @@ export class PageCapture {
     if (this.browser) {
       await this.browser.close();
       this.browser = null;
+    }
+  }
+
+  getManualCheckpoint(): ManualCheckpoint | null {
+    return this.pausedCheckpoint;
+  }
+
+  async resumeManualCheckpoint(code: string): Promise<{
+    success: boolean;
+    message: string;
+    resolved: boolean;
+    currentUrl?: string;
+  }> {
+    if (!this.pausedPage || !this.pausedCheckpoint) {
+      return {
+        success: false,
+        resolved: false,
+        message: 'No paused manual checkpoint is available for this scan session.',
+      };
+    }
+
+    const page = this.pausedPage;
+    const trimmedCode = code.trim();
+    if (!trimmedCode) {
+      return {
+        success: false,
+        resolved: false,
+        message: 'Verification code is required.',
+      };
+    }
+
+    try {
+      const otpTargets = await page.evaluate(() => {
+        const selectorFor = (el: Element): string => {
+          const htmlEl = el as HTMLElement;
+          if (htmlEl.id) return `#${htmlEl.id}`;
+          const name = el.getAttribute('name');
+          if (name) return `${el.tagName}[name="${name}"]`;
+          const className = htmlEl.className ? String(htmlEl.className).split(/\s+/).slice(0, 2).join('.') : '';
+          return `${el.tagName}${className ? `.${className}` : ''}`;
+        };
+        const isVisible = (el: Element): boolean => {
+          const htmlEl = el as HTMLElement;
+          const style = window.getComputedStyle(htmlEl);
+          const rect = htmlEl.getBoundingClientRect();
+          return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+        };
+        return Array.from(document.querySelectorAll('input, textarea'))
+          .filter((field) => {
+            if (!isVisible(field)) return false;
+            const input = field as HTMLInputElement | HTMLTextAreaElement;
+            const signature = `${field.getAttribute('aria-label') ?? ''} ${field.getAttribute('name') ?? ''} ${field.getAttribute('id') ?? ''} ${field.getAttribute('autocomplete') ?? ''}`.toLowerCase();
+            return input.inputMode === 'numeric' || /otp|verification|code|token|رمز|كود/.test(signature);
+          })
+          .slice(0, 8)
+          .map((field) => {
+            const input = field as HTMLInputElement | HTMLTextAreaElement;
+            return {
+              selector: selectorFor(field),
+              maxLength: typeof input.maxLength === 'number' ? input.maxLength : -1,
+              value: input.value ?? '',
+            };
+          });
+      });
+
+      if (otpTargets.length === 0) {
+        return {
+          success: false,
+          resolved: false,
+          message: 'No OTP/code field was found on the paused page.',
+          currentUrl: page.url(),
+        };
+      }
+
+      const splitAcrossInputs =
+        otpTargets.length > 1 &&
+        trimmedCode.length >= otpTargets.length &&
+        otpTargets.every((target) => target.maxLength === 1 || target.maxLength === -1);
+
+      for (let i = 0; i < otpTargets.length; i++) {
+        const target = otpTargets[i];
+        const locator = page.locator(target.selector).first();
+        await locator.focus();
+        if (splitAcrossInputs) {
+          await locator.fill(trimmedCode[i] ?? '');
+        } else if (i === 0) {
+          await locator.fill(trimmedCode);
+        }
+      }
+
+      const submitCandidate = await page.evaluate(() => {
+        const selectorFor = (el: Element): string => {
+          const htmlEl = el as HTMLElement;
+          if (htmlEl.id) return `#${htmlEl.id}`;
+          const name = el.getAttribute('name');
+          if (name) return `${el.tagName}[name="${name}"]`;
+          const className = htmlEl.className ? String(htmlEl.className).split(/\s+/).slice(0, 2).join('.') : '';
+          return `${el.tagName}${className ? `.${className}` : ''}`;
+        };
+        const candidates = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"]'));
+        const preferred = candidates.find((candidate) => {
+          const text = `${candidate.getAttribute('aria-label') ?? ''} ${(candidate.textContent ?? '').trim()} ${candidate.getAttribute('value') ?? ''}`.toLowerCase();
+          return /verify|continue|submit|next|confirm|تحقق|متابعة|تأكيد|إرسال/.test(text);
+        });
+        return preferred ? selectorFor(preferred) : null;
+      });
+
+      if (submitCandidate) {
+        await page.locator(submitCandidate).first().click();
+      } else {
+        await page.keyboard.press('Enter');
+      }
+
+      await page.waitForTimeout(1500);
+      const checkpointAfter = await detectVerificationCheckpoint(page);
+
+      if (this.context && this.storageStatePath) {
+        try {
+          const storageState = await this.context.storageState();
+          await writeFile(this.storageStatePath, JSON.stringify(storageState, null, 2), 'utf-8');
+        } catch (error) {
+          console.warn('[PageCapture] Failed to persist storage state after manual checkpoint resume:', error);
+        }
+      }
+
+      if (checkpointAfter.detected) {
+        return {
+          success: false,
+          resolved: false,
+          message: 'Verification checkpoint is still present after submitting the code. The code may be invalid or another step is required.',
+          currentUrl: page.url(),
+        };
+      }
+
+      const currentUrl = page.url();
+      await page.close().catch(() => {});
+      this.pausedPage = null;
+      this.pausedCheckpoint = null;
+
+      return {
+        success: true,
+        resolved: true,
+        message: 'Verification code accepted. Scan session resumed.',
+        currentUrl,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        resolved: false,
+        message: error instanceof Error ? error.message : 'Failed to resume manual checkpoint.',
+        currentUrl: page.url(),
+      };
     }
   }
 }

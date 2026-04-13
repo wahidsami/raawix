@@ -265,6 +265,8 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   const [banner, setBanner] = useState<{ tone: 'info' | 'success' | 'warning' | 'error'; message: string } | null>(null);
   const [scanPaused, setScanPaused] = useState(false);
   const [manualCheckpoint, setManualCheckpoint] = useState<ManualCheckpointState | null>(null);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [isResumingCheckpoint, setIsResumingCheckpoint] = useState(false);
   const scanStartedAtRef = useRef<number>(Date.now());
   const [elapsedMs, setElapsedMs] = useState(0);
   const [simulation, setSimulation] = useState<{
@@ -619,6 +621,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
           hasResendCode: (event as any).checkpoint?.hasResendCode,
           hasForgotPassword: (event as any).checkpoint?.hasForgotPassword,
         });
+        setVerificationCode('');
         setBanner({
           tone: 'warning',
           message:
@@ -630,10 +633,6 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
             ...prev,
             pagesScanned: (event as any).totals.scanned,
           }));
-        }
-        if (eventSourceRef.current) {
-          eventSourceRef.current.close();
-          eventSourceRef.current = null;
         }
         break;
       }
@@ -1566,6 +1565,34 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
     }
   };
 
+  const handleResumeCheckpoint = async () => {
+    if (!verificationCode.trim()) {
+      setBanner({ tone: 'error', message: 'Verification code is required.' });
+      return;
+    }
+
+    try {
+      setIsResumingCheckpoint(true);
+      const result = await apiClient.resumeScan(scanId, verificationCode.trim());
+      setScanPaused(false);
+      setManualCheckpoint(null);
+      setIsScanning(true);
+      setCurrentActivity(result.message || 'Resuming scan after verification...');
+      setBanner({
+        tone: 'success',
+        message: result.message || 'Verification code accepted. Scan resumed.',
+      });
+      setVerificationCode('');
+    } catch (error) {
+      setBanner({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Failed to resume paused scan.',
+      });
+    } finally {
+      setIsResumingCheckpoint(false);
+    }
+  };
+
   // Handle modal close with confirmation if scan is active
   const handleClose = () => {
     // If scan is in progress or discovery is active, show confirmation
@@ -2165,7 +2192,26 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                         )}
                         <div className="text-xs text-muted-foreground">
                           {(t('scanMonitor.manualCheckpointNextStep') as string) ||
-                            'Partial findings are ready now. OTP/code-entry resume is the next implementation step.'}
+                            'Enter the verification code to continue this live scan session.'}
+                        </div>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <input
+                            type="text"
+                            value={verificationCode}
+                            onChange={(e) => setVerificationCode(e.target.value)}
+                            placeholder={(t('scanMonitor.manualCheckpointCodePlaceholder') as string) || 'Enter verification code'}
+                            className="w-full sm:w-72 rounded border border-border bg-background px-3 py-2 text-sm text-foreground"
+                            disabled={isResumingCheckpoint}
+                          />
+                          <button
+                            onClick={handleResumeCheckpoint}
+                            disabled={isResumingCheckpoint || !verificationCode.trim()}
+                            className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isResumingCheckpoint
+                              ? ((t('scanMonitor.manualCheckpointResuming') as string) || 'Resuming...')
+                              : ((t('scanMonitor.manualCheckpointResume') as string) || 'Resume scan')}
+                          </button>
                         </div>
                       </div>
                     )}

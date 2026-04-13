@@ -27,6 +27,7 @@ interface Job {
   status: ScanStatus;
   scanRun?: ScanRun;
   manualCheckpoint?: ManualCheckpoint;
+  remainingSelectedUrls?: string[];
   startedAt?: string;
   completedAt?: string;
   canceledAt?: string;
@@ -97,6 +98,214 @@ export class JobQueue {
   ): Promise<void> {
     const checkpointPath = join(outputDir, 'manual-checkpoint.json');
     await writeFile(checkpointPath, JSON.stringify(checkpoint, null, 2), 'utf-8');
+  }
+
+  private async runSequentialPages(
+    scanId: string,
+    pageCapture: PageCapture,
+    outputDir: string,
+    urls: string[],
+    startingPageNumber: number,
+    logger: StructuredLogger,
+    pipeline: ReturnType<typeof resolveScanPipeline>,
+    storageStatePath?: string
+  ): Promise<{ pages: PageScanResult[]; manualCheckpoint: ManualCheckpoint | null }> {
+    const { scanEventEmitter } = await import('./events/scan-events.js');
+    const pages: PageScanResult[] = [];
+    let manualCheckpoint: ManualCheckpoint | null = null;
+    let pageCounter = startingPageNumber - 1;
+
+    for (const url of urls) {
+      if (this.canceled.has(scanId)) {
+        logger.info('Job canceled during sequential scan', { scanId });
+        break;
+      }
+
+      try {
+        pageCounter++;
+        logger.info(`Scanning page ${pageCounter}/${startingPageNumber - 1 + urls.length}: ${url}`, { scanId });
+
+        scanEventEmitter.emitEvent(scanId, {
+          type: 'page_started',
+          scanId,
+          url,
+          pageNumber: pageCounter,
+          timestamp: new Date().toISOString(),
+        });
+
+        for (const layer of ['L1', 'L2', 'L3'] as const) {
+          scanEventEmitter.emitEvent(scanId, {
+            type: 'layer_status',
+            scanId,
+            url,
+            pageNumber: pageCounter,
+            layer,
+            status: 'pending',
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        const pageStartedAt = Date.now();
+        const pageResult = await this.withTimeout(
+          pageCapture.capturePage(url, outputDir, pageCounter, {
+            timeout: 20000,
+            waitForNetworkIdle: true,
+            stabilization: {
+              waitUntil: 'domcontentloaded',
+              networkIdleMs: 800,
+              stableDomMs: 600,
+              maxWaitMs: 15000,
+              useReadyMarker: true,
+            },
+            pipeline,
+          }),
+          config.quotas.sequentialPageTimeoutMs,
+          `Page ${pageCounter} exceeded selected-page timeout of ${config.quotas.sequentialPageTimeoutMs}ms`
+        );
+
+        pages.push(pageResult);
+
+        if (scanId) {
+          try {
+            await scanRepository.upsertPage(scanId, {
+              pageNumber: pageResult.pageNumber,
+              url: pageResult.url,
+              title: pageResult.title,
+              finalUrl: pageResult.finalUrl,
+              canonicalUrl: pageResult.canonicalUrl,
+              pageFingerprint: pageResult.pageFingerprint,
+              screenshotPath: pageResult.screenshotPath,
+              htmlPath: pageResult.htmlPath,
+              a11yPath: pageResult.a11yPath,
+              visionPath: pageResult.visionPath,
+              agentPath: pageResult.agentPath,
+              error: pageResult.error,
+            });
+          } catch (error) {
+            logger.warn('Failed to upsert page in database', {
+              scanId,
+              url,
+              error: error instanceof Error ? error.message : 'Unknown',
+            });
+          }
+        }
+
+        scanEventEmitter.emitEvent(scanId, {
+          type: 'page_done',
+          scanId,
+          url,
+          pageNumber: pageCounter,
+          summary: {
+            findingsCount: 0,
+            visionCount: 0,
+            timings: pageResult.timings,
+          },
+          timestamp: new Date().toISOString(),
+        } as any);
+        logger.info('Sequential page scan finished', {
+          scanId,
+          url,
+          pageNumber: pageCounter,
+          durationMs: Date.now() - pageStartedAt,
+          timings: pageResult.timings,
+        });
+
+        if (pageResult.manualCheckpoint) {
+          manualCheckpoint = pageResult.manualCheckpoint;
+          logger.info('Manual checkpoint detected during sequential scan', {
+            scanId,
+            pageNumber: pageCounter,
+            url,
+            checkpoint: manualCheckpoint,
+          });
+          break;
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorStack = error instanceof Error ? error.stack : undefined;
+        const timedOut = error instanceof Error && error.name === 'ScanTimeoutError';
+        logger.error(`Failed to scan page ${url}:`, {
+          error: errorMessage,
+          stack: errorStack,
+          url,
+          pageNumber: pageCounter,
+          timedOut,
+        });
+        const failedPage: PageScanResult = {
+          pageNumber: pageCounter,
+          url,
+          status: 'failed',
+          error: errorMessage,
+          timings: { totalMs: config.quotas.sequentialPageTimeoutMs },
+        };
+        pages.push(failedPage);
+        await this.saveFailedPageArtifact(outputDir, pageCounter, url, errorMessage, failedPage.timings);
+
+        try {
+          await scanRepository.upsertPage(scanId, {
+            pageNumber: failedPage.pageNumber,
+            url: failedPage.url,
+            error: failedPage.error,
+          });
+        } catch (dbError) {
+          logger.warn('Failed to upsert failed page in database', {
+            scanId,
+            url,
+            error: dbError instanceof Error ? dbError.message : 'Unknown',
+          });
+        }
+
+        for (const layer of ['L1', 'L2', 'L3'] as const) {
+          scanEventEmitter.emitEvent(scanId, {
+            type: 'layer_status',
+            scanId,
+            url,
+            pageNumber: pageCounter,
+            layer,
+            status: 'failed',
+            meta: { error: errorMessage },
+            timestamp: new Date().toISOString(),
+          } as any);
+        }
+        scanEventEmitter.emitEvent(scanId, {
+          type: 'error',
+          scanId,
+          url,
+          message: errorMessage,
+          timestamp: new Date().toISOString(),
+        });
+        scanEventEmitter.emitEvent(scanId, {
+          type: 'page_done',
+          scanId,
+          url,
+          pageNumber: pageCounter,
+          summary: {
+            findingsCount: 0,
+            visionCount: 0,
+            failed: true,
+            error: errorMessage,
+          },
+          timestamp: new Date().toISOString(),
+        } as any);
+
+        if (timedOut) {
+          logger.warn('Restarting page capture browser after page timeout', { scanId, pageNumber: pageCounter, url });
+          try {
+            await pageCapture.close();
+          } catch (closeError) {
+            logger.warn('Failed to close timed-out page capture browser', {
+              scanId,
+              error: closeError instanceof Error ? closeError.message : 'Unknown',
+            });
+          }
+          pageCapture = new PageCapture(scanId, storageStatePath);
+          await pageCapture.initialize();
+          this.activePageCaptures.set(scanId, pageCapture);
+        }
+      }
+    }
+
+    return { pages, manualCheckpoint };
   }
 
   async addJob(request: ScanRequest): Promise<string> {
@@ -356,6 +565,129 @@ export class JobQueue {
     return true;
   }
 
+  async resumePausedScan(scanId: string, verificationCode: string): Promise<{ ok: boolean; message: string }> {
+    const job = this.getJob(scanId);
+    const logger = new StructuredLogger(scanId);
+
+    if (!job || job.status !== 'paused' || !job.manualCheckpoint) {
+      return { ok: false, message: 'Paused scan with manual checkpoint not found.' };
+    }
+
+    if (this.running.size >= config.maxConcurrentScans) {
+      return { ok: false, message: 'Scanner is busy right now. Please retry resuming in a moment.' };
+    }
+
+    const pageCapture = this.activePageCaptures.get(scanId) as PageCapture | undefined;
+    if (!pageCapture) {
+      return { ok: false, message: 'Paused scan session is no longer active. Start a fresh scan to continue.' };
+    }
+
+    const remainingUrls = job.remainingSelectedUrls ?? [];
+    const seedUrl = job.request.seedUrl || job.request.url || job.manualCheckpoint.pageUrl;
+    const pipeline = resolveScanPipeline(job.request);
+    const outputDir = join(config.outputDir, scanId);
+
+    const resumeResult = await pageCapture.resumeManualCheckpoint(verificationCode);
+    if (!resumeResult.success || !resumeResult.resolved) {
+      return { ok: false, message: resumeResult.message };
+    }
+
+    this.transitionState(job, 'running', logger);
+    this.running.add(scanId);
+    job.manualCheckpoint = undefined;
+    job.remainingSelectedUrls = [];
+    await scanRepository.updateScanStatus(scanId, 'running', undefined);
+
+    void (async () => {
+      try {
+        const startPageNumber = (await readFile(join(outputDir, 'report.json'), 'utf-8')
+          .then((raw) => {
+            const parsed = JSON.parse(raw) as ScanRun;
+            return (parsed.pages?.length ?? 0) + 1;
+          })
+          .catch(() => (job.scanRun?.pages?.length ?? 0) + 1));
+
+        const sequentialResult = await this.runSequentialPages(
+          scanId,
+          pageCapture,
+          outputDir,
+          remainingUrls,
+          startPageNumber,
+          logger,
+          pipeline,
+          undefined
+        );
+
+        if (sequentialResult.manualCheckpoint) {
+          job.manualCheckpoint = sequentialResult.manualCheckpoint;
+          job.remainingSelectedUrls = remainingUrls.slice(Math.max(0, sequentialResult.manualCheckpoint.pageNumber - startPageNumber + 1));
+          this.transitionState(job, 'paused', logger);
+          this.running.delete(scanId);
+          await this.flushPartialResultsAfterPause(
+            scanId,
+            seedUrl,
+            job.startedAt,
+            sequentialResult.manualCheckpoint,
+            logger,
+            pageCapture,
+            outputDir
+          );
+          return;
+        }
+
+        const finalScanRun = await this.reportGenerator.generateReport(
+          scanId,
+          seedUrl,
+          job.startedAt || new Date().toISOString(),
+          new Date().toISOString(),
+          { generateAssistiveMap: pipeline.layer3 }
+        );
+        finalScanRun.completedAt = new Date().toISOString();
+        job.scanRun = finalScanRun;
+        this.transitionState(job, 'completed', logger);
+        job.completedAt = finalScanRun.completedAt;
+
+        await this.reportGenerator.saveReport(scanId, finalScanRun);
+        await this.storage.saveScanResult(scanId, finalScanRun);
+        await scanRepository.saveReportResults(scanId, finalScanRun, {
+          analysisAgent: pipeline.analysisAgent,
+        });
+        await scanRepository.updateScanStatus(scanId, 'completed', new Date());
+
+        this.running.delete(scanId);
+        this.activePageCaptures.delete(scanId);
+        await pageCapture.close().catch(() => {});
+
+        const { scanEventEmitter } = await import('./events/scan-events.js');
+        const fails = finalScanRun.summary.byStatus.fail;
+        const needsReview = finalScanRun.summary.byStatus.needs_review;
+        const assistivePages = finalScanRun.pages.filter((p: any) => p.assistiveMapPath).length;
+        scanEventEmitter.emitEvent(scanId, {
+          type: 'scan_done',
+          scanId,
+          totals: {
+            pages: finalScanRun.pages.length,
+            fails,
+            needsReview,
+            assistivePages,
+          },
+          timestamp: new Date().toISOString(),
+        } as any);
+      } catch (error) {
+        logger.error('Failed to resume paused scan', {
+          scanId,
+          error: error instanceof Error ? error.message : 'Unknown',
+        });
+        this.running.delete(scanId);
+        this.transitionState(job, 'failed', logger);
+        job.completedAt = new Date().toISOString();
+        await scanRepository.updateScanStatus(scanId, 'failed', new Date());
+      }
+    })();
+
+    return { ok: true, message: resumeResult.message };
+  }
+
   private async persistPartialReportForCanceledScan(
     scanId: string,
     seedUrl: string,
@@ -530,14 +862,6 @@ export class JobQueue {
     pageCapture: PageCapture | null,
     outputDir: string
   ): Promise<void> {
-    if (pageCapture) {
-      try {
-        await pageCapture.close();
-      } catch {
-        // ignore
-      }
-      this.activePageCaptures.delete(scanId);
-    }
     try {
       await this.saveManualCheckpointArtifact(outputDir, checkpoint);
     } catch (error) {
@@ -881,234 +1205,30 @@ export class JobQueue {
         // Sequential scanning mode: scan selected URLs one by one
         console.log('[JOB-QUEUE] Using SEQUENTIAL SCANNING mode for', selectedUrls.length, 'pages');
         logger.info('Starting sequential scan of selected pages', { scanId, count: selectedUrls.length });
-
-        // Import scanEventEmitter for SSE events
-        const { scanEventEmitter } = await import('./events/scan-events.js');
-
-        const pages: PageScanResult[] = [];
-        let pageCounter = 0;
-        const scanDeadlineAt = startTime + timeoutMs;
-
-        for (const url of selectedUrls) {
-          if (this.canceled.has(scanId)) {
-            logger.info('Job canceled during sequential scan', { scanId });
-            break;
-          }
-
-          try {
-            pageCounter++;
-            const remainingScanMs = scanDeadlineAt - Date.now();
-            if (remainingScanMs <= 0) {
-              throw new Error(`Scan exceeded maximum runtime of ${timeoutMs}ms before page ${pageCounter}`);
-            }
-
-            logger.info(`Scanning page ${pageCounter}/${selectedUrls.length}: ${url}`, { scanId });
-
-            // Emit page_started
-            scanEventEmitter.emitEvent(scanId, {
-              type: 'page_started',
-              scanId,
-              url,
-              pageNumber: pageCounter,
-              timestamp: new Date().toISOString(),
-            });
-
-            // Emit L1 pending
-            scanEventEmitter.emitEvent(scanId, {
-              type: 'layer_status',
-              scanId,
-              url,
-              pageNumber: pageCounter,
-              layer: 'L1',
-              status: 'pending',
-              timestamp: new Date().toISOString(),
-            });
-
-            // Emit L2 pending
-            scanEventEmitter.emitEvent(scanId, {
-              type: 'layer_status',
-              scanId,
-              url,
-              pageNumber: pageCounter,
-              layer: 'L2',
-              status: 'pending',
-              timestamp: new Date().toISOString(),
-            });
-
-            // Emit L3 pending
-            scanEventEmitter.emitEvent(scanId, {
-              type: 'layer_status',
-              scanId,
-              url,
-              pageNumber: pageCounter,
-              layer: 'L3',
-              status: 'pending',
-              timestamp: new Date().toISOString(),
-            });
-
-            const effectivePageTimeoutMs = Math.min(
-              config.quotas.sequentialPageTimeoutMs,
-              Math.max(remainingScanMs, 1000)
-            );
-            const pageStartedAt = Date.now();
-            const pageResult = await this.withTimeout(
-              pageCapture.capturePage(url, outputDir, pageCounter, pageCaptureBaseOpts),
-              effectivePageTimeoutMs,
-              `Page ${pageCounter} exceeded selected-page timeout of ${effectivePageTimeoutMs}ms`
-            );
-
-            pages.push(pageResult);
-
-            // L1/L2 completion (and L2 skipped when disabled) is emitted from page-capture
-            // L3 completes during report generation when assistive map is enabled
-
-            // Save Page record to database
-            if (scanId && pageResult.status === 'success') {
-              try {
-                await scanRepository.upsertPage(scanId, {
-                  pageNumber: pageResult.pageNumber,
-                  url: pageResult.url,
-                  title: pageResult.title,
-                  finalUrl: pageResult.finalUrl,
-                  canonicalUrl: pageResult.canonicalUrl,
-                  pageFingerprint: pageResult.pageFingerprint,
-                  screenshotPath: pageResult.screenshotPath,
-                  htmlPath: pageResult.htmlPath,
-                  a11yPath: pageResult.a11yPath,
-                  visionPath: pageResult.visionPath,
-                  agentPath: pageResult.agentPath,
-                  error: pageResult.error,
-                });
-              } catch (error) {
-                // Non-fatal - continue scanning
-                console.warn(`Failed to upsert page in database:`, error);
-                logger.warn('Failed to upsert page in database', { scanId, url, error: error instanceof Error ? error.message : 'Unknown' });
-              }
-            }
-
-            // Emit page_done
-            scanEventEmitter.emitEvent(scanId, {
-              type: 'page_done',
-              scanId,
-              url,
-              pageNumber: pageCounter,
-              summary: {
-                findingsCount: 0, // Will be calculated in report generation
-                visionCount: 0, // Will be calculated in report generation
-                timings: pageResult.timings,
-              },
-              timestamp: new Date().toISOString(),
-            } as any);
-            logger.info('Sequential page scan finished', {
-              scanId,
-              url,
-              pageNumber: pageCounter,
-              durationMs: Date.now() - pageStartedAt,
-              timings: pageResult.timings,
-            });
-
-            if (job.request.auditMode === 'raawi-agent' && pageResult.manualCheckpoint) {
-              manualCheckpoint = pageResult.manualCheckpoint;
-              job.manualCheckpoint = manualCheckpoint;
-              logger.info('Manual checkpoint detected during sequential scan', {
-                scanId,
-                pageNumber: pageCounter,
-                url,
-                checkpoint: manualCheckpoint,
-              });
-              break;
-            }
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            const errorStack = error instanceof Error ? error.stack : undefined;
-            const timedOut = error instanceof Error && error.name === 'ScanTimeoutError';
-            console.error(`[SEQUENTIAL-SCAN] Failed to scan page ${url}:`, errorMessage, errorStack);
-            logger.error(`Failed to scan page ${url}:`, {
-              error: errorMessage,
-              stack: errorStack,
-              url,
-              pageNumber: pageCounter,
-              timedOut,
-            });
-            const failedPage: PageScanResult = {
-              pageNumber: pageCounter,
-              url,
-              status: 'failed',
-              error: errorMessage,
-              timings: { totalMs: config.quotas.sequentialPageTimeoutMs },
-            };
-            pages.push(failedPage);
-            await this.saveFailedPageArtifact(outputDir, pageCounter, url, errorMessage, failedPage.timings);
-
-            try {
-              await scanRepository.upsertPage(scanId, {
-                pageNumber: failedPage.pageNumber,
-                url: failedPage.url,
-                error: failedPage.error,
-              });
-            } catch (dbError) {
-              logger.warn('Failed to upsert failed page in database', {
-                scanId,
-                url,
-                error: dbError instanceof Error ? dbError.message : 'Unknown',
-              });
-            }
-
-            for (const layer of ['L1', 'L2', 'L3'] as const) {
-              scanEventEmitter.emitEvent(scanId, {
-                type: 'layer_status',
-                scanId,
-                url,
-                pageNumber: pageCounter,
-                layer,
-                status: 'failed',
-                meta: { error: errorMessage },
-                timestamp: new Date().toISOString(),
-              } as any);
-            }
-            scanEventEmitter.emitEvent(scanId, {
-              type: 'error',
-              scanId,
-              url,
-              message: errorMessage,
-              timestamp: new Date().toISOString(),
-            });
-            scanEventEmitter.emitEvent(scanId, {
-              type: 'page_done',
-              scanId,
-              url,
-              pageNumber: pageCounter,
-              summary: {
-                findingsCount: 0,
-                visionCount: 0,
-                failed: true,
-                error: errorMessage,
-              },
-              timestamp: new Date().toISOString(),
-            } as any);
-
-            if (timedOut && pageCapture) {
-              logger.warn('Restarting page capture browser after page timeout', { scanId, pageNumber: pageCounter, url });
-              try {
-                await pageCapture.close();
-              } catch (closeError) {
-                logger.warn('Failed to close timed-out page capture browser', {
-                  scanId,
-                  error: closeError instanceof Error ? closeError.message : 'Unknown',
-                });
-              }
-              pageCapture = new PageCapture(scanId, storageStatePath);
-              await pageCapture.initialize();
-              this.activePageCaptures.set(scanId, pageCapture);
-            }
-          }
+        const sequentialResult = await this.runSequentialPages(
+          scanId,
+          pageCapture,
+          outputDir,
+          selectedUrls,
+          1,
+          logger,
+          pipeline,
+          storageStatePath
+        );
+        manualCheckpoint = sequentialResult.manualCheckpoint;
+        if (manualCheckpoint) {
+          job.manualCheckpoint = manualCheckpoint;
+          const pausedIndex = manualCheckpoint.pageNumber;
+          job.remainingSelectedUrls = selectedUrls.slice(pausedIndex);
+        } else {
+          job.remainingSelectedUrls = [];
         }
 
         crawlResult = {
-          pages,
-          totalPages: pages.length,
-          successfulPages: pages.filter(p => p.status === 'success').length,
-          failedPages: pages.filter(p => p.status === 'failed').length,
+          pages: sequentialResult.pages,
+          totalPages: sequentialResult.pages.length,
+          successfulPages: sequentialResult.pages.filter(p => p.status === 'success').length,
+          failedPages: sequentialResult.pages.filter(p => p.status === 'failed').length,
         };
       } else {
         // Normal BFS crawl mode

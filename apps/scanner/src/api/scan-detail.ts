@@ -690,6 +690,32 @@ router.post('/:scanId/cancel', requireAuth, async (req: Request, res: Response) 
   }
 });
 
+router.post('/:scanId/resume', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { scanId } = req.params;
+    const code = typeof req.body?.code === 'string' ? req.body.code : '';
+
+    if (!code.trim()) {
+      return res.status(400).json({ error: 'Verification code is required' });
+    }
+
+    if (!getJobQueue) {
+      return res.status(503).json({ error: 'Job queue not available' });
+    }
+
+    const jobQueue = getJobQueue();
+    const result = await jobQueue.resumePausedScan(scanId, code);
+    if (!result.ok) {
+      return res.status(400).json({ error: result.message });
+    }
+
+    res.json({ scanId, status: 'running', message: result.message });
+  } catch (error) {
+    console.error('Error resuming paused scan:', error);
+    res.status(500).json({ error: 'Failed to resume paused scan' });
+  }
+});
+
 /**
  * DELETE /api/scans/:scanId
  * Delete a scan and all related data (database records + files + assistive maps)

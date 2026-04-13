@@ -183,6 +183,16 @@ class ApiClient {
     );
   }
 
+  async resumeScan(scanId: string, code: string): Promise<{ scanId: string; status: string; message: string }> {
+    return this.request<{ scanId: string; status: string; message: string }>(
+      `/api/scans/${scanId}/resume`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      }
+    );
+  }
+
   async getScannerConfig(): Promise<{
     allowedPorts: number[];
     allowAllPorts: boolean;
