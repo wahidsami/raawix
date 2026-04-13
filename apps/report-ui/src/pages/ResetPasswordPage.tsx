@@ -69,7 +69,7 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-md">
         <div className="bg-card border border-border rounded-lg shadow-md p-8">
           <div className="flex flex-col items-center mb-6">
-            <img src="/dashboardlogo.png" alt="Raawi X Logo" className="h-16 w-auto mb-4" />
+            <img src="/dashboardlogo.svg" alt="Raawi X Logo" className="h-16 w-auto mb-4" />
             <h1 className="text-2xl font-bold text-center mb-2">{t('auth.resetPasswordTitle')}</h1>
             <p className="text-muted-foreground text-center">{t('auth.resetPasswordSubtitle')}</p>
           </div>

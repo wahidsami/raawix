@@ -50,7 +50,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
         <div className="bg-card border border-border rounded-lg shadow-md p-8">
           <div className="flex flex-col items-center mb-6">
             <img 
-              src="/dashboardlogo.png" 
+              src="/dashboardlogo.svg" 
               alt="Raawi X Logo" 
               className="h-16 w-auto mb-4"
             />

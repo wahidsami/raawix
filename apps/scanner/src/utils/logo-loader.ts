@@ -12,63 +12,77 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+/** Bundled with scanner templates → copied to dist/templates on build (see copy-static-assets.mjs). */
+const bundledRaawiLogoPath = join(__dirname, '../templates/assets/raawi-x-logo.svg');
+
+async function fileToImageDataUrl(filePath: string): Promise<string> {
+  const lower = filePath.toLowerCase();
+  if (lower.endsWith('.svg')) {
+    const svg = await readFile(filePath, { encoding: 'utf8' });
+    return `data:image/svg+xml;base64,${Buffer.from(svg, 'utf8').toString('base64')}`;
+  }
+  const buf = await readFile(filePath);
+  let mimeType = 'image/png';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) mimeType = 'image/jpeg';
+  else if (lower.endsWith('.webp')) mimeType = 'image/webp';
+  return `data:${mimeType};base64,${buf.toString('base64')}`;
+}
+
+async function tryPaths(paths: string[]): Promise<string> {
+  for (const logoPath of paths) {
+    if (!existsSync(logoPath)) continue;
+    try {
+      return await fileToImageDataUrl(logoPath);
+    } catch (error) {
+      console.warn(`Failed to load logo from ${logoPath}:`, error);
+    }
+  }
+  return '';
+}
+
 /**
  * Load logo and return as base64 data URL
  */
 export async function loadLogoAsDataUrl(): Promise<string> {
-  // Try multiple possible locations
   const possiblePaths = [
-    join(__dirname, '../../../../dashboardlogo.png'), // Project root
-    join(__dirname, '../../../report-ui/public/dashboardlogo.png'), // Report UI public
-    join(__dirname, '../../dashboardlogo.png'), // Scanner root
-    'dashboardlogo.png', // Current directory
+    bundledRaawiLogoPath,
+    join(__dirname, '../../../../dashboardlogo.png'),
+    join(__dirname, '../../../../dashboardlogo.svg'),
+    join(__dirname, '../../../report-ui/public/dashboardlogo.png'),
+    join(__dirname, '../../../report-ui/public/dashboardlogo.svg'),
+    join(__dirname, '../../dashboardlogo.png'),
+    join(__dirname, '../../dashboardlogo.svg'),
+    'dashboardlogo.png',
+    'dashboardlogo.svg',
   ];
 
-  for (const logoPath of possiblePaths) {
-    if (existsSync(logoPath)) {
-      try {
-        const logoBuffer = await readFile(logoPath);
-        const base64 = logoBuffer.toString('base64');
-        const mimeType = logoPath.endsWith('.svg') ? 'image/svg+xml' : 'image/png';
-        return `data:${mimeType};base64,${base64}`;
-      } catch (error) {
-        console.warn(`Failed to load logo from ${logoPath}:`, error);
-        continue;
-      }
-    }
-  }
+  const dataUrl = await tryPaths(possiblePaths);
+  if (dataUrl) return dataUrl;
 
-  // Fallback: return empty string (template will handle missing logo)
-  console.warn('Logo not found, using fallback');
-  return '';
+  console.warn('Logo not found, using embedded fallback');
+  const embedded = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 88"><text fill="#059669" font-family="Segoe UI,sans-serif" font-size="40" font-weight="700" x="180" y="58" text-anchor="middle">Raawi X</text></svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(embedded, 'utf8').toString('base64')}`;
 }
+
+const bundledPoweredByPath = join(__dirname, '../templates/assets/powered-by-unifinity.svg');
 
 /**
  * Load "Powered By" logo and return as base64 data URL
  */
 export async function loadPoweredByLogoAsDataUrl(): Promise<string> {
   const possiblePaths = [
-    join(__dirname, '../../../../images/poweredby.png'), // Project root/images
+    bundledPoweredByPath,
+    join(__dirname, '../../../../images/poweredby.png'),
     join(__dirname, '../../../images/poweredby.png'),
     join(__dirname, '../../images/poweredby.png'),
     'images/poweredby.png',
   ];
 
-  for (const logoPath of possiblePaths) {
-    if (existsSync(logoPath)) {
-      try {
-        const logoBuffer = await readFile(logoPath);
-        const base64 = logoBuffer.toString('base64');
-        return `data:image/png;base64,${base64}`;
-      } catch (error) {
-        console.warn(`Failed to load powered by logo from ${logoPath}:`, error);
-        continue;
-      }
-    }
-  }
+  const dataUrl = await tryPaths(possiblePaths);
+  if (dataUrl) return dataUrl;
 
-  console.warn('Powered By logo not found');
-  return '';
+  const embedded = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 48"><text fill="#64748b" font-family="Segoe UI,sans-serif" font-size="14" font-weight="600" x="210" y="30" text-anchor="middle">Powered by Unifinity AI</text></svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(embedded, 'utf8').toString('base64')}`;
 }
 
 /**

@@ -72,7 +72,7 @@ export default function Sidebar() {
     >
       <div className="app-header-h flex items-center justify-center border-b border-border">
         <img
-          src="/dashboardlogo.png"
+          src="/dashboardlogo.svg"
           alt="Raawi X Logo"
           className="h-10 w-auto"
         />
