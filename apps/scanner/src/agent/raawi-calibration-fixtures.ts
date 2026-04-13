@@ -291,6 +291,88 @@ export const raawiCalibrationFixtures: RaawiCalibrationFixture[] = [
     ],
   },
   {
+    id: 'menu-unnamed-toggle',
+    label: 'Menu task with unnamed disclosure control',
+    focus: ['menus', 'navigation'],
+    profile: createProfile({
+      pageType: 'content',
+      mainHeading: 'Services',
+      headings: ['Services'],
+      landmarks: ['main', 'navigation'],
+      counts: {
+        buttons: 1,
+        buttonsWithoutName: 1,
+      },
+      signals: {
+        hasPrimaryNavigation: true,
+        hasMenuToggle: true,
+      },
+      taskIntents: [
+        taskIntent('operate-menu', 'Open and close menus/disclosures with keyboard', 'Keyboard & Navigation'),
+      ],
+    }),
+    expectations: [
+      {
+        taskId: 'operate-menu',
+        result: 'not_working',
+        issueKind: 'unnamed_task_control',
+      },
+    ],
+  },
+  {
+    id: 'dialog-unnamed-trigger',
+    label: 'Dialog task with unnamed trigger control',
+    focus: ['dialogs', 'dynamic-updates'],
+    profile: createProfile({
+      pageType: 'content',
+      mainHeading: 'Application Status',
+      headings: ['Application Status'],
+      landmarks: ['main'],
+      counts: {
+        buttons: 1,
+        buttonsWithoutName: 1,
+      },
+      signals: {
+        hasModalTrigger: true,
+        hasDynamicUpdateRisk: true,
+      },
+      taskIntents: [
+        taskIntent('operate-dialog', 'Open and close dialogs while preserving focus', 'Timing & Interaction'),
+      ],
+    }),
+    expectations: [
+      {
+        taskId: 'operate-dialog',
+        result: 'not_working',
+        issueKind: 'unnamed_task_control',
+      },
+    ],
+  },
+  {
+    id: 'media-basic-controls',
+    label: 'Media task with exposed controls and no immediate naming failure',
+    focus: ['media', 'multimedia'],
+    profile: createProfile({
+      pageType: 'content',
+      mainHeading: 'Video Library',
+      headings: ['Video Library'],
+      landmarks: ['main'],
+      counts: {
+        media: 1,
+        buttons: 2,
+      },
+      taskIntents: [
+        taskIntent('operate-media', 'Operate media and verify alternatives', 'Multimedia'),
+      ],
+    }),
+    expectations: [
+      {
+        taskId: 'operate-media',
+        result: 'needs_review',
+      },
+    ],
+  },
+  {
     id: 'content-page-missing-heading',
     label: 'Content page with no clear main heading',
     focus: ['content', 'structure'],
