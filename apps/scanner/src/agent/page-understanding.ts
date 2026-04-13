@@ -81,6 +81,8 @@ export interface RaawiPageProfile {
     media: number;
     liveRegions: number;
     alertRegions: number;
+    nonEmptyAnnouncementRegions: number;
+    meaningfulAnnouncementRegions: number;
     accountControls: number;
     logoutControls: number;
     buttonsWithoutName: number;
@@ -344,6 +346,15 @@ export async function captureRaawiPageProfile(page: Page, url: string): Promise<
         .filter(Boolean)
         .join(' ');
     };
+    const normalizeAnnouncementText = (value: string): string => value.replace(/\s+/g, ' ').trim();
+    const isMeaningfulAnnouncement = (value: string): boolean => {
+      const normalized = normalizeAnnouncementText(value).toLowerCase();
+      if (normalized.length < 6) return false;
+      if (!/[a-z\u0600-\u06ff0-9]/i.test(normalized)) return false;
+      return !/^(loading|updated|done|ok|okay|ready|success|error|warning|notice|results?|search|menu|dialog|close|open|more)$/i.test(
+        normalized
+      );
+    };
 
     const headings = Array.from(document.querySelectorAll('h1,h2,h3'))
       .map((h) => (h.textContent ?? '').replace(/\s+/g, ' ').trim())
@@ -410,8 +421,14 @@ export async function captureRaawiPageProfile(page: Page, url: string): Promise<
         images: images.length,
         imagesWithoutAlt: images.filter((img) => !img.hasAttribute('alt')).length,
         media,
-        liveRegions: document.querySelectorAll('[aria-live]').length,
+        liveRegions: document.querySelectorAll('[aria-live], [role="status"]').length,
         alertRegions: document.querySelectorAll('[role="alert"]').length,
+        nonEmptyAnnouncementRegions: Array.from(
+          document.querySelectorAll('[aria-live], [role="status"], [role="alert"]')
+        ).filter((node) => normalizeAnnouncementText(node.textContent ?? '').length > 0).length,
+        meaningfulAnnouncementRegions: Array.from(
+          document.querySelectorAll('[aria-live], [role="status"], [role="alert"]')
+        ).filter((node) => isMeaningfulAnnouncement(node.textContent ?? '')).length,
         accountControls: [...links, ...buttons].filter((element) => /account|profile|dashboard|settings|workspace|portal|الحساب|الملف|لوحة|الإعدادات/.test(accessibleName(element).toLowerCase())).length,
         logoutControls: [...links, ...buttons].filter((element) => /logout|log out|sign out|signout|تسجيل الخروج|خروج/.test(accessibleName(element).toLowerCase())).length,
         buttonsWithoutName: buttons.filter((button) => !accessibleName(button)).length,
@@ -843,6 +860,8 @@ export function assessRaawiTaskIntents(profile: RaawiPageProfile): RaawiTaskAsse
 
     if (task.id === 'follow-dynamic-updates') {
       const hasAnnouncementSupport = profile.counts.liveRegions > 0 || profile.counts.alertRegions > 0;
+      const hasMeaningfulAnnouncementSupport = profile.counts.meaningfulAnnouncementRegions > 0;
+      const hasOrientationSupport = !!profile.mainHeading || profile.landmarks.length > 0;
       if (!hasAnnouncementSupport) {
         return {
           taskId: task.id,
@@ -854,6 +873,8 @@ export function assessRaawiTaskIntents(profile: RaawiPageProfile): RaawiTaskAsse
           evidence: {
             liveRegions: profile.counts.liveRegions,
             alertRegions: profile.counts.alertRegions,
+            nonEmptyAnnouncementRegions: profile.counts.nonEmptyAnnouncementRegions,
+            meaningfulAnnouncementRegions: profile.counts.meaningfulAnnouncementRegions,
             hasDynamicUpdateRisk: profile.signals.hasDynamicUpdateRisk,
             hasSearch: profile.signals.hasSearch,
             hasModalTrigger: profile.signals.hasModalTrigger,
@@ -867,6 +888,8 @@ export function assessRaawiTaskIntents(profile: RaawiPageProfile): RaawiTaskAsse
             evidence: {
               liveRegions: profile.counts.liveRegions,
               alertRegions: profile.counts.alertRegions,
+              nonEmptyAnnouncementRegions: profile.counts.nonEmptyAnnouncementRegions,
+              meaningfulAnnouncementRegions: profile.counts.meaningfulAnnouncementRegions,
               hasSearch: profile.signals.hasSearch,
               hasModalTrigger: profile.signals.hasModalTrigger,
               hasMenuToggle: profile.signals.hasMenuToggle,
@@ -878,17 +901,64 @@ export function assessRaawiTaskIntents(profile: RaawiPageProfile): RaawiTaskAsse
         };
       }
 
+      if (!hasMeaningfulAnnouncementSupport || !hasOrientationSupport) {
+        return {
+          taskId: task.id,
+          label: task.label,
+          category: task.category,
+          result: 'needs_review',
+          confidence: !hasMeaningfulAnnouncementSupport ? 0.75 : 0.68,
+          summary: !hasMeaningfulAnnouncementSupport
+            ? 'Announcement regions were present, but they appeared empty or too generic to reliably explain dynamic UI changes.'
+            : 'Dynamic updates had some announcement support, but orientation cues such as headings or landmarks were too weak for confident assistive-tech follow-through.',
+          evidence: {
+            liveRegions: profile.counts.liveRegions,
+            alertRegions: profile.counts.alertRegions,
+            nonEmptyAnnouncementRegions: profile.counts.nonEmptyAnnouncementRegions,
+            meaningfulAnnouncementRegions: profile.counts.meaningfulAnnouncementRegions,
+            mainHeading: profile.mainHeading,
+            landmarkCount: profile.landmarks.length,
+            hasDynamicUpdateRisk: profile.signals.hasDynamicUpdateRisk,
+            hasSearch: profile.signals.hasSearch,
+            hasModalTrigger: profile.signals.hasModalTrigger,
+            hasMenuToggle: profile.signals.hasMenuToggle,
+            forms: profile.counts.forms,
+          },
+          issue: {
+            kind: 'dynamic_updates_not_announced',
+            message: !hasMeaningfulAnnouncementSupport
+              ? 'Announcement regions were captured, but they appeared empty or too generic to clearly communicate dynamic updates to assistive technologies.'
+              : 'Dynamic updates were detected, but headings or landmark structure were too weak to confidently orient assistive-technology users after the change.',
+            confidence: !hasMeaningfulAnnouncementSupport ? 0.75 : 0.68,
+            evidence: {
+              liveRegions: profile.counts.liveRegions,
+              alertRegions: profile.counts.alertRegions,
+              nonEmptyAnnouncementRegions: profile.counts.nonEmptyAnnouncementRegions,
+              meaningfulAnnouncementRegions: profile.counts.meaningfulAnnouncementRegions,
+              mainHeading: profile.mainHeading,
+              landmarkCount: profile.landmarks.length,
+            },
+            suggestedWcagIds: ['4.1.3', '2.4.6', '3.2.2'],
+            howToVerify: 'Use a screen reader while triggering search, dialog, menu, or validation updates and confirm the update is announced with enough context to understand what changed and where the user is now.',
+          },
+        };
+      }
+
       return {
         taskId: task.id,
         label: task.label,
         category: task.category,
         result: 'working',
-        confidence: 0.65,
-        summary: 'Live-region or alert-based announcement cues were present for dynamic interactions.',
+        confidence: 0.72,
+        summary: 'Meaningful announcement cues and basic orientation structure were present for dynamic interactions.',
         evidence: {
           liveRegions: profile.counts.liveRegions,
           alertRegions: profile.counts.alertRegions,
+          nonEmptyAnnouncementRegions: profile.counts.nonEmptyAnnouncementRegions,
+          meaningfulAnnouncementRegions: profile.counts.meaningfulAnnouncementRegions,
           hasDynamicUpdateRisk: profile.signals.hasDynamicUpdateRisk,
+          mainHeading: profile.mainHeading,
+          landmarkCount: profile.landmarks.length,
         },
       };
     }

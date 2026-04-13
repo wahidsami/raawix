@@ -556,20 +556,55 @@ async function findCandidateElements(
   }, maxPerType);
 }
 
-/** Run in page: sample aria-live text (up to n elements). */
+/** Run in page: sample announcement text (up to n elements). */
 async function getAriaLiveTexts(page: Page, n: number): Promise<Array<{ role: string | null; text: string }>> {
   return page.evaluate((cap: number) => {
-    const nodes = document.querySelectorAll('[aria-live]');
+    const nodes = document.querySelectorAll('[aria-live], [role="status"], [role="alert"]');
     const out: Array<{ role: string | null; text: string }> = [];
     for (let i = 0; i < nodes.length && i < cap; i++) {
       const el = nodes[i];
       out.push({
-        role: el.getAttribute('aria-live'),
+        role: el.getAttribute('aria-live') ?? el.getAttribute('role'),
         text: (el.textContent ?? '').trim().slice(0, 500),
       });
     }
     return out;
   }, n);
+}
+
+function normalizeAnnouncementText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function isMeaningfulAnnouncementText(value: string): boolean {
+  const normalized = normalizeAnnouncementText(value).toLowerCase();
+  if (normalized.length < 6) return false;
+  if (!/[a-z\u0600-\u06ff0-9]/i.test(normalized)) return false;
+  return !/^(loading|updated|done|ok|okay|ready|success|error|warning|notice|results?|search|menu|dialog|close|open|more)$/i.test(
+    normalized
+  );
+}
+
+function summarizeAnnouncementSamples(samples: Array<{ role: string | null; text: string }>): {
+  totalCount: number;
+  nonEmptyCount: number;
+  meaningfulCount: number;
+  assertiveCount: number;
+  sampleMessages: string[];
+} {
+  const normalized = samples.map((sample) => ({
+    role: sample.role,
+    text: normalizeAnnouncementText(sample.text),
+  }));
+  const nonEmpty = normalized.filter((sample) => sample.text.length > 0);
+  const meaningful = nonEmpty.filter((sample) => isMeaningfulAnnouncementText(sample.text));
+  return {
+    totalCount: normalized.length,
+    nonEmptyCount: nonEmpty.length,
+    meaningfulCount: meaningful.length,
+    assertiveCount: normalized.filter((sample) => sample.role === 'assertive' || sample.role === 'alert').length,
+    sampleMessages: meaningful.slice(0, 3).map((sample) => sample.text),
+  };
 }
 
 /** Run in page: check dialog presence and focus inside. */
@@ -703,9 +738,11 @@ async function detectVerificationCheckpoint(page: Page): Promise<{
 async function checkSearchOutcome(page: Page): Promise<{
   resultCount: number;
   hasResultsRegion: boolean;
+  resultHeadingCount: number;
   activeTag: string;
   activeRole: string | null;
   liveMessageCount: number;
+  meaningfulLiveMessageCount: number;
 }> {
   return page.evaluate(() => {
     const resultLike = document.querySelectorAll(
@@ -715,15 +752,25 @@ async function checkSearchOutcome(page: Page): Promise<{
       '[role="search"], [aria-label*="result" i], [id*="result" i], [class*="result" i]'
     );
     const active = document.activeElement as HTMLElement | null;
-    const liveNodes = Array.from(document.querySelectorAll('[aria-live]')).filter(
+    const liveNodes = Array.from(document.querySelectorAll('[aria-live], [role="status"], [role="alert"]')).filter(
       (node) => ((node.textContent ?? '').replace(/\s+/g, ' ').trim().length > 0)
     );
+    const meaningfulLiveNodes = liveNodes.filter((node) => {
+      const text = (node.textContent ?? '').replace(/\s+/g, ' ').trim();
+      return text.length >= 6 && !/^(loading|updated|done|ok|okay|ready|success|error|warning|notice|results?|search)$/i.test(text);
+    });
+    const resultHeadingCount = Array.from(document.querySelectorAll('h1, h2, h3, [role="heading"]')).filter((node) => {
+      const text = (node.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+      return /result|search|found|matching|نتائج|بحث/.test(text);
+    }).length;
     return {
       resultCount: resultLike.length,
       hasResultsRegion: !!resultsRegion,
+      resultHeadingCount,
       activeTag: active?.tagName?.toLowerCase() ?? '',
       activeRole: active?.getAttribute('role') ?? null,
       liveMessageCount: liveNodes.length,
+      meaningfulLiveMessageCount: meaningfulLiveNodes.length,
     };
   });
 }
@@ -1729,6 +1776,7 @@ export async function runInteractionAgent(
               async () => {
                 const beforeFingerprint = await getDomChangeFingerprint(page);
                 const liveBefore = await getAriaLiveTexts(page, ARIA_LIVE_SAMPLE_SIZE);
+                const announcementBefore = summarizeAnnouncementSamples(liveBefore);
                 await page.locator(searchField.selector).first().focus();
                 await page.locator(searchField.selector).first().fill('accessibility');
                 if (searchField.submitSelector) {
@@ -1739,13 +1787,22 @@ export async function runInteractionAgent(
                 await page.waitForTimeout(PROBE_WAIT_MS);
                 const afterFingerprint = await getDomChangeFingerprint(page);
                 const liveAfter = await getAriaLiveTexts(page, ARIA_LIVE_SAMPLE_SIZE);
+                const announcementAfter = summarizeAnnouncementSamples(liveAfter);
                 const outcome = await checkSearchOutcome(page);
                 const domChanged = domFingerprintChanged(beforeFingerprint, afterFingerprint);
                 const ariaLiveChanged =
                   liveBefore.length !== liveAfter.length ||
-                  liveBefore.some((b, i) => liveAfter[i]?.text !== b.text);
+                  liveBefore.some((b, i) => liveAfter[i]?.text !== b.text || liveAfter[i]?.role !== b.role);
+                const meaningfulAnnouncementChanged =
+                  announcementAfter.meaningfulCount > announcementBefore.meaningfulCount ||
+                  (ariaLiveChanged && announcementAfter.meaningfulCount > 0);
 
-                if (domChanged && !ariaLiveChanged && !outcome.hasResultsRegion) {
+                if (
+                  domChanged &&
+                  !meaningfulAnnouncementChanged &&
+                  !outcome.hasResultsRegion &&
+                  outcome.resultHeadingCount === 0
+                ) {
                   issues.push({
                     kind: 'silent_update',
                     message: 'Search interaction changed the page without a clear result region or aria-live announcement.',
@@ -1755,7 +1812,11 @@ export async function runInteractionAgent(
                       submitSelector: searchField.submitSelector,
                       resultCount: outcome.resultCount,
                       hasResultsRegion: outcome.hasResultsRegion,
+                      resultHeadingCount: outcome.resultHeadingCount,
                       liveMessageCount: outcome.liveMessageCount,
+                      meaningfulLiveMessageCount: outcome.meaningfulLiveMessageCount,
+                      announcementBefore,
+                      announcementAfter,
                     },
                     suggestedWcagIds: ['4.1.3', '3.2.2'],
                     howToVerify: 'Run a search with keyboard only and confirm that result updates are announced or moved into a clear results region.',
@@ -1767,6 +1828,9 @@ export async function runInteractionAgent(
                   submitSelector: searchField.submitSelector,
                   domChanged,
                   ariaLiveChanged,
+                  meaningfulAnnouncementChanged,
+                  announcementBefore,
+                  announcementAfter,
                   outcome,
                 };
               }
@@ -1778,7 +1842,7 @@ export async function runInteractionAgent(
                 ? 'Probe did not complete.'
                 : nav.navigationOccurred
                   ? 'Search moved to a results page.'
-                  : nav.result!.outcome.hasResultsRegion || nav.result!.outcome.resultCount > 0
+                  : nav.result!.outcome.hasResultsRegion || nav.result!.outcome.resultCount > 0 || nav.result!.outcome.resultHeadingCount > 0
                     ? 'Search updated a results region on the page.'
                     : nav.result!.domChanged
                       ? 'Search changed the page but result announcement needs review.'
@@ -1795,10 +1859,14 @@ export async function runInteractionAgent(
                 submitSelector: hasResult ? nav.result!.submitSelector : searchField.submitSelector,
                 domChanged: hasResult ? nav.result!.domChanged : undefined,
                 ariaLiveChanged: hasResult ? nav.result!.ariaLiveChanged : undefined,
+                meaningfulAnnouncementChanged: hasResult ? nav.result!.meaningfulAnnouncementChanged : undefined,
                 resultCount: hasResult ? nav.result!.outcome.resultCount : undefined,
                 hasResultsRegion: hasResult ? nav.result!.outcome.hasResultsRegion : undefined,
+                resultHeadingCount: hasResult ? nav.result!.outcome.resultHeadingCount : undefined,
                 activeTag: hasResult ? nav.result!.outcome.activeTag : undefined,
                 activeRole: hasResult ? nav.result!.outcome.activeRole : undefined,
+                announcementBefore: hasResult ? nav.result!.announcementBefore : undefined,
+                announcementAfter: hasResult ? nav.result!.announcementAfter : undefined,
               },
             });
           } else {
@@ -2101,6 +2169,7 @@ export async function runInteractionAgent(
               async () => {
                 const beforeFingerprint = await getDomChangeFingerprint(page);
                 const liveBefore = await getAriaLiveTexts(page, ARIA_LIVE_SAMPLE_SIZE);
+                const announcementBefore = summarizeAnnouncementSamples(liveBefore);
 
                 await page.locator(submitBtn.selector).first().focus();
                 const beforeSnapshot = await page.evaluate(captureFocusScript);
@@ -2112,12 +2181,16 @@ export async function runInteractionAgent(
                 const verificationCheckpoint = await detectVerificationCheckpoint(page);
                 const afterFingerprint = await getDomChangeFingerprint(page);
                 const liveAfter = await getAriaLiveTexts(page, ARIA_LIVE_SAMPLE_SIZE);
+                const announcementAfter = summarizeAnnouncementSamples(liveAfter);
                 const afterSnapshot = await page.evaluate(captureFocusScript);
                 const afterFocusSig = focusSignature(afterSnapshot);
                 const focusMovedToInvalidOrAlert = validation.focusOnInvalid || validation.focusOnAlert;
                 const ariaLiveChanged =
                   liveBefore.length !== liveAfter.length ||
-                  liveBefore.some((b, i) => liveAfter[i]?.text !== b.text);
+                  liveBefore.some((b, i) => liveAfter[i]?.text !== b.text || liveAfter[i]?.role !== b.role);
+                const meaningfulAnnouncementChanged =
+                  announcementAfter.meaningfulCount > announcementBefore.meaningfulCount ||
+                  (ariaLiveChanged && announcementAfter.meaningfulCount > 0);
                 const domChanged = domFingerprintChanged(beforeFingerprint, afterFingerprint);
 
                 if (validation.hasValidation && !focusMovedToInvalidOrAlert) {
@@ -2179,12 +2252,18 @@ export async function runInteractionAgent(
                     howToVerify: 'Check whether each invalid field exposes an inline error message or associated description that a screen reader can announce.',
                   });
                 }
-                if (domChanged && !focusMovedToInvalidOrAlert && !ariaLiveChanged) {
+                if (domChanged && !focusMovedToInvalidOrAlert && !meaningfulAnnouncementChanged) {
                   issues.push({
                     kind: 'silent_update',
                     message: 'Form DOM updated (e.g. validation) without focus or aria-live update.',
                     confidence: 0.6,
-                    evidence: { selector: submitBtn.selector, focusMoved: focusMovedToInvalidOrAlert, domChanged },
+                    evidence: {
+                      selector: submitBtn.selector,
+                      focusMoved: focusMovedToInvalidOrAlert,
+                      domChanged,
+                      announcementBefore,
+                      announcementAfter,
+                    },
                     suggestedWcagIds: ['4.1.3', '3.3.1'],
                     howToVerify: 'Ensure validation messages are announced or focus moves to error.',
                   });
@@ -2220,6 +2299,9 @@ export async function runInteractionAgent(
                   describedErrorCount: validation.describedErrorCount,
                   verificationCheckpoint,
                   ariaLiveChanged,
+                  meaningfulAnnouncementChanged,
+                  announcementBefore,
+                  announcementAfter,
                   domChanged,
                   selector: submitBtn.selector,
                   formSelector: submitBtn.formSelector,
@@ -2254,6 +2336,7 @@ export async function runInteractionAgent(
                 beforeFocusSig: hasResult ? nav.result!.beforeFocusSig : undefined,
                 afterFocusSig: hasResult ? nav.result!.afterFocusSig : undefined,
                 ariaLiveChanged: hasResult ? nav.result!.ariaLiveChanged : undefined,
+                meaningfulAnnouncementChanged: hasResult ? nav.result!.meaningfulAnnouncementChanged : undefined,
                 domChanged: hasResult ? nav.result!.domChanged : undefined,
                 hasValidation: hasResult ? nav.result!.hasValidation : undefined,
                 focusOnInvalid: hasResult ? nav.result!.focusOnInvalid : undefined,
@@ -2262,6 +2345,8 @@ export async function runInteractionAgent(
                 alertTexts: hasResult ? nav.result!.alertTexts : undefined,
                 invalidFields: hasResult ? nav.result!.invalidFields : undefined,
                 describedErrorCount: hasResult ? nav.result!.describedErrorCount : undefined,
+                announcementBefore: hasResult ? nav.result!.announcementBefore : undefined,
+                announcementAfter: hasResult ? nav.result!.announcementAfter : undefined,
                 verificationCheckpoint: hasResult ? nav.result!.verificationCheckpoint : undefined,
                 afterActive: hasResult ? { tag: nav.result!.afterSnapshot.tag, id: nav.result!.afterSnapshot.id } : undefined,
                 selector: submitBtn.selector,

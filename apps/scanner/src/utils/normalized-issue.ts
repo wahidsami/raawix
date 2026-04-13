@@ -111,6 +111,7 @@ const agentKindTaxonomy: Record<string, TaxonomyMatch> = {
   poor_label_quality: { category: 'Forms & Inputs', subcategory: 'Missing labels' },
   unnamed_task_control: { category: 'Forms & Inputs', subcategory: 'Missing labels' },
   unclear_error_recovery: { category: 'Forms & Inputs', subcategory: 'Errors not explained' },
+  silent_update: { category: 'Assistive Technology', subcategory: 'Screen reader issues' },
   verification_checkpoint_requires_manual_input: { category: 'Authentication & Security', subcategory: 'Memory-based challenges' },
 };
 
