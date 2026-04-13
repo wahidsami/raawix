@@ -35,6 +35,7 @@ export type InteractionArtifact = {
   capturedAt: string;
   pageProfile?: RaawiPageProfile;
   taskAssessments?: RaawiTaskAssessment[];
+  journeyRuns?: RaawiJourneyRun[];
   steps: Array<{
     i: number;
     action: 'tab' | 'shift+tab';
@@ -82,7 +83,9 @@ export type InteractionArtifact = {
       | 'missing_form_instructions'
       | 'unclear_error_recovery'
       | 'image_alt_task_issue'
-      | 'verification_checkpoint_requires_manual_input';
+      | 'verification_checkpoint_requires_manual_input'
+      | 'media_controls_not_exposed'
+      | 'media_autoplay_without_control';
     message: string;
     confidence: number;
     evidence: unknown;
@@ -90,12 +93,25 @@ export type InteractionArtifact = {
     howToVerify?: string;
   }>;
   probes?: Array<{
-    name: 'modal_probe' | 'menu_probe' | 'form_validation_probe';
+    name: 'modal_probe' | 'menu_probe' | 'form_validation_probe' | 'search_probe' | 'media_probe';
     attempted: boolean;
     success: boolean;
     message: string;
     evidence: unknown;
   }>;
+};
+
+export type RaawiJourneyRun = {
+  taskId: string;
+  label: string;
+  category: RaawiTaskAssessment['category'];
+  status: RaawiTaskAssessment['result'];
+  confidence: number;
+  summary: string;
+  usedSignals: string[];
+  relatedProbeNames: Array<NonNullable<InteractionArtifact['probes']>[number]['name']>;
+  relatedIssueKinds: Array<InteractionArtifact['issues'][number]['kind']>;
+  evidence: Record<string, unknown>;
 };
 
 type FormSubmitProbeCandidate = {
@@ -343,13 +359,15 @@ async function findCandidateElements(
   modalTriggers: Array<{ selector: string; tag: string }>;
   menuToggles: Array<{ selector: string; tag: string; expanded: string | null }>;
   submitButtons: FormSubmitProbeCandidate[];
+  searchFields: Array<{ selector: string; submitSelector?: string; hasSearchRole: boolean }>;
 }> {
   return page.evaluate((max: number) => {
     const out: {
       modalTriggers: Array<{ selector: string; tag: string }>;
       menuToggles: Array<{ selector: string; tag: string; expanded: string | null }>;
       submitButtons: FormSubmitProbeCandidate[];
-    } = { modalTriggers: [], menuToggles: [], submitButtons: [] };
+      searchFields: Array<{ selector: string; submitSelector?: string; hasSearchRole: boolean }>;
+    } = { modalTriggers: [], menuToggles: [], submitButtons: [], searchFields: [] };
     const controlName = (el: Element): string => {
       const ariaLabel = el.getAttribute('aria-label');
       if (ariaLabel?.trim()) return ariaLabel.trim();
@@ -465,6 +483,32 @@ async function findCandidateElements(
         ...(skipReason ? { skipReason } : {}),
       });
     });
+    const searchSelectors = [
+      'input[type="search"]',
+      '[role="search"] input',
+      'form[role="search"] input',
+      'input[name*="search" i]',
+      'input[id*="search" i]',
+      'input[placeholder*="search" i]',
+      'input[aria-label*="search" i]',
+    ];
+    for (const selector of searchSelectors) {
+      if (out.searchFields.length >= max) break;
+      document.querySelectorAll(selector).forEach((node) => {
+        if (out.searchFields.length >= max) return;
+        const el = node as HTMLElement;
+        if (el.offsetParent === null) return;
+        const fieldSelector = simpleSelector(el);
+        if (out.searchFields.some((item) => item.selector === fieldSelector)) return;
+        const form = el.closest('form');
+        const submit = form?.querySelector('button[type="submit"], input[type="submit"]') as HTMLElement | null;
+        out.searchFields.push({
+          selector: fieldSelector,
+          submitSelector: submit ? simpleSelector(submit) : undefined,
+          hasSearchRole: !!el.closest('[role="search"], form[role="search"]'),
+        });
+      });
+    }
     return out;
   }, maxPerType);
 }
@@ -613,6 +657,67 @@ async function detectVerificationCheckpoint(page: Page): Promise<{
   });
 }
 
+async function checkSearchOutcome(page: Page): Promise<{
+  resultCount: number;
+  hasResultsRegion: boolean;
+  activeTag: string;
+  activeRole: string | null;
+  liveMessageCount: number;
+}> {
+  return page.evaluate(() => {
+    const resultLike = document.querySelectorAll(
+      '[role="list"] [role="listitem"], [role="listitem"], [data-search-results] *, .search-results *, [aria-live]'
+    );
+    const resultsRegion = document.querySelector(
+      '[role="search"], [aria-label*="result" i], [id*="result" i], [class*="result" i]'
+    );
+    const active = document.activeElement as HTMLElement | null;
+    const liveNodes = Array.from(document.querySelectorAll('[aria-live]')).filter(
+      (node) => ((node.textContent ?? '').replace(/\s+/g, ' ').trim().length > 0)
+    );
+    return {
+      resultCount: resultLike.length,
+      hasResultsRegion: !!resultsRegion,
+      activeTag: active?.tagName?.toLowerCase() ?? '',
+      activeRole: active?.getAttribute('role') ?? null,
+      liveMessageCount: liveNodes.length,
+    };
+  });
+}
+
+async function inspectMediaState(page: Page): Promise<{
+  mediaCount: number;
+  mediaWithControls: number;
+  autoplayCount: number;
+  playingCount: number;
+  sample: Array<{
+    tag: string;
+    controls: boolean;
+    autoplay: boolean;
+    muted: boolean;
+    paused: boolean;
+  }>;
+}> {
+  return page.evaluate(() => {
+    const media = Array.from(document.querySelectorAll('audio, video')) as Array<
+      HTMLAudioElement | HTMLVideoElement
+    >;
+    return {
+      mediaCount: media.length,
+      mediaWithControls: media.filter((element) => element.controls).length,
+      autoplayCount: media.filter((element) => element.autoplay).length,
+      playingCount: media.filter((element) => !element.paused && !element.ended).length,
+      sample: media.slice(0, 3).map((element) => ({
+        tag: element.tagName.toLowerCase(),
+        controls: element.controls,
+        autoplay: element.autoplay,
+        muted: element.muted,
+        paused: element.paused,
+      })),
+    };
+  });
+}
+
 /** Result from running a probe with navigation guard. */
 type ProbeNavGuardResult<T> = {
   result: T | null;
@@ -705,6 +810,285 @@ function focusSignature(active: ActiveSnapshot): string {
   return parts.join('|');
 }
 
+type InteractionIssueKind = InteractionArtifact['issues'][number]['kind'];
+type ProbeName = NonNullable<InteractionArtifact['probes']>[number]['name'];
+
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+  return [...new Set(values.filter((value): value is string => !!value && value.trim().length > 0))];
+}
+
+function buildJourneyRuns(
+  pageProfile: RaawiPageProfile | undefined,
+  taskAssessments: RaawiTaskAssessment[],
+  probes: NonNullable<InteractionArtifact['probes']>,
+  issues: InteractionArtifact['issues'],
+  stepCount: number
+): RaawiJourneyRun[] {
+  if (!pageProfile) return [];
+
+  const taskAssessmentById = new Map(taskAssessments.map((assessment) => [assessment.taskId, assessment]));
+  const probeByName = new Map<ProbeName, NonNullable<InteractionArtifact['probes']>[number]>(
+    probes.map((probe) => [probe.name, probe])
+  );
+  const issuesByKind = new Map<InteractionIssueKind, InteractionArtifact['issues'][number][]>();
+  for (const issue of issues) {
+    const existing = issuesByKind.get(issue.kind) ?? [];
+    existing.push(issue);
+    issuesByKind.set(issue.kind, existing);
+  }
+
+  const getIssueKinds = (kinds: InteractionIssueKind[]) =>
+    kinds.filter((kind, index) => issuesByKind.has(kind) && kinds.indexOf(kind) === index);
+  const getIssueMessages = (kinds: InteractionIssueKind[]) =>
+    getIssueKinds(kinds)
+      .flatMap((kind) => issuesByKind.get(kind) ?? [])
+      .map((issue) => issue.message);
+
+  return pageProfile.taskIntents.map((task) => {
+    const assessment = taskAssessmentById.get(task.id);
+    const assessmentIssueKinds = assessment?.issue ? [assessment.issue.kind] : [];
+    const fallback: RaawiJourneyRun = {
+      taskId: task.id,
+      label: task.label,
+      category: task.category,
+      status: assessment?.result ?? 'needs_review',
+      confidence: assessment?.confidence ?? task.confidence,
+      summary: assessment?.summary ?? 'Journey intent detected; deeper interaction evidence is still limited.',
+      usedSignals: uniqueStrings([
+        `page type: ${pageProfile.pageType}`,
+        stepCount > 0 ? `${stepCount} keyboard steps recorded` : null,
+      ]),
+      relatedProbeNames: [],
+      relatedIssueKinds: assessmentIssueKinds,
+      evidence: assessment?.evidence ?? {},
+    };
+
+    if (task.id === 'understand-page-structure') {
+      return {
+        ...fallback,
+        usedSignals: uniqueStrings([
+          pageProfile.mainHeading ? `main heading: ${pageProfile.mainHeading}` : 'no primary heading captured',
+          `${pageProfile.counts.headings} heading(s)`,
+          `${pageProfile.landmarks.length} landmark(s)`,
+        ]),
+      };
+    }
+
+    if (task.id === 'operate-menu') {
+      const probe = probeByName.get('menu_probe');
+      const relatedIssueKinds = getIssueKinds(['expanded_state_not_updated', 'silent_update']);
+      if (!probe) {
+        return {
+          ...fallback,
+          summary: 'Menu/disclosure controls were detected, but no menu probe ran on this page.',
+          usedSignals: uniqueStrings([
+            'menu toggle present',
+            pageProfile.signals.hasPrimaryNavigation ? 'primary navigation present' : null,
+          ]),
+        };
+      }
+      return {
+        ...fallback,
+        status:
+          relatedIssueKinds.length > 0 ? 'not_working' : probe.attempted && probe.success ? 'working' : 'needs_review',
+        confidence: relatedIssueKinds.length > 0 ? 0.78 : probe.success ? 0.73 : 0.62,
+        summary:
+          getIssueMessages(relatedIssueKinds)[0] ??
+          probe.message ??
+          'Menu/disclosure journey needs more evidence.',
+        usedSignals: uniqueStrings([
+          'menu toggle present',
+          pageProfile.signals.hasPrimaryNavigation ? 'primary navigation present' : null,
+        ]),
+        relatedProbeNames: ['menu_probe'],
+        relatedIssueKinds,
+        evidence: {
+          ...(assessment?.evidence ?? {}),
+          probe: probe.evidence,
+        },
+      };
+    }
+
+    if (task.id === 'operate-dialog') {
+      const probe = probeByName.get('modal_probe');
+      const relatedIssueKinds = getIssueKinds(['modal_focus_not_moved', 'focus_not_restored']);
+      if (!probe) {
+        return {
+          ...fallback,
+          summary: 'Dialog-like controls were detected, but no dialog probe ran on this page.',
+          usedSignals: uniqueStrings(['dialog trigger present']),
+        };
+      }
+      return {
+        ...fallback,
+        status:
+          relatedIssueKinds.length > 0 ? 'not_working' : probe.attempted && probe.success ? 'working' : 'needs_review',
+        confidence: relatedIssueKinds.length > 0 ? 0.8 : probe.success ? 0.74 : 0.62,
+        summary:
+          getIssueMessages(relatedIssueKinds)[0] ??
+          probe.message ??
+          'Dialog journey needs more evidence.',
+        usedSignals: uniqueStrings(['dialog trigger present']),
+        relatedProbeNames: ['modal_probe'],
+        relatedIssueKinds,
+        evidence: {
+          ...(assessment?.evidence ?? {}),
+          probe: probe.evidence,
+        },
+      };
+    }
+
+    if (task.id === 'complete-form') {
+      const probe = probeByName.get('form_validation_probe');
+      const relatedIssueKinds = getIssueKinds([
+        'verification_checkpoint_requires_manual_input',
+        'validation_error_not_focused',
+        'unclear_error_recovery',
+        'unnamed_task_control',
+        'missing_form_instructions',
+      ]);
+      const manualCheckpoint = relatedIssueKinds.includes('verification_checkpoint_requires_manual_input');
+      return {
+        ...fallback,
+        status: manualCheckpoint
+          ? 'manual_checkpoint'
+          : relatedIssueKinds.some((kind) =>
+              ['validation_error_not_focused', 'unclear_error_recovery', 'unnamed_task_control'].includes(kind)
+            )
+            ? 'not_working'
+            : relatedIssueKinds.length > 0
+              ? 'needs_review'
+              : probe?.attempted && probe.success
+                ? 'working'
+                : fallback.status,
+        confidence: manualCheckpoint ? 0.82 : relatedIssueKinds.length > 0 ? 0.8 : probe?.success ? 0.72 : fallback.confidence,
+        summary:
+          getIssueMessages(relatedIssueKinds)[0] ??
+          probe?.message ??
+          fallback.summary,
+        usedSignals: uniqueStrings([
+          pageProfile.counts.forms > 0 ? `${pageProfile.counts.forms} form(s)` : null,
+          pageProfile.counts.fields > 0 ? `${pageProfile.counts.fields} field(s)` : null,
+          pageProfile.counts.requiredFields > 0 ? `${pageProfile.counts.requiredFields} required field(s)` : null,
+          pageProfile.counts.passwordFields > 0 ? `${pageProfile.counts.passwordFields} password field(s)` : null,
+        ]),
+        relatedProbeNames: probe ? ['form_validation_probe'] : [],
+        relatedIssueKinds,
+        evidence: {
+          ...(assessment?.evidence ?? {}),
+          probe: probe?.evidence,
+        },
+      };
+    }
+
+    if (task.id === 'handle-verification-code') {
+      const relatedIssueKinds = getIssueKinds(['verification_checkpoint_requires_manual_input']);
+      return {
+        ...fallback,
+        status: relatedIssueKinds.length > 0 || assessment?.result === 'manual_checkpoint'
+          ? 'manual_checkpoint'
+          : pageProfile.signals.hasOtp
+            ? 'needs_review'
+            : 'not_applicable',
+        confidence: relatedIssueKinds.length > 0 ? 0.84 : assessment?.confidence ?? 0.68,
+        summary:
+          getIssueMessages(relatedIssueKinds)[0] ??
+          assessment?.summary ??
+          'Verification-code checkpoint indicators were detected and need operator continuation.',
+        usedSignals: uniqueStrings([
+          pageProfile.signals.hasOtp ? 'OTP/code cues present' : null,
+          pageProfile.signals.hasResendCode ? 'resend code cue present' : null,
+          pageProfile.signals.hasForgotPassword ? 'recovery cue present' : null,
+        ]),
+        relatedProbeNames: probeByName.get('form_validation_probe') ? ['form_validation_probe'] : [],
+        relatedIssueKinds,
+        evidence: {
+          ...(assessment?.evidence ?? {}),
+          probe: probeByName.get('form_validation_probe')?.evidence,
+        },
+      };
+    }
+
+    if (task.id === 'use-search') {
+      const probe = probeByName.get('search_probe');
+      const relatedIssueKinds = getIssueKinds(['silent_update', 'unnamed_task_control']);
+      return {
+        ...fallback,
+        status:
+          relatedIssueKinds.length > 0
+            ? 'not_working'
+            : probe?.attempted && probe.success
+              ? 'working'
+              : fallback.status,
+        confidence: relatedIssueKinds.length > 0 ? 0.74 : probe?.success ? 0.7 : fallback.confidence,
+        summary:
+          getIssueMessages(relatedIssueKinds)[0] ??
+          probe?.message ??
+          assessment?.summary ??
+          'Search controls were detected; Raawi has identified the journey, but deeper search-result probing is still pending.',
+        usedSignals: uniqueStrings([
+          pageProfile.signals.hasSearch ? 'search landmark/control present' : null,
+          pageProfile.counts.fields > 0 ? `${pageProfile.counts.fields} field(s) detected` : null,
+        ]),
+        relatedProbeNames: probe ? ['search_probe'] : [],
+        relatedIssueKinds,
+        evidence: {
+          ...(assessment?.evidence ?? {}),
+          probe: probe?.evidence,
+        },
+      };
+    }
+
+    if (task.id === 'understand-images') {
+      const relatedIssueKinds = getIssueKinds(['image_alt_task_issue']);
+      return {
+        ...fallback,
+        status: relatedIssueKinds.length > 0 ? 'not_working' : fallback.status,
+        confidence: relatedIssueKinds.length > 0 ? 0.88 : fallback.confidence,
+        summary: getIssueMessages(relatedIssueKinds)[0] ?? fallback.summary,
+        usedSignals: uniqueStrings([
+          pageProfile.counts.images > 0 ? `${pageProfile.counts.images} image(s)` : null,
+          pageProfile.counts.imagesWithoutAlt > 0 ? `${pageProfile.counts.imagesWithoutAlt} image(s) without alt` : null,
+        ]),
+        relatedIssueKinds,
+      };
+    }
+
+    if (task.id === 'operate-media') {
+      const probe = probeByName.get('media_probe');
+      const relatedIssueKinds = getIssueKinds([
+        'media_controls_not_exposed',
+        'media_autoplay_without_control',
+      ]);
+      return {
+        ...fallback,
+        status:
+          relatedIssueKinds.length > 0
+            ? 'not_working'
+            : probe?.attempted && probe.success
+              ? 'working'
+              : fallback.status,
+        confidence: relatedIssueKinds.length > 0 ? 0.8 : probe?.success ? 0.72 : fallback.confidence,
+        summary:
+          getIssueMessages(relatedIssueKinds)[0] ??
+          probe?.message ??
+          'Media content was detected, but dedicated media-control probing is still pending in Raawi.',
+        usedSignals: uniqueStrings([
+          pageProfile.counts.media > 0 ? `${pageProfile.counts.media} media element(s)` : null,
+        ]),
+        relatedProbeNames: probe ? ['media_probe'] : [],
+        relatedIssueKinds,
+        evidence: {
+          ...(assessment?.evidence ?? {}),
+          probe: probe?.evidence,
+        },
+      };
+    }
+
+    return fallback;
+  });
+}
+
 export async function runInteractionAgent(
   page: Page,
   ctx: { url: string; pageNumber: number },
@@ -716,6 +1100,7 @@ export async function runInteractionAgent(
   const probes: NonNullable<InteractionArtifact['probes']> = [];
   let pageProfile: RaawiPageProfile | undefined;
   let taskAssessments: RaawiTaskAssessment[] = [];
+  let journeyRuns: RaawiJourneyRun[] = [];
   const unnamedExamples: Array<{ stepIndex: number; tag: string; role: string | null; selectorHint: string }> = [];
   const roleNameCount = new Map<string, number>();
   let focusNotVisibleCount = 0;
@@ -1090,6 +1475,99 @@ export async function runInteractionAgent(
         }
 
         if (runProbe() && !stopFurtherProbesRef.current) {
+          const searchField = candidates.searchFields[0];
+          if (searchField) {
+            const nav = await runProbeWithNavGuard(
+              page,
+              probeStartUrl,
+              stopFurtherProbesRef,
+              async () => {
+                const beforeFingerprint = await getDomChangeFingerprint(page);
+                const liveBefore = await getAriaLiveTexts(page, ARIA_LIVE_SAMPLE_SIZE);
+                await page.locator(searchField.selector).first().focus();
+                await page.locator(searchField.selector).first().fill('accessibility');
+                if (searchField.submitSelector) {
+                  await page.locator(searchField.submitSelector).first().click();
+                } else {
+                  await page.keyboard.press('Enter');
+                }
+                await page.waitForTimeout(PROBE_WAIT_MS);
+                const afterFingerprint = await getDomChangeFingerprint(page);
+                const liveAfter = await getAriaLiveTexts(page, ARIA_LIVE_SAMPLE_SIZE);
+                const outcome = await checkSearchOutcome(page);
+                const domChanged = domFingerprintChanged(beforeFingerprint, afterFingerprint);
+                const ariaLiveChanged =
+                  liveBefore.length !== liveAfter.length ||
+                  liveBefore.some((b, i) => liveAfter[i]?.text !== b.text);
+
+                if (domChanged && !ariaLiveChanged && !outcome.hasResultsRegion) {
+                  issues.push({
+                    kind: 'silent_update',
+                    message: 'Search interaction changed the page without a clear result region or aria-live announcement.',
+                    confidence: 0.64,
+                    evidence: {
+                      selector: searchField.selector,
+                      submitSelector: searchField.submitSelector,
+                      resultCount: outcome.resultCount,
+                      hasResultsRegion: outcome.hasResultsRegion,
+                      liveMessageCount: outcome.liveMessageCount,
+                    },
+                    suggestedWcagIds: ['4.1.3', '3.2.2'],
+                    howToVerify: 'Run a search with keyboard only and confirm that result updates are announced or moved into a clear results region.',
+                  });
+                }
+
+                return {
+                  selector: searchField.selector,
+                  submitSelector: searchField.submitSelector,
+                  domChanged,
+                  ariaLiveChanged,
+                  outcome,
+                };
+              }
+            );
+            const hasResult = nav.result !== null;
+            const searchMessage = nav.error
+              ? nav.error.message
+              : !hasResult
+                ? 'Probe did not complete.'
+                : nav.navigationOccurred
+                  ? 'Search moved to a results page.'
+                  : nav.result!.outcome.hasResultsRegion || nav.result!.outcome.resultCount > 0
+                    ? 'Search updated a results region on the page.'
+                    : nav.result!.domChanged
+                      ? 'Search changed the page but result announcement needs review.'
+                      : 'Search control accepted input, but result behavior needs review.';
+            probes.push({
+              name: 'search_probe',
+              attempted: true,
+              success: hasResult,
+              message: searchMessage,
+              evidence: {
+                navigationOccurred: nav.navigationOccurred,
+                navigationRestored: nav.navigationRestored,
+                selector: hasResult ? nav.result!.selector : searchField.selector,
+                submitSelector: hasResult ? nav.result!.submitSelector : searchField.submitSelector,
+                domChanged: hasResult ? nav.result!.domChanged : undefined,
+                ariaLiveChanged: hasResult ? nav.result!.ariaLiveChanged : undefined,
+                resultCount: hasResult ? nav.result!.outcome.resultCount : undefined,
+                hasResultsRegion: hasResult ? nav.result!.outcome.hasResultsRegion : undefined,
+                activeTag: hasResult ? nav.result!.outcome.activeTag : undefined,
+                activeRole: hasResult ? nav.result!.outcome.activeRole : undefined,
+              },
+            });
+          } else {
+            probes.push({
+              name: 'search_probe',
+              attempted: false,
+              success: false,
+              message: 'No search field candidates found.',
+              evidence: {},
+            });
+          }
+        }
+
+        if (runProbe() && !stopFurtherProbesRef.current) {
           const submitBtn = candidates.submitButtons.find((candidate) => candidate.safeToProbe) ?? candidates.submitButtons[0];
           if (submitBtn) {
             if (!submitBtn.safeToProbe) {
@@ -1300,10 +1778,56 @@ export async function runInteractionAgent(
             });
           }
         }
+
+        if (runProbe() && !stopFurtherProbesRef.current) {
+          const mediaState = await inspectMediaState(page);
+          if (mediaState.mediaCount > 0) {
+            if (mediaState.mediaWithControls === 0) {
+              issues.push({
+                kind: 'media_controls_not_exposed',
+                message: 'Media was detected without exposed native controls, so pause/play access may be unavailable to keyboard and assistive-tech users.',
+                confidence: 0.78,
+                evidence: mediaState,
+                suggestedWcagIds: ['1.2.1', '2.1.1'],
+                howToVerify: 'Navigate to the media with keyboard only and confirm that play, pause, and other essential controls are reachable and announced.',
+              });
+            }
+            if (mediaState.autoplayCount > 0 || mediaState.playingCount > 0) {
+              issues.push({
+                kind: 'media_autoplay_without_control',
+                message: 'Media appears to autoplay or already play on load, which needs a clear pause or stop mechanism.',
+                confidence: 0.74,
+                evidence: mediaState,
+                suggestedWcagIds: ['1.4.2', '2.2.2'],
+                howToVerify: 'Load the page and confirm whether media starts automatically; if it does, verify that a keyboard-accessible pause or stop control is available immediately.',
+              });
+            }
+            probes.push({
+              name: 'media_probe',
+              attempted: true,
+              success: true,
+              message:
+                mediaState.mediaWithControls > 0
+                  ? 'Media controls were exposed for at least part of the media content.'
+                  : 'Media was detected, but no native controls were exposed.',
+              evidence: mediaState,
+            });
+          } else {
+            probes.push({
+              name: 'media_probe',
+              attempted: false,
+              success: false,
+              message: 'No native audio/video media elements found.',
+              evidence: {},
+            });
+          }
+        }
       } catch (probesErr) {
         console.warn('[InteractionAgent] Probes error:', probesErr);
       }
     }
+
+    journeyRuns = buildJourneyRuns(pageProfile, taskAssessments, probes, issues, steps.length);
   } catch (err) {
     console.warn('[InteractionAgent] Run error:', err);
   }
@@ -1314,6 +1838,7 @@ export async function runInteractionAgent(
     capturedAt: new Date().toISOString(),
     ...(pageProfile ? { pageProfile } : {}),
     ...(taskAssessments.length > 0 ? { taskAssessments } : {}),
+    ...(journeyRuns.length > 0 ? { journeyRuns } : {}),
     steps,
     issues,
     ...(probes.length > 0 ? { probes } : {}),

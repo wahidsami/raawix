@@ -190,6 +190,19 @@ type AnalysisTaskAssessment = {
   evidence: Record<string, unknown>;
 };
 
+type AnalysisJourneyRun = {
+  taskId: string;
+  label: string;
+  category: string;
+  status: 'working' | 'not_working' | 'needs_review' | 'not_applicable' | 'manual_checkpoint';
+  confidence: number;
+  summary: string;
+  usedSignals: string[];
+  relatedProbeNames: string[];
+  relatedIssueKinds: string[];
+  evidence: Record<string, unknown>;
+};
+
 type ManualCheckpointDetail = {
   kind: 'verification_code';
   pageNumber: number;
@@ -304,6 +317,7 @@ interface ScanDetail {
       issueKinds: string[];
       issueMessages: string[];
       traceSummary: string;
+      journeyRuns?: AnalysisJourneyRun[];
       taskAssessments?: AnalysisTaskAssessment[];
       pageProfile?: AnalysisTracePageProfile;
     }>;
@@ -364,6 +378,7 @@ interface ScanDetail {
         issueKinds: string[];
         issueMessages: string[];
         traceSummary: string;
+        journeyRuns?: AnalysisJourneyRun[];
         taskAssessments?: AnalysisTaskAssessment[];
         pageProfile?: AnalysisTracePageProfile;
       };
@@ -1272,7 +1287,7 @@ export default function ScanDetailPage() {
                     <th className="px-3 py-2 text-left font-medium">#</th>
                     <th className="px-3 py-2 text-left font-medium">Page</th>
                     <th className="px-3 py-2 text-left font-medium">Understanding</th>
-                    <th className="px-3 py-2 text-left font-medium">Task intents</th>
+                    <th className="px-3 py-2 text-left font-medium">Journeys</th>
                     <th className="px-3 py-2 text-left font-medium">Status</th>
                     <th className="px-3 py-2 text-left font-medium">Steps</th>
                     <th className="px-3 py-2 text-left font-medium">Probes</th>
@@ -1308,7 +1323,23 @@ export default function ScanDetailPage() {
                         )}
                       </td>
                       <td className="px-3 py-2 min-w-[240px]">
-                        {trace.taskAssessments?.length ? (
+                        {trace.journeyRuns?.length ? (
+                          <div className="space-y-1">
+                            {trace.journeyRuns.slice(0, 3).map((journey) => (
+                              <div key={journey.taskId} className="rounded border border-border bg-background px-2 py-1">
+                                <div className="text-xs font-medium">{journey.label}</div>
+                                <div className={`text-[11px] font-medium ${getTaskAssessmentClass(journey.status)}`}>
+                                  {getAuditorResultLabel(journey.status)}
+                                </div>
+                                {journey.relatedProbeNames.length > 0 && (
+                                  <div className="text-[11px] text-muted-foreground">
+                                    {journey.relatedProbeNames.join(', ')}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : trace.taskAssessments?.length ? (
                           <div className="space-y-1">
                             {trace.taskAssessments.slice(0, 3).map((task) => (
                               <div key={task.taskId} className="rounded border border-border bg-background px-2 py-1">
@@ -1344,6 +1375,16 @@ export default function ScanDetailPage() {
                       <td className="px-3 py-2 whitespace-nowrap">{trace.issueCount}</td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">
                         <div>{trace.traceSummary}</div>
+                        {trace.journeyRuns?.length ? (
+                          <div className="mt-1 space-y-1">
+                            {trace.journeyRuns.slice(0, 2).map((journey) => (
+                              <div key={`${trace.pageNumber}-journey-${journey.taskId}`} className="text-[11px]">
+                                <span className="font-medium text-foreground">{journey.label}:</span>{' '}
+                                {journey.summary}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
                         {trace.probeMessages?.length ? (
                           <div className="mt-1 space-y-1">
                             {trace.probeMessages.slice(0, 2).map((message, index) => (
@@ -1645,6 +1686,29 @@ export default function ScanDetailPage() {
                         <div className="font-semibold">{selectedPageData.layerAgent.trace.issueCount}</div>
                       </div>
                     </div>
+                    {selectedPageData.layerAgent.trace.journeyRuns?.length ? (
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">Journey outcomes</div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {selectedPageData.layerAgent.trace.journeyRuns.slice(0, 4).map((journey) => (
+                            <div key={journey.taskId} className="rounded border border-border bg-background p-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="text-sm font-medium">{journey.label}</div>
+                                <span className={`inline-flex items-center px-2 py-1 rounded text-[11px] font-medium ${getAuditorResultClass(journey.status)}`}>
+                                  {getAuditorResultLabel(journey.status)}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-xs text-muted-foreground">{journey.summary}</div>
+                              {journey.relatedProbeNames.length > 0 && (
+                                <div className="mt-2 text-[11px] text-muted-foreground">
+                                  Probes: {journey.relatedProbeNames.join(', ')}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                     {(selectedPageData.layerAgent?.findings ?? []).length === 0 ? (
                       <p className="text-sm text-muted-foreground">Raawi did not record interaction findings for this page.</p>
                     ) : (

@@ -58,6 +58,15 @@ export type AnalystCompactInput = {
     result: string;
     summary: string;
   }>;
+  journeyRuns?: Array<{
+    taskId: string;
+    label: string;
+    category: string;
+    status: string;
+    summary: string;
+    relatedProbeNames: string[];
+    relatedIssueKinds: string[];
+  }>;
 };
 
 const EnrichedFindingSchema = z.object({
@@ -140,6 +149,15 @@ export function buildCompactInput(
       result: assessment.result,
       summary: assessment.summary,
     })),
+    journeyRuns: artifact.journeyRuns?.map((journey) => ({
+      taskId: journey.taskId,
+      label: journey.label,
+      category: journey.category,
+      status: journey.status,
+      summary: journey.summary,
+      relatedProbeNames: journey.relatedProbeNames,
+      relatedIssueKinds: journey.relatedIssueKinds,
+    })),
     stepsSummary: steps,
     probesSummary,
     existingIssues,
@@ -189,6 +207,9 @@ function buildUserPrompt(input: AnalystCompactInput): string {
   const taskAssessmentStr = input.taskAssessments?.length
     ? JSON.stringify(input.taskAssessments, null, 2)
     : 'n/a';
+  const journeyRunStr = input.journeyRuns?.length
+    ? JSON.stringify(input.journeyRuns, null, 2)
+    : 'n/a';
 
   return `Page: ${input.url}
 Title: ${input.title ?? 'n/a'}
@@ -197,6 +218,8 @@ Page profile:
 ${pageProfileStr}
 Task assessments:
 ${taskAssessmentStr}
+Journey runs:
+${journeyRunStr}
 
 Steps (focus trace, max ${MAX_STEPS_SUMMARY}):
 ${stepsStr}

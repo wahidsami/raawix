@@ -102,6 +102,8 @@ const agentKindTaxonomy: Record<string, TaxonomyMatch> = {
   missing_page_structure: { category: 'Structure & Semantics', subcategory: 'Missing landmarks' },
   missing_form_instructions: { category: 'Forms & Inputs', subcategory: 'No input instructions' },
   missing_focus_indicator: { category: 'Keyboard & Navigation', subcategory: 'Missing focus indicator' },
+  media_autoplay_without_control: { category: 'Multimedia', subcategory: 'Auto-play without control' },
+  media_controls_not_exposed: { category: 'Multimedia', subcategory: 'No pause/stop controls' },
   modal_probe_failed: { category: 'Keyboard & Navigation', subcategory: 'Keyboard traps' },
   poor_label_quality: { category: 'Forms & Inputs', subcategory: 'Missing labels' },
   unnamed_task_control: { category: 'Forms & Inputs', subcategory: 'Missing labels' },

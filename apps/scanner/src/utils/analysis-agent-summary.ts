@@ -1,6 +1,10 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { validateAgentArtifact, type InteractionArtifact } from '../agent/interaction-agent.js';
+import {
+  validateAgentArtifact,
+  type InteractionArtifact,
+  type RaawiJourneyRun,
+} from '../agent/interaction-agent.js';
 import type { RaawiTaskAssessment, RaawiTaskIntent } from '../agent/page-understanding.js';
 
 export type AnalysisAgentPageStatus = 'pass' | 'fail' | 'not_run';
@@ -25,6 +29,7 @@ export interface AnalysisAgentPageSummary {
   issueKinds: string[];
   issueMessages: string[];
   traceSummary: string;
+  journeyRuns?: RaawiJourneyRun[];
   taskAssessments?: RaawiTaskAssessment[];
   pageProfile?: {
     pageType: string;
@@ -110,6 +115,7 @@ function summarizeArtifact(
     issueKinds: [...new Set(issueKinds)],
     issueMessages: [...new Set(issueMessages)],
     traceSummary,
+    ...(artifact?.journeyRuns?.length ? { journeyRuns: artifact.journeyRuns } : {}),
     ...(artifact?.taskAssessments?.length ? { taskAssessments: artifact.taskAssessments } : {}),
     ...(artifact?.pageProfile
       ? {
