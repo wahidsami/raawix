@@ -597,6 +597,12 @@ class ApiClient {
     usernameSelector?: string | null;
     passwordSelector?: string | null;
     submitSelector?: string | null;
+    usernameSecretSource?: 'missing' | 'stored' | 'env';
+    passwordSecretSource?: 'missing' | 'stored' | 'env';
+    usernameEnvVarName?: string | null;
+    passwordEnvVarName?: string | null;
+    hasUsernameValue?: boolean;
+    hasPasswordValue?: boolean;
     postLoginSeedPaths?: string[] | null;
     extraHeaders?: Record<string, string> | null;
     isActive: boolean;
@@ -633,6 +639,12 @@ class ApiClient {
     usernameSelector?: string | null;
     passwordSelector?: string | null;
     submitSelector?: string | null;
+    usernameSecretSource?: 'missing' | 'stored' | 'env';
+    passwordSecretSource?: 'missing' | 'stored' | 'env';
+    usernameEnvVarName?: string | null;
+    passwordEnvVarName?: string | null;
+    hasUsernameValue?: boolean;
+    hasPasswordValue?: boolean;
     postLoginSeedPaths?: string[] | null;
     extraHeaders?: Record<string, string> | null;
     isActive: boolean;

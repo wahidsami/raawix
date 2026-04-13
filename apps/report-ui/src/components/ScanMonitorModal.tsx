@@ -93,6 +93,12 @@ interface PropertyAuthProfileState {
   usernameSelector?: string | null;
   passwordSelector?: string | null;
   submitSelector?: string | null;
+  usernameSecretSource?: 'missing' | 'stored' | 'env';
+  passwordSecretSource?: 'missing' | 'stored' | 'env';
+  usernameEnvVarName?: string | null;
+  passwordEnvVarName?: string | null;
+  hasUsernameValue?: boolean;
+  hasPasswordValue?: boolean;
   postLoginSeedPaths?: string[] | null;
   isActive: boolean;
   lastTestedAt?: string | null;
@@ -110,6 +116,8 @@ interface AuthProfileEditorState {
   submitSelector: string;
   usernameValue: string;
   passwordValue: string;
+  usernameEnvVarName: string;
+  passwordEnvVarName: string;
   postLoginSeedPathsText: string;
   isActive: boolean;
 }
@@ -159,6 +167,8 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
     submitSelector: '',
     usernameValue: '',
     passwordValue: '',
+    usernameEnvVarName: '',
+    passwordEnvVarName: '',
     postLoginSeedPathsText: '',
     isActive: true,
   });
@@ -262,6 +272,8 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         submitSelector: authProfile.submitSelector || '',
         usernameValue: '',
         passwordValue: '',
+        usernameEnvVarName: authProfile.usernameEnvVarName || '',
+        passwordEnvVarName: authProfile.passwordEnvVarName || '',
         postLoginSeedPathsText: (authProfile.postLoginSeedPaths || []).join('\n'),
         isActive: authProfile.isActive,
       });
@@ -276,6 +288,8 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         submitSelector: '',
         usernameValue: '',
         passwordValue: '',
+        usernameEnvVarName: '',
+        passwordEnvVarName: '',
         postLoginSeedPathsText: '',
         isActive: true,
       });
@@ -485,6 +499,11 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       .map((value) => value.trim())
       .filter(Boolean);
 
+  const formatEnvSecretRef = (name: string): string | undefined => {
+    const trimmed = name.trim();
+    return trimmed ? `\${env:${trimmed}}` : undefined;
+  };
+
   const handleSaveAuthProfile = async (runTestAfterSave = false) => {
     if (!propertyId) return;
     try {
@@ -498,8 +517,14 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         usernameSelector: authProfileEditor.usernameSelector.trim() || undefined,
         passwordSelector: authProfileEditor.passwordSelector.trim() || undefined,
         submitSelector: authProfileEditor.submitSelector.trim() || undefined,
-        usernameValue: authProfileEditor.usernameValue.trim() || undefined,
-        passwordValue: authProfileEditor.passwordValue.trim() || undefined,
+        usernameValue:
+          formatEnvSecretRef(authProfileEditor.usernameEnvVarName) ||
+          authProfileEditor.usernameValue.trim() ||
+          undefined,
+        passwordValue:
+          formatEnvSecretRef(authProfileEditor.passwordEnvVarName) ||
+          authProfileEditor.passwordValue.trim() ||
+          undefined,
         postLoginSeedPaths: parsePostLoginSeedPaths(),
         isActive: authProfileEditor.isActive,
       };
@@ -2783,6 +2808,16 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                             Post-login seed paths: {authProfile.postLoginSeedPaths.length}
                           </div>
                         ) : null}
+                        <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground md:grid-cols-2">
+                          <div>
+                            Username secret: {authProfile.usernameSecretSource || 'missing'}
+                            {authProfile.usernameEnvVarName ? ` (${authProfile.usernameEnvVarName})` : ''}
+                          </div>
+                          <div>
+                            Password secret: {authProfile.passwordSecretSource || 'missing'}
+                            {authProfile.passwordEnvVarName ? ` (${authProfile.passwordEnvVarName})` : ''}
+                          </div>
+                        </div>
                         {authProfile.lastTestError ? (
                           <div className="text-xs text-amber-700">
                             Last test error: {authProfile.lastTestError}
@@ -2946,8 +2981,11 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                                 setAuthProfileEditor((prev) => ({ ...prev, usernameValue: e.target.value }))
                               }
                               className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                              placeholder="user@example.com"
+                              placeholder={authProfile?.hasUsernameValue ? 'Leave blank to keep existing username secret' : 'user@example.com'}
                             />
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              Leave blank to keep the current secret, or use the env var field below.
+                            </p>
                           </div>
                           <div>
                             <label className="mb-1 block text-xs font-medium text-foreground">Password value</label>
@@ -2958,8 +2996,41 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                                 setAuthProfileEditor((prev) => ({ ...prev, passwordValue: e.target.value }))
                               }
                               className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
-                              placeholder="Password"
+                              placeholder={authProfile?.hasPasswordValue ? 'Leave blank to keep existing password secret' : 'Password'}
                             />
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              Leave blank to keep the current secret, or use the env var field below.
+                            </p>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-foreground">Username env var</label>
+                            <input
+                              type="text"
+                              value={authProfileEditor.usernameEnvVarName}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({ ...prev, usernameEnvVarName: e.target.value }))
+                              }
+                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="SCAN_LOGIN_USERNAME"
+                            />
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              Stored as <code>${'{env:VAR_NAME}'}</code> and resolved only at scan time.
+                            </p>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-foreground">Password env var</label>
+                            <input
+                              type="text"
+                              value={authProfileEditor.passwordEnvVarName}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({ ...prev, passwordEnvVarName: e.target.value }))
+                              }
+                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="SCAN_LOGIN_PASSWORD"
+                            />
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              Stored as <code>${'{env:VAR_NAME}'}</code> and resolved only at scan time.
+                            </p>
                           </div>
                           <div>
                             <label className="mb-1 block text-xs font-medium text-foreground">Success URL prefix</label>

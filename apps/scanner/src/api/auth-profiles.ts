@@ -2,8 +2,36 @@ import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { authProfileRepository } from '../db/auth-profile-repository.js';
 import { getPrismaClient } from '../db/client.js';
+import type { AuthProfileData } from '../db/auth-profile-repository.js';
 
 const router: Router = Router();
+
+function toSafeProfile(profile: AuthProfileData | null) {
+  if (!profile) return null;
+  return {
+    id: profile.id,
+    propertyId: profile.propertyId,
+    authType: profile.authType,
+    loginUrl: profile.loginUrl,
+    successUrlPrefix: profile.successUrlPrefix,
+    successSelector: profile.successSelector,
+    usernameSelector: profile.usernameSelector,
+    passwordSelector: profile.passwordSelector ? '***' : null,
+    submitSelector: profile.submitSelector,
+    usernameSecretSource: profile.usernameSecretSource || 'missing',
+    passwordSecretSource: profile.passwordSecretSource || 'missing',
+    usernameEnvVarName: profile.usernameEnvVarName || null,
+    passwordEnvVarName: profile.passwordEnvVarName || null,
+    hasUsernameValue: profile.usernameSecretSource !== 'missing',
+    hasPasswordValue: profile.passwordSecretSource !== 'missing',
+    postLoginSeedPaths: profile.postLoginSeedPaths,
+    extraHeaders: profile.extraHeaders,
+    isActive: profile.isActive,
+    lastTestedAt: profile.lastTestedAt,
+    lastTestResult: profile.lastTestResult,
+    lastTestError: profile.lastTestError,
+  };
+}
 
 /**
  * GET /api/properties/:propertyId/auth-profile
@@ -28,33 +56,13 @@ router.get('/properties/:propertyId/auth-profile', requireAuth, async (req: Requ
       return res.status(404).json({ error: 'Property not found' });
     }
 
-    const profile = await authProfileRepository.getByPropertyId(propertyId);
+    const profile = await authProfileRepository.getByPropertyId(propertyId, { resolveSecrets: false });
 
     if (!profile) {
       return res.status(404).json({ error: 'Auth profile not found' });
     }
 
-    // Don't return sensitive values in response
-    const safeProfile = {
-      id: profile.id,
-      propertyId: profile.propertyId,
-      authType: profile.authType,
-      loginUrl: profile.loginUrl,
-      successUrlPrefix: profile.successUrlPrefix,
-      successSelector: profile.successSelector,
-      usernameSelector: profile.usernameSelector,
-      passwordSelector: profile.passwordSelector ? '***' : null, // Mask selector presence
-      submitSelector: profile.submitSelector,
-      postLoginSeedPaths: profile.postLoginSeedPaths,
-      extraHeaders: profile.extraHeaders,
-      isActive: profile.isActive,
-      lastTestedAt: profile.lastTestedAt,
-      lastTestResult: profile.lastTestResult,
-      lastTestError: profile.lastTestError,
-      // Do NOT return usernameValue or passwordValue
-    };
-
-    res.json(safeProfile);
+    res.json(toSafeProfile(profile));
   } catch (error) {
     console.error('[AUTH-PROFILE] Error fetching auth profile:', error);
     res.status(500).json({ error: 'Failed to fetch auth profile' });
@@ -103,13 +111,22 @@ router.post('/properties/:propertyId/auth-profile', requireAuth, async (req: Req
       return res.status(400).json({ error: 'Invalid authType. Must be none, cookie, or scripted_login' });
     }
 
+    const existingProfile = await authProfileRepository.getByPropertyId(propertyId, { resolveSecrets: false }).catch(() => null);
+
     // Validate required fields for scripted_login
     if (authType === 'scripted_login') {
       if (!loginUrl) {
         return res.status(400).json({ error: 'loginUrl is required for scripted_login' });
       }
-      if (!usernameSelector || !usernameValue) {
-        return res.status(400).json({ error: 'usernameSelector and usernameValue are required for scripted_login' });
+      const hasUsernameSecret =
+        (typeof usernameValue === 'string' && usernameValue.trim() !== '') ||
+        existingProfile?.usernameSecretSource === 'stored' ||
+        existingProfile?.usernameSecretSource === 'env';
+      if (!usernameSelector || !hasUsernameSecret) {
+        return res.status(400).json({
+          error:
+            'usernameSelector and a username secret are required for scripted_login. Provide a value, env reference, or keep the existing secret.',
+        });
       }
       if (!submitSelector) {
         return res.status(400).json({ error: 'submitSelector is required for scripted_login' });
@@ -134,26 +151,7 @@ router.post('/properties/:propertyId/auth-profile', requireAuth, async (req: Req
       isActive: isActive !== undefined ? isActive : true,
     });
 
-    // Return safe profile (without sensitive values)
-    const safeProfile = {
-      id: profile.id,
-      propertyId: profile.propertyId,
-      authType: profile.authType,
-      loginUrl: profile.loginUrl,
-      successUrlPrefix: profile.successUrlPrefix,
-      successSelector: profile.successSelector,
-      usernameSelector: profile.usernameSelector,
-      passwordSelector: profile.passwordSelector ? '***' : null,
-      submitSelector: profile.submitSelector,
-      postLoginSeedPaths: profile.postLoginSeedPaths,
-      extraHeaders: profile.extraHeaders,
-      isActive: profile.isActive,
-      lastTestedAt: profile.lastTestedAt,
-      lastTestResult: profile.lastTestResult,
-      lastTestError: profile.lastTestError,
-    };
-
-    res.json(safeProfile);
+    res.json(toSafeProfile(profile));
   } catch (error) {
     console.error('[AUTH-PROFILE] Error creating/updating auth profile:', error);
     res.status(500).json({ error: 'Failed to create/update auth profile' });
