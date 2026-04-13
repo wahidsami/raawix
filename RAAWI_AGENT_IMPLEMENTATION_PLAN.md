@@ -1,5 +1,46 @@
 # Raawi Agent Implementation Plan
 
+## Progress Snapshot
+
+Status as of 2026-04-13.
+
+- Overall progress: about `82%`
+- Phase 0: `done`
+- Phase 1: `done`
+- Phase 2: `largely done`
+- Phase 3: `partially done`
+- Phase 4: `largely done`
+- Phase 5: `largely done`
+- Phase 6: `not started`
+- Phase 7: `partially done`
+
+Implemented highlights:
+
+- Added `auditMode` with `classic` and `raawi-agent` scan flows.
+- Added unified auditor finding schema, taxonomy mapping, issue codes, and Raawi-first report structure.
+- Added Raawi page understanding, task intents, task assessments, and journey runs.
+- Added Raawi probes and journey coverage for:
+  - page structure
+  - skip links
+  - menus
+  - dialogs
+  - forms
+  - verification checkpoints
+  - search
+  - media
+  - authenticated workspace cues
+  - dynamic update announcement readiness
+- Added authenticated scanning with reusable login profiles, auto-detect login setup, storage-state reuse, manual verification pause/resume, and continuation trail.
+- Added auth coverage and continuation metadata to dashboard, PDF, and Excel reports.
+
+Still open at a high level:
+
+- deeper multi-step authenticated journeys after login
+- stronger AI planning and assistive-tech reasoning
+- encrypted secrets at rest
+- benchmark calibration and regression datasets
+- rollout feature flags and final production hardening
+
 ## Purpose
 
 Build a two-mode accessibility scanning system that keeps the current technical audit path intact while adding a deeper Raawi agent path that simulates assistive-tech driven navigation, task completion, and UX judgment.
@@ -265,6 +306,8 @@ This avoids mixing crawl scope with audit methodology.
 
 ## Phase 0 - Planning and Schema
 
+Status: done
+
 ### Work
 
 - Define `auditMode: classic | raawi-agent`.
@@ -281,6 +324,8 @@ This avoids mixing crawl scope with audit methodology.
 
 ## Phase 1 - Audit Mode Plumbing
 
+Status: done
+
 ### Work
 
 - Add mode selection to the scan UI.
@@ -295,6 +340,8 @@ This avoids mixing crawl scope with audit methodology.
 - The selected mode persists across the scan lifecycle.
 
 ## Phase 2 - Raawi Agent v1
+
+Status: largely done
 
 ### Work
 
@@ -319,6 +366,8 @@ This avoids mixing crawl scope with audit methodology.
 
 ## Phase 3 - AI Planning and Interpretation
 
+Status: partially done
+
 ### Work
 
 - Use AI to interpret the trace and propose the next action.
@@ -337,6 +386,8 @@ This avoids mixing crawl scope with audit methodology.
 - Findings include comments that describe why the experience helps or blocks task completion.
 
 ## Phase 4 - Authenticated Scanning Foundation
+
+Status: largely done
 
 ### Work
 
@@ -359,6 +410,8 @@ This avoids mixing crawl scope with audit methodology.
 
 ## Phase 5 - Unified Reporting
 
+Status: largely done
+
 ### Work
 
 - Merge classic and Raawi agent findings into one report model.
@@ -377,6 +430,8 @@ This avoids mixing crawl scope with audit methodology.
 - The dashboard clearly separates technical findings and Raawi agent findings.
 
 ## Phase 6 - Validation and Calibration
+
+Status: not started
 
 ### Work
 
@@ -398,6 +453,8 @@ This avoids mixing crawl scope with audit methodology.
 - False positives and missed issues are documented and reduced.
 
 ## Phase 7 - Release and Rollout
+
+Status: partially done
 
 ### Work
 
@@ -474,11 +531,11 @@ Deliverables:
 
 Checklist:
 
-- [ ] Add `auditMode` to API requests and database records.
-- [ ] Add mode selector in the scan popup.
-- [ ] Persist scan mode in summary and detail responses.
-- [ ] Normalize issue fields for all report layers.
-- [ ] Add issue code format and artifact path conventions.
+- [x] Add `auditMode` to API requests and database records.
+- [x] Add mode selector in the scan popup.
+- [x] Persist scan mode in summary and detail responses.
+- [x] Normalize issue fields for all report layers.
+- [x] Add issue code format and artifact path conventions.
 
 ### Sprint 2 - Raawi Agent Trace Engine
 
@@ -498,11 +555,11 @@ Deliverables:
 
 Checklist:
 
-- [ ] Read headings, landmarks, roles, and accessible names.
-- [ ] Capture focus order and page context.
-- [ ] Add modal, menu, form, and navigation playbooks.
-- [ ] Store trace JSON and issue JSON per page.
-- [ ] Add page-type inference for task selection.
+- [x] Read headings, landmarks, roles, and accessible names.
+- [x] Capture focus order and page context.
+- [x] Add modal, menu, form, and navigation playbooks.
+- [x] Store trace JSON and issue JSON per page.
+- [x] Add page-type inference for task selection.
 
 ### Sprint 3 - AI Planning and Interpretation
 
@@ -522,9 +579,9 @@ Deliverables:
 Checklist:
 
 - [ ] Add planning prompts for page-type-based exploration.
-- [ ] Add trace interpretation prompts.
-- [ ] Keep deterministic fallback behavior when AI is unavailable.
-- [ ] Expand current OpenAI analyst flow for Raawi agent reasoning.
+- [x] Add trace interpretation prompts.
+- [x] Keep deterministic fallback behavior when AI is unavailable.
+- [x] Expand current OpenAI analyst flow for Raawi agent reasoning.
 - [ ] Log AI decisions separately from raw trace events.
 
 ### Sprint 4 - Authenticated Scanning Foundation
@@ -547,16 +604,16 @@ Deliverables:
 
 Checklist:
 
-- [ ] Add auth profile schema and encrypted secret fields.
-- [ ] Add backend auth profile CRUD and test-login endpoint.
-- [ ] Add website settings UI for auth profiles.
-- [ ] Add scan popup auth selection: public scan or saved profile.
-- [ ] Save and reuse Playwright storage state for authenticated sessions.
-- [ ] Add `waiting_for_verification` scan status.
-- [ ] Add OTP/check-code submission endpoint.
+- [~] Add auth profile schema and encrypted secret fields.
+- [x] Add backend auth profile CRUD and test-login endpoint.
+- [x] Add website settings UI for auth profiles.
+- [x] Add scan popup auth selection: public scan or saved profile.
+- [x] Save and reuse Playwright storage state for authenticated sessions.
+- [~] Add `waiting_for_verification` scan status.
+- [x] Add OTP/check-code submission endpoint.
 - [ ] Add external approval/manual-step checkpoint.
-- [ ] Ensure OTP/check-code values are never logged or stored.
-- [ ] Add safe auth metadata to PDF/Excel/dashboard reports.
+- [x] Ensure OTP/check-code values are never logged or stored.
+- [x] Add safe auth metadata to PDF/Excel/dashboard reports.
 
 ### Sprint 5 - Unified Reporting
 
@@ -577,11 +634,11 @@ Deliverables:
 
 Checklist:
 
-- [ ] Add unified issue tables in dashboard pages.
-- [ ] Add Raawi agent sections to PDF and Excel exports.
-- [ ] Show `issueCode`, `category`, `subcategory`, `comments`, and `artifactPath`.
-- [ ] Add mode comparison summaries.
-- [ ] Keep classic findings and Raawi findings separate but comparable.
+- [x] Add unified issue tables in dashboard pages.
+- [x] Add Raawi agent sections to PDF and Excel exports.
+- [~] Show `issueCode`, `category`, `subcategory`, `comments`, and `artifactPath`.
+- [x] Add mode comparison summaries.
+- [x] Keep classic findings and Raawi findings separate but comparable.
 
 ### Sprint 6 - Calibration and Benchmarking
 
@@ -624,10 +681,10 @@ Deliverables:
 Checklist:
 
 - [ ] Add feature flag controls for Raawi mode.
-- [ ] Update docs and report descriptions.
-- [ ] Add operational logs and failure fallbacks.
-- [ ] Verify both scan modes can run independently.
-- [ ] Prepare Coolify deployment notes and regression checklist.
+- [~] Update docs and report descriptions.
+- [~] Add operational logs and failure fallbacks.
+- [~] Verify both scan modes can run independently.
+- [~] Prepare Coolify deployment notes and regression checklist.
 
 ## Component Ownership Map
 

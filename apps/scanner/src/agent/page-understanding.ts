@@ -42,6 +42,7 @@ export interface RaawiTaskAssessment {
       | 'missing_page_structure'
       | 'missing_skip_link'
       | 'authenticated_workspace_navigation_unclear'
+      | 'dynamic_updates_not_announced'
       | 'unnamed_task_control'
       | 'missing_form_instructions'
       | 'image_alt_task_issue'
@@ -78,6 +79,8 @@ export interface RaawiPageProfile {
     images: number;
     imagesWithoutAlt: number;
     media: number;
+    liveRegions: number;
+    alertRegions: number;
     accountControls: number;
     logoutControls: number;
     buttonsWithoutName: number;
@@ -97,6 +100,7 @@ export interface RaawiPageProfile {
     hasAccountArea: boolean;
     hasLogout: boolean;
     hasAuthenticatedWorkspace: boolean;
+    hasDynamicUpdateRisk: boolean;
     hasModalTrigger: boolean;
     hasMenuToggle: boolean;
   };
@@ -264,6 +268,16 @@ function buildTaskIntents(raw: RawPageProfile, pageType: RaawiPageType): RaawiTa
     });
   }
 
+  if (raw.signals.hasDynamicUpdateRisk) {
+    tasks.push({
+      id: 'follow-dynamic-updates',
+      label: 'Follow dynamic updates with assistive technology',
+      category: 'Assistive Technology',
+      reason: 'Search, dialogs, menus, and validation flows should announce important UI updates clearly to assistive technologies.',
+      confidence: raw.counts.liveRegions > 0 || raw.counts.alertRegions > 0 ? 0.74 : 0.66,
+    });
+  }
+
   if (pageType === 'dashboard' || raw.signals.hasAuthenticatedWorkspace) {
     tasks.push({
       id: 'navigate-authenticated-workspace',
@@ -396,6 +410,8 @@ export async function captureRaawiPageProfile(page: Page, url: string): Promise<
         images: images.length,
         imagesWithoutAlt: images.filter((img) => !img.hasAttribute('alt')).length,
         media,
+        liveRegions: document.querySelectorAll('[aria-live]').length,
+        alertRegions: document.querySelectorAll('[role="alert"]').length,
         accountControls: [...links, ...buttons].filter((element) => /account|profile|dashboard|settings|workspace|portal|الحساب|الملف|لوحة|الإعدادات/.test(accessibleName(element).toLowerCase())).length,
         logoutControls: [...links, ...buttons].filter((element) => /logout|log out|sign out|signout|تسجيل الخروج|خروج/.test(accessibleName(element).toLowerCase())).length,
         buttonsWithoutName: buttons.filter((button) => !accessibleName(button)).length,
@@ -432,6 +448,10 @@ export async function captureRaawiPageProfile(page: Page, url: string): Promise<
           'الملف',
           'الإعدادات',
         ]),
+        hasDynamicUpdateRisk:
+          document.querySelector('[aria-expanded], [aria-haspopup], [role="dialog"], [aria-modal="true"], [role="tablist"]') != null ||
+          document.querySelector('[role="search"], input[type="search"]') != null ||
+          forms.length > 0,
         hasModalTrigger: document.querySelector('[aria-haspopup="dialog"], [data-modal], [role="dialog"], [aria-modal="true"]') != null,
         hasMenuToggle: document.querySelector('[aria-expanded], [aria-haspopup="menu"]') != null,
       },
@@ -817,6 +837,58 @@ export function assessRaawiTaskIntents(profile: RaawiPageProfile): RaawiTaskAsse
           hasLogout: profile.signals.hasLogout,
           accountControls: profile.counts.accountControls,
           logoutControls: profile.counts.logoutControls,
+        },
+      };
+    }
+
+    if (task.id === 'follow-dynamic-updates') {
+      const hasAnnouncementSupport = profile.counts.liveRegions > 0 || profile.counts.alertRegions > 0;
+      if (!hasAnnouncementSupport) {
+        return {
+          taskId: task.id,
+          label: task.label,
+          category: task.category,
+          result: 'needs_review',
+          confidence: 0.73,
+          summary: 'This page has dynamic interaction patterns, but no obvious live region or alert mechanism was captured for announcing important updates.',
+          evidence: {
+            liveRegions: profile.counts.liveRegions,
+            alertRegions: profile.counts.alertRegions,
+            hasDynamicUpdateRisk: profile.signals.hasDynamicUpdateRisk,
+            hasSearch: profile.signals.hasSearch,
+            hasModalTrigger: profile.signals.hasModalTrigger,
+            hasMenuToggle: profile.signals.hasMenuToggle,
+            forms: profile.counts.forms,
+          },
+          issue: {
+            kind: 'dynamic_updates_not_announced',
+            message: 'Dynamic interaction patterns were detected, but no obvious announcement mechanism was captured for assistive technologies.',
+            confidence: 0.73,
+            evidence: {
+              liveRegions: profile.counts.liveRegions,
+              alertRegions: profile.counts.alertRegions,
+              hasSearch: profile.signals.hasSearch,
+              hasModalTrigger: profile.signals.hasModalTrigger,
+              hasMenuToggle: profile.signals.hasMenuToggle,
+              forms: profile.counts.forms,
+            },
+            suggestedWcagIds: ['4.1.3', '3.2.2'],
+            howToVerify: 'Use a screen reader while opening menus, dialogs, search results, or validation messages and confirm that important updates are announced clearly.',
+          },
+        };
+      }
+
+      return {
+        taskId: task.id,
+        label: task.label,
+        category: task.category,
+        result: 'working',
+        confidence: 0.65,
+        summary: 'Live-region or alert-based announcement cues were present for dynamic interactions.',
+        evidence: {
+          liveRegions: profile.counts.liveRegions,
+          alertRegions: profile.counts.alertRegions,
+          hasDynamicUpdateRisk: profile.signals.hasDynamicUpdateRisk,
         },
       };
     }

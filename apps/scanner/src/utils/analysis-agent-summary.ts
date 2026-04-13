@@ -49,6 +49,8 @@ export interface AnalysisAgentPageSummary {
       otpLikeFields: number;
       images: number;
       media: number;
+      liveRegions: number;
+      alertRegions: number;
       accountControls: number;
       logoutControls: number;
     };
@@ -64,6 +66,7 @@ export interface AnalysisAgentPageSummary {
       hasAccountArea: boolean;
       hasLogout: boolean;
       hasAuthenticatedWorkspace: boolean;
+      hasDynamicUpdateRisk: boolean;
       hasModalTrigger: boolean;
       hasMenuToggle: boolean;
     };
@@ -145,6 +148,8 @@ function summarizeArtifact(
               otpLikeFields: artifact.pageProfile.counts.otpLikeFields,
               images: artifact.pageProfile.counts.images,
               media: artifact.pageProfile.counts.media,
+              liveRegions: artifact.pageProfile.counts.liveRegions,
+              alertRegions: artifact.pageProfile.counts.alertRegions,
               accountControls: artifact.pageProfile.counts.accountControls,
               logoutControls: artifact.pageProfile.counts.logoutControls,
             },
@@ -160,6 +165,7 @@ function summarizeArtifact(
               hasAccountArea: artifact.pageProfile.signals.hasAccountArea,
               hasLogout: artifact.pageProfile.signals.hasLogout,
               hasAuthenticatedWorkspace: artifact.pageProfile.signals.hasAuthenticatedWorkspace,
+              hasDynamicUpdateRisk: artifact.pageProfile.signals.hasDynamicUpdateRisk,
               hasModalTrigger: artifact.pageProfile.signals.hasModalTrigger,
               hasMenuToggle: artifact.pageProfile.signals.hasMenuToggle,
             },

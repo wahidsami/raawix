@@ -81,6 +81,7 @@ export type InteractionArtifact = {
       | 'missing_page_structure'
       | 'missing_skip_link'
       | 'authenticated_workspace_navigation_unclear'
+      | 'dynamic_updates_not_announced'
       | 'unnamed_task_control'
       | 'missing_form_instructions'
       | 'unclear_error_recovery'
@@ -1112,6 +1113,30 @@ function buildJourneyRuns(
           pageProfile.signals.hasLogout ? 'logout cue present' : null,
           pageProfile.counts.accountControls > 0 ? `${pageProfile.counts.accountControls} account control(s)` : null,
           pageProfile.counts.logoutControls > 0 ? `${pageProfile.counts.logoutControls} logout control(s)` : null,
+        ]),
+        relatedIssueKinds,
+      };
+    }
+
+    if (task.id === 'follow-dynamic-updates') {
+      const relatedIssueKinds = getIssueKinds(['dynamic_updates_not_announced', 'silent_update']);
+      return {
+        ...fallback,
+        status:
+          relatedIssueKinds.length > 0
+            ? relatedIssueKinds.includes('silent_update')
+              ? 'not_working'
+              : 'needs_review'
+            : fallback.status,
+        confidence: relatedIssueKinds.length > 0 ? 0.74 : fallback.confidence,
+        summary:
+          getIssueMessages(relatedIssueKinds)[0] ??
+          assessment?.summary ??
+          'Dynamic interactions were detected; assistive announcement behavior needs closer review.',
+        usedSignals: uniqueStrings([
+          pageProfile.signals.hasDynamicUpdateRisk ? 'dynamic interaction cues present' : null,
+          pageProfile.counts.liveRegions > 0 ? `${pageProfile.counts.liveRegions} live region(s)` : 'no live region captured',
+          pageProfile.counts.alertRegions > 0 ? `${pageProfile.counts.alertRegions} alert region(s)` : null,
         ]),
         relatedIssueKinds,
       };

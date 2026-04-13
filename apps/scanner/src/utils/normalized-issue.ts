@@ -95,6 +95,7 @@ const agentKindTaxonomy: Record<string, TaxonomyMatch> = {
   ambiguous_control: { category: 'Structure & Semantics', subcategory: 'Inaccessible custom components' },
   authenticated_workspace_navigation_unclear: { category: 'Authentication & Security', subcategory: 'Cognitive complexity' },
   confusing_focus_order: { category: 'Keyboard & Navigation', subcategory: 'Incorrect tab order' },
+  dynamic_updates_not_announced: { category: 'Assistive Technology', subcategory: 'Screen reader issues' },
   focus_lost: { category: 'Keyboard & Navigation', subcategory: 'Incorrect tab order' },
   form_blocked: { category: 'Forms & Inputs', subcategory: 'No input instructions' },
   inaccessible_action: { category: 'Keyboard & Navigation', subcategory: 'Not accessible via keyboard' },

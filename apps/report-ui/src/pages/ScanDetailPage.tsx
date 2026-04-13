@@ -150,6 +150,8 @@ type AnalysisTracePageProfile = {
     otpLikeFields: number;
     images: number;
     media: number;
+    liveRegions: number;
+    alertRegions: number;
     accountControls: number;
     logoutControls: number;
   };
@@ -165,6 +167,7 @@ type AnalysisTracePageProfile = {
     hasAccountArea: boolean;
     hasLogout: boolean;
     hasAuthenticatedWorkspace: boolean;
+    hasDynamicUpdateRisk: boolean;
     hasModalTrigger: boolean;
     hasMenuToggle: boolean;
   };
@@ -1335,6 +1338,11 @@ export default function ScanDetailPage() {
                             {(trace.pageProfile.signals.hasAuthenticatedWorkspace || trace.pageProfile.counts.accountControls > 0 || trace.pageProfile.counts.logoutControls > 0) && (
                               <div className="mt-1 text-[11px] text-muted-foreground">
                                 {trace.pageProfile.counts.accountControls} account cues • {trace.pageProfile.counts.logoutControls} logout cues
+                              </div>
+                            )}
+                            {trace.pageProfile.signals.hasDynamicUpdateRisk && (
+                              <div className="mt-1 text-[11px] text-muted-foreground">
+                                {trace.pageProfile.counts.liveRegions} live region(s) • {trace.pageProfile.counts.alertRegions} alert region(s)
                               </div>
                             )}
                           </div>
