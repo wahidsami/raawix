@@ -79,6 +79,7 @@ export type InteractionArtifact = {
       | 'expanded_state_not_updated'
       | 'validation_error_not_focused'
       | 'missing_page_structure'
+      | 'missing_skip_link'
       | 'unnamed_task_control'
       | 'missing_form_instructions'
       | 'unclear_error_recovery'
@@ -870,6 +871,7 @@ function buildJourneyRuns(
           pageProfile.mainHeading ? `main heading: ${pageProfile.mainHeading}` : 'no primary heading captured',
           `${pageProfile.counts.headings} heading(s)`,
           `${pageProfile.landmarks.length} landmark(s)`,
+          pageProfile.counts.skipLinks > 0 ? `${pageProfile.counts.skipLinks} skip link(s)` : 'no skip link captured',
         ]),
       };
     }

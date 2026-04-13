@@ -40,6 +40,7 @@ export interface RaawiTaskAssessment {
   issue?: {
     kind:
       | 'missing_page_structure'
+      | 'missing_skip_link'
       | 'unnamed_task_control'
       | 'missing_form_instructions'
       | 'image_alt_task_issue'
@@ -63,6 +64,7 @@ export interface RaawiPageProfile {
   counts: {
     headings: number;
     links: number;
+    skipLinks: number;
     buttons: number;
     forms: number;
     fields: number;
@@ -80,6 +82,7 @@ export interface RaawiPageProfile {
   };
   signals: {
     hasPrimaryNavigation: boolean;
+    hasSkipLink: boolean;
     hasSearch: boolean;
     hasLogin: boolean;
     hasRegister: boolean;
@@ -347,6 +350,11 @@ export async function captureRaawiPageProfile(page: Page, url: string): Promise<
       counts: {
         headings: headings.length,
         links: links.length,
+        skipLinks: links.filter((link) => {
+          const href = link.getAttribute('href') ?? '';
+          const textContent = (link.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+          return href.startsWith('#') && /skip|content|main|تخطي|المحتوى|الرئيسي/.test(`${href} ${textContent}`);
+        }).length,
         buttons: buttons.length,
         forms: forms.length,
         fields: fields.length,
@@ -377,6 +385,12 @@ export async function captureRaawiPageProfile(page: Page, url: string): Promise<
       },
       signals: {
         hasPrimaryNavigation: document.querySelector('nav, [role="navigation"]') != null,
+        hasSkipLink:
+          links.some((link) => {
+            const href = link.getAttribute('href') ?? '';
+            const textContent = (link.textContent ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+            return href.startsWith('#') && /skip|content|main|تخطي|المحتوى|الرئيسي/.test(`${href} ${textContent}`);
+          }),
         hasSearch: document.querySelector('[role="search"], input[type="search"]') != null || hasWord(['search', 'بحث']),
         hasLogin: hasWord(['login', 'log in', 'sign in', 'signin', 'دخول', 'تسجيل الدخول']),
         hasRegister: hasWord(['register', 'sign up', 'signup', 'create account', 'تسجيل', 'إنشاء حساب']),
@@ -452,6 +466,7 @@ export function assessRaawiTaskIntents(profile: RaawiPageProfile): RaawiTaskAsse
         !!profile.mainHeading &&
         profile.counts.headings > 0 &&
         (profile.landmarks.includes('main') || profile.landmarks.includes('navigation') || profile.landmarks.length > 0);
+      const skipLinkShouldExist = profile.signals.hasPrimaryNavigation && profile.counts.links >= 10;
       if (!profile.mainHeading || profile.counts.headings === 0) {
         return {
           taskId: task.id,
@@ -480,6 +495,36 @@ export function assessRaawiTaskIntents(profile: RaawiPageProfile): RaawiTaskAsse
           },
         };
       }
+      if (skipLinkShouldExist && !profile.signals.hasSkipLink) {
+        return {
+          taskId: task.id,
+          label: task.label,
+          category: task.category,
+          result: 'needs_review',
+          confidence: 0.77,
+          summary: 'The page exposes substantial navigation, but no obvious skip link was captured for bypassing repeated content.',
+          evidence: {
+            pageType: profile.pageType,
+            linkCount: profile.counts.links,
+            skipLinks: profile.counts.skipLinks,
+            landmarks: profile.landmarks,
+            hasPrimaryNavigation: profile.signals.hasPrimaryNavigation,
+          },
+          issue: {
+            kind: 'missing_skip_link',
+            message: 'No obvious skip link was captured on a navigation-heavy page, so bypassing repeated content may be difficult.',
+            confidence: 0.77,
+            evidence: {
+              pageType: profile.pageType,
+              linkCount: profile.counts.links,
+              skipLinks: profile.counts.skipLinks,
+              landmarks: profile.landmarks,
+            },
+            suggestedWcagIds: ['2.4.1', '2.4.3'],
+            howToVerify: 'Start from the top of the page with keyboard only and confirm there is a skip link or equivalent mechanism to jump past repeated navigation.',
+          },
+        };
+      }
       return {
         taskId: task.id,
         label: task.label,
@@ -493,6 +538,7 @@ export function assessRaawiTaskIntents(profile: RaawiPageProfile): RaawiTaskAsse
           mainHeading: profile.mainHeading,
           headingCount: profile.counts.headings,
           landmarks: profile.landmarks,
+          skipLinks: profile.counts.skipLinks,
         },
       };
     }

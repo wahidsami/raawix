@@ -100,6 +100,7 @@ const agentKindTaxonomy: Record<string, TaxonomyMatch> = {
   image_alt_task_issue: { category: 'Images', subcategory: 'Missing alt text' },
   keyboard_trap: { category: 'Keyboard & Navigation', subcategory: 'Keyboard traps' },
   missing_page_structure: { category: 'Structure & Semantics', subcategory: 'Missing landmarks' },
+  missing_skip_link: { category: 'Keyboard & Navigation', subcategory: 'Missing skip links' },
   missing_form_instructions: { category: 'Forms & Inputs', subcategory: 'No input instructions' },
   missing_focus_indicator: { category: 'Keyboard & Navigation', subcategory: 'Missing focus indicator' },
   media_autoplay_without_control: { category: 'Multimedia', subcategory: 'Auto-play without control' },

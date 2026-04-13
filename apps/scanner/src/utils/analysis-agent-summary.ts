@@ -37,6 +37,7 @@ export interface AnalysisAgentPageSummary {
     taskIntents: RaawiTaskIntent[];
     counts: {
       links: number;
+      skipLinks: number;
       buttons: number;
       forms: number;
       fields: number;
@@ -50,7 +51,9 @@ export interface AnalysisAgentPageSummary {
       media: number;
     };
     signals: {
+      hasPrimaryNavigation: boolean;
       hasSearch: boolean;
+      hasSkipLink: boolean;
       hasLogin: boolean;
       hasOtp: boolean;
       hasForgotPassword: boolean;
@@ -125,6 +128,7 @@ function summarizeArtifact(
             taskIntents: artifact.pageProfile.taskIntents,
             counts: {
               links: artifact.pageProfile.counts.links,
+              skipLinks: artifact.pageProfile.counts.skipLinks,
               buttons: artifact.pageProfile.counts.buttons,
               forms: artifact.pageProfile.counts.forms,
               fields: artifact.pageProfile.counts.fields,
@@ -138,7 +142,9 @@ function summarizeArtifact(
               media: artifact.pageProfile.counts.media,
             },
             signals: {
+              hasPrimaryNavigation: artifact.pageProfile.signals.hasPrimaryNavigation,
               hasSearch: artifact.pageProfile.signals.hasSearch,
+              hasSkipLink: artifact.pageProfile.signals.hasSkipLink,
               hasLogin: artifact.pageProfile.signals.hasLogin,
               hasOtp: artifact.pageProfile.signals.hasOtp,
               hasForgotPassword: artifact.pageProfile.signals.hasForgotPassword,

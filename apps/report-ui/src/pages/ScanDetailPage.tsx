@@ -138,6 +138,7 @@ type AnalysisTracePageProfile = {
   }>;
   counts: {
     links: number;
+    skipLinks: number;
     buttons: number;
     forms: number;
     fields: number;
@@ -151,7 +152,9 @@ type AnalysisTracePageProfile = {
     media: number;
   };
   signals: {
+    hasPrimaryNavigation: boolean;
     hasSearch: boolean;
+    hasSkipLink: boolean;
     hasLogin: boolean;
     hasOtp: boolean;
     hasForgotPassword: boolean;
@@ -1312,6 +1315,13 @@ export default function ScanDetailPage() {
                             <div className="mt-1 text-[11px] text-muted-foreground">
                               {trace.pageProfile.counts.forms} forms • {trace.pageProfile.counts.fields} fields • {trace.pageProfile.counts.images} images
                             </div>
+                            {(trace.pageProfile.signals.hasPrimaryNavigation || trace.pageProfile.counts.skipLinks > 0) && (
+                              <div className="mt-1 text-[11px] text-muted-foreground">
+                                {trace.pageProfile.counts.skipLinks > 0
+                                  ? `${trace.pageProfile.counts.skipLinks} skip link(s) captured`
+                                  : 'No skip link captured'}
+                              </div>
+                            )}
                             {(trace.pageProfile.counts.passwordFields > 0 || trace.pageProfile.counts.otpLikeFields > 0) && (
                               <div className="mt-1 text-[11px] text-muted-foreground">
                                 {trace.pageProfile.counts.passwordFields} password • {trace.pageProfile.counts.otpLikeFields} OTP-like
