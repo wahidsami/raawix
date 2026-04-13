@@ -607,116 +607,99 @@ export default function ScanDetailPage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-sm text-muted-foreground">{t('scans.totalPages')}</div>
-          <div className="text-2xl font-bold mt-1">{scanDetail.summary.totalPages}</div>
-        </div>
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-sm text-muted-foreground">
-            {isRaawiAgentReport ? 'DOM / WCAG findings' : (t('scans.totalFindings') || 'Total Findings')}
-          </div>
-          <div className="text-2xl font-bold mt-1">{scanDetail.summary.totalFindings}</div>
-        </div>
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-sm text-muted-foreground">{t('scans.wcagAScore') || 'WCAG A Score'}</div>
-          <div className="text-2xl font-bold mt-1">
-            {scanDetail.summary.scores.scoreA != null ? scanDetail.summary.scores.scoreA.toFixed(1) : 'N/A'}%
-          </div>
-        </div>
-        <div className="bg-card border border-border rounded-lg p-4">
-          <div className="text-sm text-muted-foreground">{t('scans.wcagAAScore') || 'WCAG AA Score'}</div>
-          <div className="text-2xl font-bold mt-1">
-            {scanDetail.summary.scores.scoreAA != null ? scanDetail.summary.scores.scoreAA.toFixed(1) : 'N/A'}%
-          </div>
-        </div>
-        <div className="bg-card border border-border rounded-lg p-4 sm:col-span-2 lg:col-span-1">
-          <div className="text-sm text-muted-foreground flex items-center gap-1">
-            <Bot className="w-3.5 h-3.5" />
-            {isRaawiAgentReport ? 'Raawi findings' : (t('scans.analysisAgentFindings') || 'Analysis AI agent')}
-          </div>
-          <div className="text-2xl font-bold mt-1">
-            {raawiIssueCount}
+      {isRaawiAgentReport ? (
+        <div className="bg-card border border-border rounded-lg p-6">
+          <h2 className="text-xl font-bold mb-2">Raawi assessment overview</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            This report focuses on the Raawi agent trace and interaction results. Technical layers are available later as supporting evidence only.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="rounded border border-border bg-background p-4">
+              <div className="text-sm text-muted-foreground">Pages scanned</div>
+              <div className="text-2xl font-bold mt-1">{scanDetail.summary.totalPages}</div>
+            </div>
+            <div className="rounded border border-border bg-background p-4">
+              <div className="text-sm text-muted-foreground">Pages with Raawi trace</div>
+              <div className="text-2xl font-bold mt-1">{raawiPagesWithTrace}</div>
+            </div>
+            <div className="rounded border border-border bg-background p-4">
+              <div className="text-sm text-muted-foreground">Raawi findings</div>
+              <div className="text-2xl font-bold mt-1">{raawiIssueCount}</div>
+            </div>
+            <div className="rounded border border-border bg-background p-4">
+              <div className="text-sm text-muted-foreground">Pass</div>
+              <div className="text-2xl font-bold mt-1">{analysisAgentSummary?.passPages ?? 0}</div>
+            </div>
+            <div className="rounded border border-border bg-background p-4">
+              <div className="text-sm text-muted-foreground">Not pass</div>
+              <div className="text-2xl font-bold mt-1">{analysisAgentSummary?.failPages ?? 0}</div>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="bg-card border border-border rounded-lg p-4">
+              <div className="text-sm text-muted-foreground">{t('scans.totalPages')}</div>
+              <div className="text-2xl font-bold mt-1">{scanDetail.summary.totalPages}</div>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-4">
+              <div className="text-sm text-muted-foreground">{t('scans.totalFindings') || 'Total Findings'}</div>
+              <div className="text-2xl font-bold mt-1">{scanDetail.summary.totalFindings}</div>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-4">
+              <div className="text-sm text-muted-foreground">{t('scans.wcagAScore') || 'WCAG A Score'}</div>
+              <div className="text-2xl font-bold mt-1">
+                {scanDetail.summary.scores.scoreA != null ? scanDetail.summary.scores.scoreA.toFixed(1) : 'N/A'}%
+              </div>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-4">
+              <div className="text-sm text-muted-foreground">{t('scans.wcagAAScore') || 'WCAG AA Score'}</div>
+              <div className="text-2xl font-bold mt-1">
+                {scanDetail.summary.scores.scoreAA != null ? scanDetail.summary.scores.scoreAA.toFixed(1) : 'N/A'}%
+              </div>
+            </div>
+            <div className="bg-card border border-border rounded-lg p-4 sm:col-span-2 lg:col-span-1">
+              <div className="text-sm text-muted-foreground flex items-center gap-1">
+                <Bot className="w-3.5 h-3.5" />
+                {t('scans.analysisAgentFindings') || 'Analysis AI agent'}
+              </div>
+              <div className="text-2xl font-bold mt-1">{raawiIssueCount}</div>
+            </div>
+          </div>
 
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-xl font-bold mb-2">
-          {isRaawiAgentReport ? 'Raawi agent vs technical layers' : 'DOM scan vs Raawi agent'}
-        </h2>
-        <p className="mb-4 text-sm text-muted-foreground">
-          {isRaawiAgentReport
-            ? 'This scan was run in Raawi agent mode. Raawi trace and interaction results are shown first; DOM/WCAG remains available as technical evidence.'
-            : 'This comparison separates automated technical findings from interaction trace findings.'}
-        </p>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className={`rounded-lg border border-border bg-muted/30 p-4 ${isRaawiAgentReport ? 'order-2' : 'order-1'}`}>
-            <div className="text-sm text-muted-foreground mb-2">Normal DOM / WCAG scan</div>
-            <div className="text-3xl font-bold">{scanDetail.summary.totalFindings}</div>
-            <div className="text-sm text-muted-foreground mt-1">
-              {scanDetail.summary.scores.passedRules} passed · {scanDetail.summary.scores.failedRules} failed · {scanDetail.summary.scores.needsReviewRules} need review
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-              <div className="rounded border border-border bg-background p-3">
-                <div className="text-muted-foreground">WCAG A</div>
-                <div className="font-semibold">
-                  {scanDetail.summary.scores.scoreA != null ? `${scanDetail.summary.scores.scoreA.toFixed(1)}%` : 'N/A'}
+          <div className="bg-card border border-border rounded-lg p-6">
+            <h2 className="text-xl font-bold mb-2">DOM scan vs Raawi agent</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              This comparison separates automated technical findings from interaction trace findings.
+            </p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <div className="text-sm text-muted-foreground mb-2">Normal DOM / WCAG scan</div>
+                <div className="text-3xl font-bold">{scanDetail.summary.totalFindings}</div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  {scanDetail.summary.scores.passedRules} passed · {scanDetail.summary.scores.failedRules} failed · {scanDetail.summary.scores.needsReviewRules} need review
                 </div>
               </div>
-              <div className="rounded border border-border bg-background p-3">
-                <div className="text-muted-foreground">WCAG AA</div>
-                <div className="font-semibold">
-                  {scanDetail.summary.scores.scoreAA != null ? `${scanDetail.summary.scores.scoreAA.toFixed(1)}%` : 'N/A'}
-                </div>
-              </div>
-              <div className="rounded border border-border bg-background p-3">
-                <div className="text-muted-foreground">Need review</div>
-                <div className="font-semibold">
-                  {scanDetail.summary.scores.needsReviewRate != null ? `${scanDetail.summary.scores.needsReviewRate.toFixed(1)}%` : 'N/A'}
+              <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <div className="text-sm text-muted-foreground mb-2">Raawi agent</div>
+                <div className="text-3xl font-bold">{raawiPagesWithTrace}</div>
+                <div className="text-sm text-muted-foreground mt-1">
+                  pages with trace · {raawiIssueCount} issue(s)
                 </div>
               </div>
             </div>
           </div>
-          <div className={`rounded-lg border p-4 ${
-            isRaawiAgentReport
-              ? 'order-1 border-emerald-500/30 bg-emerald-500/10 ring-1 ring-emerald-500/10'
-              : 'order-2 border-border bg-muted/30'
-          }`}>
-            <div className="text-sm text-muted-foreground mb-2">Raawi agent</div>
-            <div className="text-3xl font-bold">{raawiPagesWithTrace}</div>
-            <div className="text-sm text-muted-foreground mt-1">
-              pages with trace · {raawiIssueCount} issue(s)
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-              <div className="rounded border border-border bg-background p-3">
-                <div className="text-muted-foreground">Pass</div>
-                <div className="font-semibold">{analysisAgentSummary?.passPages ?? 0}</div>
-              </div>
-              <div className="rounded border border-border bg-background p-3">
-                <div className="text-muted-foreground">Not pass</div>
-                <div className="font-semibold">{analysisAgentSummary?.failPages ?? 0}</div>
-              </div>
-              <div className="rounded border border-border bg-background p-3">
-                <div className="text-muted-foreground">Not run</div>
-                <div className="font-semibold">{analysisAgentSummary?.notRunPages ?? 0}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+        </>
+      )}
 
       {/* Compliance Scores */}
+      {!isRaawiAgentReport && (
       <div className="bg-card border border-border rounded-lg p-6">
         <h2 className="text-xl font-bold mb-2">
-          {isRaawiAgentReport ? 'Supporting WCAG compliance scores' : t('scans.complianceScores')}
+          {t('scans.complianceScores')}
         </h2>
-        {isRaawiAgentReport && (
-          <p className="mb-4 text-sm text-muted-foreground">
-            These scores come from the technical DOM/WCAG layer. They support the Raawi report, but they are not the Raawi interaction result.
-          </p>
-        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <div className="text-sm text-muted-foreground mb-2">{t('scans.wcagA')}</div>
@@ -774,8 +757,10 @@ export default function ScanDetailPage() {
         </div>
         <p className="text-xs text-muted-foreground mt-4 italic">{t('scans.disclaimer')}</p>
       </div>
+      )}
 
       {/* All Findings */}
+      {!isRaawiAgentReport && (
       <div className="bg-card border border-border rounded-lg p-6 space-y-6">
         <div>
           <h2 className="text-xl font-bold">{technicalEvidenceTitle}</h2>
@@ -875,6 +860,7 @@ export default function ScanDetailPage() {
           )}
         </div>
       </div>
+      )}
 
       {/* Analysis AI agent — always shown; table only when there are rows */}
       {scanDetail.analysisAgent != null && (
@@ -996,6 +982,73 @@ export default function ScanDetailPage() {
             </div>
           )}
         </div>
+      )}
+
+      {isRaawiAgentReport && (
+        <details className="bg-card border border-border rounded-lg overflow-hidden">
+          <summary className="cursor-pointer px-5 py-4 text-lg font-semibold">
+            Supporting technical evidence
+          </summary>
+          <div className="border-t border-border p-5 space-y-6">
+            <p className="text-sm text-muted-foreground">
+              DOM/WCAG, vision, and assistive-map results are retained here for evidence and remediation context. They are not the primary Raawi agent result.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+              <div className="rounded border border-border bg-background p-3">
+                <div className="text-muted-foreground">DOM findings</div>
+                <div className="text-xl font-semibold">{scanDetail.summary.totalFindings}</div>
+              </div>
+              <div className="rounded border border-border bg-background p-3">
+                <div className="text-muted-foreground">WCAG A</div>
+                <div className="text-xl font-semibold">
+                  {scanDetail.summary.scores.scoreA != null ? `${scanDetail.summary.scores.scoreA.toFixed(1)}%` : 'N/A'}
+                </div>
+              </div>
+              <div className="rounded border border-border bg-background p-3">
+                <div className="text-muted-foreground">WCAG AA</div>
+                <div className="text-xl font-semibold">
+                  {scanDetail.summary.scores.scoreAA != null ? `${scanDetail.summary.scores.scoreAA.toFixed(1)}%` : 'N/A'}
+                </div>
+              </div>
+              <div className="rounded border border-border bg-background p-3">
+                <div className="text-muted-foreground">Vision findings</div>
+                <div className="text-xl font-semibold">{allLayer2Findings.length}</div>
+              </div>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <Layers className="w-4 h-4" />
+                WCAG findings ({allLayer1Findings.length})
+              </h3>
+              {allLayer1Findings.length > 0 ? (
+                <div className="overflow-x-auto max-h-80 rounded border border-border">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted sticky top-0">
+                      <tr>
+                        <th className="px-4 py-2 text-left font-medium">Page</th>
+                        <th className="px-4 py-2 text-left font-medium">WCAG ID</th>
+                        <th className="px-4 py-2 text-left font-medium">Status</th>
+                        <th className="px-4 py-2 text-left font-medium">Message</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {allLayer1Findings.map((finding) => (
+                        <tr key={finding.key} className="hover:bg-muted/40 align-top">
+                          <td className="px-4 py-2 whitespace-nowrap">{finding.pageNumber}</td>
+                          <td className="px-4 py-2 font-medium">{finding.wcagId}</td>
+                          <td className="px-4 py-2 whitespace-nowrap">{finding.status}</td>
+                          <td className="px-4 py-2 text-muted-foreground break-words">{finding.message}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No WCAG findings recorded for this scan.</p>
+              )}
+            </div>
+          </div>
+        </details>
       )}
 
       {/* Pages Table */}
