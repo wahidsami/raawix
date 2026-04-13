@@ -354,6 +354,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   const [currentPage, setCurrentPage] = useState<string | null>(null);
   /** Scan output folder index — used to load screenshot.png while the scan runs */
   const [activeScanPageNumber, setActiveScanPageNumber] = useState<number | null>(null);
+  const [previewRequestedPageNumber, setPreviewRequestedPageNumber] = useState<number | null>(null);
   const [activeScanPageTitle, setActiveScanPageTitle] = useState<string | null>(null);
   const [pagePreviewObjectUrl, setPagePreviewObjectUrl] = useState<string | null>(null);
   const activeScanPageNumberRef = useRef<number | null>(null);
@@ -365,6 +366,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   useEffect(() => {
     if (!currentPage) {
       setActiveScanPageNumber(null);
+      setPreviewRequestedPageNumber(null);
       setActiveScanPageTitle(null);
     }
   }, [currentPage]);
@@ -396,7 +398,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   );
 
   useEffect(() => {
-    if (phase !== 'scanning' || !isScanning || activeScanPageNumber == null || !pipelineLayer2) {
+    if (phase !== 'scanning' || !isScanning || previewRequestedPageNumber == null || !pipelineLayer2) {
       setPagePreviewObjectUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev);
         return null;
@@ -409,7 +411,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
     let initialDelay: ReturnType<typeof setTimeout> | undefined;
     let attempts = 0;
     const maxAttempts = 20;
-    const pageNumber = activeScanPageNumber;
+    const pageNumber = previewRequestedPageNumber;
 
     const tick = async () => {
       if (!alive) return;
@@ -439,7 +441,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         return null;
       });
     };
-  }, [scanId, activeScanPageNumber, phase, isScanning, pipelineLayer2, fetchScreenshotPreview]);
+  }, [scanId, previewRequestedPageNumber, phase, isScanning, pipelineLayer2, fetchScreenshotPreview]);
   const [, setCurrentStep] = useState<string>('');
   const [currentActivity, setCurrentActivity] = useState<string>(''); // New: user-friendly activity description
   const [stats, setStats] = useState({
@@ -967,6 +969,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         break;
       case 'screenshot_ready':
         if (event.scanId === scanId && typeof event.pageNumber === 'number' && Number.isFinite(event.pageNumber)) {
+          setPreviewRequestedPageNumber(event.pageNumber);
           void fetchScreenshotPreview(event.pageNumber);
         }
         break;
@@ -1183,6 +1186,12 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
     setActiveScanPageNumber(
       typeof event.pageNumber === 'number' && Number.isFinite(event.pageNumber) ? event.pageNumber : null,
     );
+    setPreviewRequestedPageNumber(null);
+    setActiveScanPageTitle(null);
+    setPagePreviewObjectUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
     setCurrentStep(`Scanning page ${event.pageNumber}...`);
     setCurrentActivity((t('scanMonitor.activityMessages.loading') as string) || 'Loading page...');
     addDebugLog('info', `Page started scanning: ${new URL(url).pathname} (page #${event.pageNumber})`);
@@ -1345,6 +1354,9 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
           setCurrentPage(url); // Highlight current page
           if (typeof event.pageNumber === 'number' && Number.isFinite(event.pageNumber)) {
             setActiveScanPageNumber(event.pageNumber);
+            if (layer === 'L2') {
+              setPreviewRequestedPageNumber(event.pageNumber);
+            }
           }
           const docTitle = typeof event.meta?.title === 'string' ? event.meta.title.trim() : '';
           if (docTitle) {
@@ -2413,31 +2425,6 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   // TODO: Fix parent-child linking to show proper hierarchy
   // For now, show all nodes as root nodes so users can see and select all discovered pages
   const rootNodes = Array.from(tree.values());
-
-  // Log root nodes count for debugging
-  if (tree.size > 0) {
-    const orphanedCount = rootNodes.filter(n => n.parentUrl && tree.has(n.parentUrl)).length;
-    console.log(`[TREE] Total nodes: ${tree.size}, Root nodes: ${rootNodes.length}, Orphaned: ${orphanedCount}`);
-
-    // If there's a mismatch, log all nodes to help debug
-    if (tree.size !== rootNodes.length && rootNodes.length < tree.size) {
-      const allNodeUrls = Array.from(tree.keys()).map(u => new URL(u).pathname).sort();
-      const rootNodeUrls = rootNodes.map(n => new URL(n.url).pathname).sort();
-      const missingInRoot = allNodeUrls.filter(url => !rootNodeUrls.includes(url));
-      console.warn(`[TREE] Missing from rootNodes (${missingInRoot.length}):`, missingInRoot);
-
-      // Find which nodes are missing and why
-      const missingNodes = Array.from(tree.values()).filter(node => !rootNodes.includes(node));
-      console.warn(`[TREE] Missing nodes details:`, missingNodes.map(n => ({
-        url: new URL(n.url).pathname,
-        parentUrl: n.parentUrl ? new URL(n.parentUrl).pathname : 'none',
-        hasParentInTree: n.parentUrl && tree.has(n.parentUrl),
-        isChildOfAnother: Array.from(tree.values()).some((other) =>
-          other.children.some((child) => child.url === n.url)
-        ),
-      })));
-    }
-  }
 
   // Sort root nodes by depth (0 first) and then by URL
   rootNodes.sort((a, b) => {
@@ -3766,9 +3753,6 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         {/* Footer */}
         <div className="border-t border-border p-4 flex justify-end gap-2">
           {(() => {
-            // Debug logging for button render
-            console.log('[BUTTON-RENDER] Current state:', { phase, isScanning, scanCompleted, scanPaused, selectedUrls: selectedUrls.size });
-
             if (phase === 'selection') {
               return (
                 <>
@@ -3805,7 +3789,6 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                 </>
               );
             } else if (!isScanning && phase === 'scanning' && (scanCompleted || scanPaused)) {
-              console.log('[BUTTON-RENDER] ✅ Showing SAVE FINDINGS button!');
               return (
                 <>
                   <button
@@ -3823,7 +3806,6 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                 </>
               );
             } else {
-              console.log('[BUTTON-RENDER] ❌ Fallback - only showing Close button');
               return (
                 <button
                   onClick={handleClose}

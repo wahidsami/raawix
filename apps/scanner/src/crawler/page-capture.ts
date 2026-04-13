@@ -248,19 +248,6 @@ export class PageCapture {
         }
       }
 
-      // Get page metadata
-      const metadataStartedAt = Date.now();
-      result.title = await page.title();
-      result.finalUrl = finalUrl;
-
-      // Compute canonical URL
-      result.canonicalUrl = computeCanonicalUrl(finalUrl);
-
-      // Compute page fingerprint
-      const html = await page.content();
-      result.pageFingerprint = computePageFingerprint(result.title, html);
-      timings.metadataMs = Date.now() - metadataStartedAt;
-
       const pl: ResolvedScanPipeline =
         options.pipeline ?? {
           layer1: true,
@@ -271,20 +258,6 @@ export class PageCapture {
         };
       const crawlLinkDiscovery = options.crawlLinkDiscovery === true;
       const writeDomArtifacts = pl.layer1 || crawlLinkDiscovery;
-      const titleForEvents = result.title?.trim() || undefined;
-
-      // LAYER 1 (optional): accessibility barriers
-      if (pl.layer1) {
-        console.log('[L1] Checking for accessibility barriers (disabled tools)...');
-        const accessibilityBarrierStartedAt = Date.now();
-        const { detectAccessibilityBarriers } = await import('../rules/accessibility-barriers.js');
-        const accessibilityBarriers = await detectAccessibilityBarriers(page);
-        timings.accessibilityBarrierMs = Date.now() - accessibilityBarrierStartedAt;
-        if (accessibilityBarriers.length > 0) {
-          console.log(`[L1] Found ${accessibilityBarriers.length} accessibility barriers`);
-          (result as any).accessibilityBarriers = accessibilityBarriers;
-        }
-      }
 
       // SECURITY: Ensure output directory path safety (no traversal)
       const sanitizedPageNumber = String(pageNumber).replace(/[\/\\\.\.]/g, '').replace(/[^0-9]/g, '');
@@ -302,6 +275,14 @@ export class PageCapture {
 
       await mkdir(pageDir, { recursive: true });
 
+      // Capture lightweight metadata first so live events can carry a title even before DOM serialization.
+      const metadataStartedAt = Date.now();
+      result.title = await page.title();
+      result.finalUrl = finalUrl;
+      result.canonicalUrl = computeCanonicalUrl(finalUrl);
+      timings.metadataMs = Date.now() - metadataStartedAt;
+      const titleForEvents = result.title?.trim() || undefined;
+
       if (!writeDomArtifacts && this.scanId) {
         scanEventEmitter.emitEvent(this.scanId, {
           type: 'layer_status',
@@ -318,7 +299,8 @@ export class PageCapture {
       let visionPath: string | undefined;
       let visionCount = 0;
 
-      // LAYER 2: screenshot + vision (optional)
+      // LAYER 2: capture the full-page screenshot as early as possible so live previews are available
+      // even when later DOM or accessibility steps fail for the current page.
       if (pl.layer2) {
         console.log('[L2] Screenshot start');
         if (this.scanId) {
@@ -365,6 +347,22 @@ export class PageCapture {
           meta: { skipped: true, visionCount: 0 },
           timestamp: new Date().toISOString(),
         });
+      }
+
+      const html = await page.content();
+      result.pageFingerprint = computePageFingerprint(result.title, html);
+
+      // LAYER 1 (optional): accessibility barriers
+      if (pl.layer1) {
+        console.log('[L1] Checking for accessibility barriers (disabled tools)...');
+        const accessibilityBarrierStartedAt = Date.now();
+        const { detectAccessibilityBarriers } = await import('../rules/accessibility-barriers.js');
+        const accessibilityBarriers = await detectAccessibilityBarriers(page);
+        timings.accessibilityBarrierMs = Date.now() - accessibilityBarrierStartedAt;
+        if (accessibilityBarriers.length > 0) {
+          console.log(`[L1] Found ${accessibilityBarriers.length} accessibility barriers`);
+          (result as any).accessibilityBarriers = accessibilityBarriers;
+        }
       }
 
       // DOM/HTML + links + a11y (Layer 1 artifacts; required for crawl link discovery)
