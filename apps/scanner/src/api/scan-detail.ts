@@ -24,6 +24,13 @@ import {
   formatAnalysisAgentPageStatus,
   loadAnalysisAgentPageSummaries,
 } from '../utils/analysis-agent-summary.js';
+import {
+  compareNormalizedIssues,
+  normalizeAgentFinding,
+  normalizeRuleFinding,
+  normalizeVisionFinding,
+  type NormalizedIssue,
+} from '../utils/normalized-issue.js';
 
 const router: Router = Router();
 
@@ -196,6 +203,21 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
           source: af.source ?? undefined,
         }));
 
+        let normalizedSequence = 1;
+        const serviceName =
+          (scan as any).auditMode === 'raawi-agent' ? 'Raawi agent report' : 'Classic audit report';
+        const auditorFindings: NormalizedIssue[] = [
+          ...layer1Findings.map((finding: any) =>
+            normalizeRuleFinding(finding, page.url, page.pageNumber, normalizedSequence++, serviceName)
+          ),
+          ...layer2Findings.map((finding: any) =>
+            normalizeVisionFinding(finding, page.url, page.pageNumber, normalizedSequence++, serviceName)
+          ),
+          ...layerAgentFindings.map((finding: any) =>
+            normalizeAgentFinding(finding, page.url, page.pageNumber, normalizedSequence++, 'Raawi agent')
+          ),
+        ].sort(compareNormalizedIssues);
+
         // Layer 3: Assistive Map (lookup via AssistiveMapRepository)
         let assistiveMap = null;
         try {
@@ -247,6 +269,10 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
           layerAgent: {
             findings: layerAgentFindings,
             count: layerAgentFindings.length,
+          },
+          auditorFindings: {
+            findings: auditorFindings,
+            count: auditorFindings.length,
           },
           layer3: {
             assistiveMap,
@@ -325,6 +351,17 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
     const analysisAgentExecuted =
       pagesWithAgentArtifact > 0 || scan._count.agentFindings > 0 || analysisAgentFindings.length > 0;
 
+    const allAuditorFindings = (pagesDetail as any[])
+      .flatMap((page) => page.auditorFindings?.findings || [])
+      .sort(compareNormalizedIssues);
+    const auditorCategorySummary = allAuditorFindings.reduce(
+      (acc: Record<string, number>, finding: NormalizedIssue) => {
+        acc[finding.category] = (acc[finding.category] || 0) + 1;
+        return acc;
+      },
+      {}
+    );
+
     // Build response
     const response = {
       scanId: scan.scanId,
@@ -350,6 +387,11 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
         pagesWithArtifact: pagesWithAgentArtifact,
         trace: analysisAgentTraceSummaries,
         summary: analysisAgentTraceSummary,
+      },
+      auditorFindings: {
+        count: allAuditorFindings.length,
+        findings: allAuditorFindings,
+        categorySummary: auditorCategorySummary,
       },
       pages: pagesDetail,
       disclaimer: 'Scores reflect scanned pages and crawl scope; this is not a certification.',

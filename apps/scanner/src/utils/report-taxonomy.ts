@@ -95,3 +95,43 @@ export const defaultTaxonomyMatch: TaxonomyMatch = {
 export function getCategorySubcategories(category: ReportCategory): readonly string[] {
   return reportCategories[category];
 }
+
+export function getReportCategories(): ReportCategory[] {
+  return Object.keys(reportCategories) as ReportCategory[];
+}
+
+export function isReportCategory(value: unknown): value is ReportCategory {
+  return typeof value === 'string' && value in reportCategories;
+}
+
+export function isSubcategoryForCategory(category: ReportCategory, value: unknown): value is string {
+  return typeof value === 'string' && reportCategories[category].includes(value as never);
+}
+
+export function normalizeTaxonomyMatch(input?: Partial<TaxonomyMatch> | null): TaxonomyMatch {
+  if (!input || !isReportCategory(input.category)) {
+    return defaultTaxonomyMatch;
+  }
+
+  if (!isSubcategoryForCategory(input.category, input.subcategory)) {
+    const [firstSubcategory] = reportCategories[input.category];
+    return {
+      category: input.category,
+      subcategory: firstSubcategory ?? defaultTaxonomyMatch.subcategory,
+    };
+  }
+
+  return {
+    category: input.category,
+    subcategory: input.subcategory,
+  };
+}
+
+export function formatTaxonomyChecklistForPrompt(): string {
+  return getReportCategories()
+    .map((category) => {
+      const subcategories = reportCategories[category].map((subcategory) => `    - ${subcategory}`).join('\n');
+      return `  - ${category}\n${subcategories}`;
+    })
+    .join('\n');
+}

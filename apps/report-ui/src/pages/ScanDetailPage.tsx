@@ -107,6 +107,25 @@ function VisionFindingImage({
   );
 }
 
+type AuditorFinding = {
+  issueCode: string;
+  serviceName: string;
+  issueTitle: string;
+  result: 'working' | 'not_working' | 'needs_review' | 'not_applicable';
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
+  category: string;
+  subcategory: string;
+  pageUrl: string;
+  pageNumber: number;
+  source: string;
+  sourceLabel: string;
+  wcagIds: string[];
+  evidence: string;
+  selector?: string;
+  recommendation?: string;
+  howToVerify?: string;
+};
+
 interface ScanDetail {
   scanId: string;
   seedUrl: string;
@@ -183,6 +202,11 @@ interface ScanDetail {
       totalIssues: number;
     };
   };
+  auditorFindings?: {
+    count: number;
+    findings: AuditorFinding[];
+    categorySummary: Record<string, number>;
+  };
   pages: Array<{
     pageNumber: number;
     url: string;
@@ -221,6 +245,10 @@ interface ScanDetail {
         issueMessages: string[];
         traceSummary: string;
       };
+    };
+    auditorFindings?: {
+      count: number;
+      findings: AuditorFinding[];
     };
     layer3: {
       assistiveMap: any;
@@ -376,6 +404,7 @@ export default function ScanDetailPage() {
   const analysisAgentFindings = scanDetail.analysisAgent?.findings ?? [];
   const analysisAgentTrace = scanDetail.analysisAgent?.trace ?? [];
   const analysisAgentSummary = scanDetail.analysisAgent?.summary;
+  const auditorFindings = scanDetail.auditorFindings?.findings ?? [];
   const isRaawiAgentReport = scanDetail.auditMode === 'raawi-agent';
   const raawiPagesWithTrace = analysisAgentSummary?.pagesWithTrace ?? scanDetail.analysisAgent?.pagesWithArtifact ?? 0;
   const raawiIssueCount = analysisAgentSummary?.totalIssues ?? scanDetail.summary.totalAgentFindings ?? scanDetail.analysisAgent?.count ?? 0;
@@ -408,6 +437,19 @@ export default function ScanDetailPage() {
     if (status === 'fail') {
       return 'bg-red-500/15 text-red-700 ring-1 ring-red-500/20';
     }
+    return 'bg-muted text-muted-foreground ring-1 ring-border';
+  };
+  const getAuditorResultLabel = (result: string) => {
+    if (result === 'working') return 'Working';
+    if (result === 'not_working') return 'Not working';
+    if (result === 'needs_review') return 'Needs review';
+    if (result === 'not_applicable') return 'Not applicable';
+    return result;
+  };
+  const getAuditorResultClass = (result: string) => {
+    if (result === 'working') return 'bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-500/20';
+    if (result === 'not_working') return 'bg-red-500/15 text-red-700 ring-1 ring-red-500/20';
+    if (result === 'needs_review') return 'bg-amber-500/15 text-amber-700 ring-1 ring-amber-500/20';
     return 'bg-muted text-muted-foreground ring-1 ring-border';
   };
   const renderAgentCell = (page: ScanDetail['pages'][number]) => (
@@ -860,6 +902,72 @@ export default function ScanDetailPage() {
           )}
         </div>
       </div>
+      )}
+
+      {auditorFindings.length > 0 && (
+        <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <div className="p-4 border-b border-border flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold">
+                {isRaawiAgentReport ? 'Raawi auditor findings' : 'Auditor-style findings'}
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Unified table using the report categories and subcategories. It combines DOM/WCAG, vision, and Raawi findings into the manual-audit format.
+              </p>
+            </div>
+            <div className="rounded border border-border bg-background px-3 py-2 text-sm">
+              <div className="text-muted-foreground">Total</div>
+              <div className="text-lg font-semibold">{auditorFindings.length}</div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium">Service Name</th>
+                  <th className="px-4 py-3 text-left font-medium">Issue Title</th>
+                  <th className="px-4 py-3 text-left font-medium">Result</th>
+                  <th className="px-4 py-3 text-left font-medium">Severity</th>
+                  <th className="px-4 py-3 text-left font-medium">Category</th>
+                  <th className="px-4 py-3 text-left font-medium">Subcategory</th>
+                  <th className="px-4 py-3 text-left font-medium">Page URL</th>
+                  <th className="px-4 py-3 text-left font-medium">Evidence</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {auditorFindings.map((finding) => (
+                  <tr key={finding.issueCode} className="hover:bg-muted/40 align-top">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="font-medium">{finding.serviceName}</div>
+                      <div className="text-xs text-muted-foreground">{finding.sourceLabel}</div>
+                    </td>
+                    <td className="px-4 py-3 min-w-[260px]">
+                      <div className="font-medium">{finding.issueTitle}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{finding.issueCode}</div>
+                      {finding.wcagIds.length > 0 && (
+                        <div className="mt-1 text-xs text-muted-foreground">WCAG: {finding.wcagIds.join(', ')}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`inline-flex rounded px-2 py-1 text-xs font-medium ${getAuditorResultClass(finding.result)}`}>
+                        {getAuditorResultLabel(finding.result)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 capitalize whitespace-nowrap">{finding.severity}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{finding.category}</td>
+                    <td className="px-4 py-3 min-w-[180px]">{finding.subcategory}</td>
+                    <td className="px-4 py-3 max-w-[220px]">
+                      <span className="break-all text-xs text-primary">{finding.pageUrl}</span>
+                    </td>
+                    <td className="px-4 py-3 min-w-[260px] text-xs text-muted-foreground">
+                      {finding.evidence || finding.selector || finding.howToVerify || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* Analysis AI agent — always shown; table only when there are rows */}

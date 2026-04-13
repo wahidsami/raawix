@@ -527,6 +527,14 @@ export class ScanRepository {
                 confidence: f.confidence,
                 evidenceJson: {
                   source: 'openai',
+                  ...(f.category && f.subcategory
+                    ? {
+                        taxonomy: {
+                          category: f.category,
+                          subcategory: f.subcategory,
+                        },
+                      }
+                    : {}),
                   ...(typeof f.evidence === 'object' && f.evidence !== null
                     ? (f.evidence as Record<string, unknown>)
                     : {}),

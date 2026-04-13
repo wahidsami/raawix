@@ -5,6 +5,10 @@
 
 import { z } from 'zod';
 import type { InteractionArtifact } from './interaction-agent.js';
+import {
+  formatTaxonomyChecklistForPrompt,
+  normalizeTaxonomyMatch,
+} from '../utils/report-taxonomy.js';
 
 const MAX_STEPS_SUMMARY = 60;
 
@@ -41,6 +45,8 @@ const EnrichedFindingSchema = z.object({
   kind: z.string(),
   message: z.string(),
   confidence: z.number().min(0).max(1),
+  category: z.string().optional(),
+  subcategory: z.string().optional(),
   evidence: z.unknown(),
   suggestedWcagIds: z.array(z.string()).optional(),
   howToVerify: z.string().optional(),
@@ -114,8 +120,9 @@ Rules:
 - Use ONLY the provided artifact data; do not assume or invent content.
 - Reference step indexes (e.g. "step 3") and probe names (e.g. "modal_probe", "menu_probe", "form_validation_probe") when describing evidence.
 - Prefer merging related issues into fewer, clearer findings rather than creating many small ones.
+- Classify each finding with the closest category and subcategory from the taxonomy provided in the user message.
 - Output valid JSON only, matching this exact schema:
-  { "enrichedFindings": [ { "kind": string, "message": string, "confidence": number (0-1), "evidence": object, "suggestedWcagIds": string[] (optional), "howToVerify": string (optional), "source": "openai" } ] }
+  { "enrichedFindings": [ { "kind": string, "message": string, "confidence": number (0-1), "category": string, "subcategory": string, "evidence": object, "suggestedWcagIds": string[] (optional), "howToVerify": string (optional), "source": "openai" } ] }
 - You may suggest new kinds such as: ambiguous_control, poor_label_quality, confusing_focus_order, or reuse existing kinds from the artifact.
 - If nothing meaningful to add, return { "enrichedFindings": [] }.
 - Keep each message concise (under 200 chars when possible).`;
@@ -150,6 +157,9 @@ ${probesStr}
 Existing issues:
 ${issuesStr}
 
+Allowed report taxonomy:
+${formatTaxonomyChecklistForPrompt()}
+
 Suggest additional or refined accessibility findings as JSON (enrichedFindings array). Reference step indexes and probe names in evidence. Output only the JSON object.`;
 }
 
@@ -171,10 +181,16 @@ function parseAndValidateOutput(raw: string): AgentFindingDraft[] {
       ? Math.max(0, Math.min(1, f.confidence))
       : 0.5;
     if (!f.kind || typeof f.message !== 'string') continue;
+    const taxonomy = normalizeTaxonomyMatch({
+      category: f.category as any,
+      subcategory: f.subcategory,
+    });
     valid.push({
       kind: String(f.kind).slice(0, 120),
       message: String(f.message).slice(0, 1000),
       confidence,
+      category: taxonomy.category,
+      subcategory: taxonomy.subcategory,
       evidence: f.evidence ?? {},
       suggestedWcagIds: Array.isArray(f.suggestedWcagIds) ? f.suggestedWcagIds.slice(0, 10) : undefined,
       howToVerify: typeof f.howToVerify === 'string' ? f.howToVerify.slice(0, 500) : undefined,
