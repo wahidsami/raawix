@@ -4,6 +4,7 @@
  */
 
 import type { Page } from 'playwright';
+import { captureRaawiPageProfile, type RaawiPageProfile } from './page-understanding.js';
 
 const NAME_CAP = 200;
 const CLASSES_CAP = 200;
@@ -27,6 +28,7 @@ export type InteractionArtifact = {
   url: string;
   pageNumber: number;
   capturedAt: string;
+  pageProfile?: RaawiPageProfile;
   steps: Array<{
     i: number;
     action: 'tab' | 'shift+tab';
@@ -512,6 +514,7 @@ export async function runInteractionAgent(
   const steps: InteractionArtifact['steps'] = [];
   const issues: InteractionArtifact['issues'] = [];
   const probes: NonNullable<InteractionArtifact['probes']> = [];
+  let pageProfile: RaawiPageProfile | undefined;
   const unnamedExamples: Array<{ stepIndex: number; tag: string; role: string | null; selectorHint: string }> = [];
   const roleNameCount = new Map<string, number>();
   let focusNotVisibleCount = 0;
@@ -578,6 +581,12 @@ export async function runInteractionAgent(
   };
 
   try {
+    try {
+      pageProfile = await captureRaawiPageProfile(page, ctx.url);
+    } catch (profileErr) {
+      console.warn('[InteractionAgent] Page profile capture failed:', profileErr);
+    }
+
     await page.keyboard.press('Tab');
     await page.waitForTimeout(50);
     await captureStep(0, 'tab');
@@ -988,6 +997,7 @@ export async function runInteractionAgent(
     url: ctx.url,
     pageNumber: ctx.pageNumber,
     capturedAt: new Date().toISOString(),
+    ...(pageProfile ? { pageProfile } : {}),
     steps,
     issues,
     ...(probes.length > 0 ? { probes } : {}),

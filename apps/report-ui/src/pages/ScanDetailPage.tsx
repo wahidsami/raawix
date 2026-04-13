@@ -126,6 +126,34 @@ type AuditorFinding = {
   howToVerify?: string;
 };
 
+type AnalysisTracePageProfile = {
+  pageType: string;
+  mainHeading: string | null;
+  taskIntents: Array<{
+    id: string;
+    label: string;
+    category: string;
+    reason: string;
+    confidence: number;
+  }>;
+  counts: {
+    links: number;
+    buttons: number;
+    forms: number;
+    fields: number;
+    images: number;
+    media: number;
+  };
+  signals: {
+    hasSearch: boolean;
+    hasLogin: boolean;
+    hasOtp: boolean;
+    hasContact: boolean;
+    hasModalTrigger: boolean;
+    hasMenuToggle: boolean;
+  };
+};
+
 interface ScanDetail {
   scanId: string;
   seedUrl: string;
@@ -190,6 +218,7 @@ interface ScanDetail {
       issueKinds: string[];
       issueMessages: string[];
       traceSummary: string;
+      pageProfile?: AnalysisTracePageProfile;
     }>;
     summary?: {
       pagesWithTrace: number;
@@ -244,6 +273,7 @@ interface ScanDetail {
         issueKinds: string[];
         issueMessages: string[];
         traceSummary: string;
+        pageProfile?: AnalysisTracePageProfile;
       };
     };
     auditorFindings?: {
@@ -995,6 +1025,8 @@ export default function ScanDetailPage() {
                   <tr>
                     <th className="px-3 py-2 text-left font-medium">#</th>
                     <th className="px-3 py-2 text-left font-medium">Page</th>
+                    <th className="px-3 py-2 text-left font-medium">Understanding</th>
+                    <th className="px-3 py-2 text-left font-medium">Task intents</th>
                     <th className="px-3 py-2 text-left font-medium">Status</th>
                     <th className="px-3 py-2 text-left font-medium">Steps</th>
                     <th className="px-3 py-2 text-left font-medium">Probes</th>
@@ -1008,6 +1040,35 @@ export default function ScanDetailPage() {
                       <td className="px-3 py-2 whitespace-nowrap">{trace.pageNumber}</td>
                       <td className="px-3 py-2 max-w-[240px]">
                         <span className="break-all text-xs text-muted-foreground">{trace.pageUrl}</span>
+                      </td>
+                      <td className="px-3 py-2 min-w-[180px]">
+                        {trace.pageProfile ? (
+                          <div>
+                            <div className="font-medium capitalize">{trace.pageProfile.pageType.replace(/_/g, ' ')}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {trace.pageProfile.mainHeading || 'No primary heading captured'}
+                            </div>
+                            <div className="mt-1 text-[11px] text-muted-foreground">
+                              {trace.pageProfile.counts.forms} forms • {trace.pageProfile.counts.fields} fields • {trace.pageProfile.counts.images} images
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No profile</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 min-w-[240px]">
+                        {trace.pageProfile?.taskIntents?.length ? (
+                          <div className="space-y-1">
+                            {trace.pageProfile.taskIntents.slice(0, 3).map((task) => (
+                              <div key={task.id} className="rounded border border-border bg-background px-2 py-1">
+                                <div className="text-xs font-medium">{task.label}</div>
+                                <div className="text-[11px] text-muted-foreground">{task.category}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No task intent</span>
+                        )}
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getAnalysisAgentStatusClass(trace.status)}`}>

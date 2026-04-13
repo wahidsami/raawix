@@ -39,6 +39,18 @@ export type AnalystCompactInput = {
     message: string;
     confidence: number;
   }>;
+  pageProfile?: {
+    pageType: string;
+    mainHeading: string | null;
+    counts: Record<string, number>;
+    signals: Record<string, boolean>;
+    taskIntents: Array<{
+      id: string;
+      label: string;
+      category: string;
+      reason: string;
+    }>;
+  };
 };
 
 const EnrichedFindingSchema = z.object({
@@ -100,6 +112,20 @@ export function buildCompactInput(
     url: artifact.url,
     title,
     pageNumber: artifact.pageNumber,
+    pageProfile: artifact.pageProfile
+      ? {
+          pageType: artifact.pageProfile.pageType,
+          mainHeading: artifact.pageProfile.mainHeading,
+          counts: artifact.pageProfile.counts,
+          signals: artifact.pageProfile.signals,
+          taskIntents: artifact.pageProfile.taskIntents.map((task) => ({
+            id: task.id,
+            label: task.label,
+            category: task.category,
+            reason: task.reason,
+          })),
+        }
+      : undefined,
     stepsSummary: steps,
     probesSummary,
     existingIssues,
@@ -143,10 +169,15 @@ function buildUserPrompt(input: AnalystCompactInput): string {
   const issuesStr = input.existingIssues
     .map((i) => `  ${i.kind}: ${i.message} (confidence=${i.confidence})`)
     .join('\n');
+  const pageProfileStr = input.pageProfile
+    ? JSON.stringify(input.pageProfile, null, 2)
+    : 'n/a';
 
   return `Page: ${input.url}
 Title: ${input.title ?? 'n/a'}
 Page number: ${input.pageNumber}
+Page profile:
+${pageProfileStr}
 
 Steps (focus trace, max ${MAX_STEPS_SUMMARY}):
 ${stepsStr}

@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { validateAgentArtifact, type InteractionArtifact } from '../agent/interaction-agent.js';
+import type { RaawiTaskIntent } from '../agent/page-understanding.js';
 
 export type AnalysisAgentPageStatus = 'pass' | 'fail' | 'not_run';
 
@@ -23,6 +24,27 @@ export interface AnalysisAgentPageSummary {
   issueKinds: string[];
   issueMessages: string[];
   traceSummary: string;
+  pageProfile?: {
+    pageType: string;
+    mainHeading: string | null;
+    taskIntents: RaawiTaskIntent[];
+    counts: {
+      links: number;
+      buttons: number;
+      forms: number;
+      fields: number;
+      images: number;
+      media: number;
+    };
+    signals: {
+      hasSearch: boolean;
+      hasLogin: boolean;
+      hasOtp: boolean;
+      hasContact: boolean;
+      hasModalTrigger: boolean;
+      hasMenuToggle: boolean;
+    };
+  };
 }
 
 function summarizeArtifact(
@@ -58,6 +80,31 @@ function summarizeArtifact(
     issueKinds: [...new Set(issueKinds)],
     issueMessages: [...new Set(issueMessages)],
     traceSummary,
+    ...(artifact?.pageProfile
+      ? {
+          pageProfile: {
+            pageType: artifact.pageProfile.pageType,
+            mainHeading: artifact.pageProfile.mainHeading,
+            taskIntents: artifact.pageProfile.taskIntents,
+            counts: {
+              links: artifact.pageProfile.counts.links,
+              buttons: artifact.pageProfile.counts.buttons,
+              forms: artifact.pageProfile.counts.forms,
+              fields: artifact.pageProfile.counts.fields,
+              images: artifact.pageProfile.counts.images,
+              media: artifact.pageProfile.counts.media,
+            },
+            signals: {
+              hasSearch: artifact.pageProfile.signals.hasSearch,
+              hasLogin: artifact.pageProfile.signals.hasLogin,
+              hasOtp: artifact.pageProfile.signals.hasOtp,
+              hasContact: artifact.pageProfile.signals.hasContact,
+              hasModalTrigger: artifact.pageProfile.signals.hasModalTrigger,
+              hasMenuToggle: artifact.pageProfile.signals.hasMenuToggle,
+            },
+          },
+        }
+      : {}),
   };
 }
 
