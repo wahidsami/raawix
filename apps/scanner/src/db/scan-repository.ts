@@ -72,7 +72,7 @@ export class ScanRepository {
    */
   async updateScanStatus(
     scanId: string,
-    status: 'queued' | 'running' | 'completed' | 'failed' | 'canceled' | 'discovering',
+    status: 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'canceled' | 'discovering',
     completedAt?: Date
   ): Promise<void> {
     const prisma = await getPrismaClient();

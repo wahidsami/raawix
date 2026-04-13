@@ -10,7 +10,7 @@ import TablePagination from '../components/TablePagination';
 interface Scan {
   scanId: string;
   seedUrl: string;
-  status: 'queued' | 'running' | 'completed' | 'failed' | 'canceled' | 'discovering';
+  status: 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'canceled' | 'discovering';
   startedAt: string;
   completedAt?: string;
   hostname: string;
@@ -113,6 +113,8 @@ export default function ScansPage() {
         return 'bg-amber-500/15 text-amber-200 ring-1 ring-amber-500/25';
       case 'discovering':
         return 'bg-violet-500/15 text-violet-200 ring-1 ring-violet-500/25';
+      case 'paused':
+        return 'bg-orange-500/15 text-orange-200 ring-1 ring-orange-500/25';
       case 'canceled':
         return 'bg-muted text-muted-foreground ring-1 ring-border';
       default:
@@ -454,4 +456,3 @@ export default function ScansPage() {
     </div>
   );
 }
-

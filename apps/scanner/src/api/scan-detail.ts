@@ -17,6 +17,7 @@ import { getFindingLevel } from '../utils/wcag-rule-registry.js';
 import { config } from '../config.js';
 import { join, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { rm } from 'node:fs/promises';
 import { getHostname } from '../crawler/url-utils.js';
 import * as AMG from '../assistive/assistive-map-generator.js';
@@ -31,6 +32,7 @@ import {
   normalizeVisionFinding,
   type NormalizedIssue,
 } from '../utils/normalized-issue.js';
+import type { ManualCheckpoint } from '@raawi-x/core';
 
 const router: Router = Router();
 
@@ -362,6 +364,16 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
       {}
     );
 
+    let manualCheckpoint: ManualCheckpoint | null = null;
+    try {
+      const checkpointPath = join(resolve(config.outputDir), scanId, 'manual-checkpoint.json');
+      if (existsSync(checkpointPath)) {
+        manualCheckpoint = JSON.parse(await readFile(checkpointPath, 'utf-8')) as ManualCheckpoint;
+      }
+    } catch {
+      manualCheckpoint = null;
+    }
+
     // Build response
     const response = {
       scanId: scan.scanId,
@@ -393,6 +405,7 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
         findings: allAuditorFindings,
         categorySummary: auditorCategorySummary,
       },
+      manualCheckpoint,
       pages: pagesDetail,
       disclaimer: 'Scores reflect scanned pages and crawl scope; this is not a certification.',
     };

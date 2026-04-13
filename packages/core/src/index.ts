@@ -101,6 +101,19 @@ export interface PageCaptureTimings {
   metadataWriteMs?: number;
 }
 
+export interface ManualCheckpoint {
+  kind: 'verification_code';
+  pageNumber: number;
+  pageUrl: string;
+  message: string;
+  source: 'analysis-agent';
+  formPurpose?: 'login' | 'register' | 'contact' | 'search' | 'generic';
+  checkpointHeading?: string | null;
+  otpLikeFields?: number;
+  hasResendCode?: boolean;
+  hasForgotPassword?: boolean;
+}
+
 export interface PageScanResult {
   pageNumber: number;
   url: string;
@@ -116,6 +129,7 @@ export interface PageScanResult {
   agentPath?: string;
   metadataPath?: string;
   timings?: PageCaptureTimings;
+  manualCheckpoint?: ManualCheckpoint;
   status: 'success' | 'failed';
 }
 
@@ -219,6 +233,7 @@ export interface ScanRun {
   startedAt: string;
   completedAt?: string;
   error?: string;
+  manualCheckpoint?: ManualCheckpoint;
   pages: PageArtifact[];
   results: PageRuleResults[];
   summary: ScanRunSummary;

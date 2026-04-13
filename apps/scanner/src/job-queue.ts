@@ -1,4 +1,4 @@
-import type { ScanRequest, ScanRun, PageArtifact, PageScanResult } from '@raawi-x/core';
+import type { ManualCheckpoint, ScanRequest, ScanRun, PageArtifact, PageScanResult } from '@raawi-x/core';
 import { generateScanId } from '@raawi-x/core';
 import { config } from './config.js';
 import { validateUrl } from './security/ssrf.js';
@@ -17,15 +17,16 @@ import { mkdir, rm, readFile, writeFile } from 'node:fs/promises';
 import { resolveScanPipeline, defaultScanPipeline } from './scan-pipeline.js';
 
 /**
- * Strict scan state machine: queued -> running -> completed|failed|canceled
+ * Strict scan state machine: queued -> running -> paused|completed|failed|canceled
  */
-export type ScanStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
+export type ScanStatus = 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'canceled';
 
 interface Job {
   id: string;
   request: ScanRequest;
   status: ScanStatus;
   scanRun?: ScanRun;
+  manualCheckpoint?: ManualCheckpoint;
   startedAt?: string;
   completedAt?: string;
   canceledAt?: string;
@@ -88,6 +89,14 @@ export class JobQueue {
       ),
       'utf-8'
     );
+  }
+
+  private async saveManualCheckpointArtifact(
+    outputDir: string,
+    checkpoint: ManualCheckpoint
+  ): Promise<void> {
+    const checkpointPath = join(outputDir, 'manual-checkpoint.json');
+    await writeFile(checkpointPath, JSON.stringify(checkpoint, null, 2), 'utf-8');
   }
 
   async addJob(request: ScanRequest): Promise<string> {
@@ -332,7 +341,7 @@ export class JobQueue {
 
       // Process next job
       this.processQueue();
-    } else if (job.status === 'queued') {
+    } else if (job.status === 'queued' || job.status === 'paused') {
       // Remove from queue
       this.transitionState(job, 'canceled', logger);
       job.canceledAt = new Date().toISOString();
@@ -410,6 +419,86 @@ export class JobQueue {
     }
   }
 
+  private async persistPartialReportForPausedScan(
+    scanId: string,
+    seedUrl: string,
+    startedAt: string,
+    checkpoint: ManualCheckpoint,
+    logger: StructuredLogger
+  ): Promise<void> {
+    try {
+      logger.info('Generating partial report for paused scan', { scanId, checkpoint });
+      const jobRef = this.getJob(scanId);
+      const pipeline = jobRef ? resolveScanPipeline(jobRef.request) : defaultScanPipeline();
+      const scanRun = await this.reportGenerator.generateReport(
+        scanId,
+        seedUrl,
+        startedAt,
+        new Date().toISOString(),
+        { generateAssistiveMap: pipeline.layer3 }
+      );
+      scanRun.completedAt = new Date().toISOString();
+      scanRun.manualCheckpoint = checkpoint;
+
+      await this.reportGenerator.saveReport(scanId, scanRun);
+      await this.storage.saveScanResult(scanId, scanRun);
+      await scanRepository.saveReportResults(scanId, scanRun, {
+        analysisAgent: pipeline.analysisAgent,
+      });
+      await scanRepository.updateScanStatus(scanId, 'paused', undefined);
+
+      const { scanEventEmitter } = await import('./events/scan-events.js');
+      scanEventEmitter.emitEvent(scanId, {
+        type: 'manual_checkpoint',
+        scanId,
+        url: checkpoint.pageUrl,
+        pageNumber: checkpoint.pageNumber,
+        message: checkpoint.message,
+        checkpoint: {
+          kind: checkpoint.kind,
+          source: checkpoint.source,
+          formPurpose: checkpoint.formPurpose,
+          checkpointHeading: checkpoint.checkpointHeading,
+          otpLikeFields: checkpoint.otpLikeFields,
+          hasResendCode: checkpoint.hasResendCode,
+          hasForgotPassword: checkpoint.hasForgotPassword,
+        },
+        totals: {
+          pages: scanRun.pages.length,
+          scanned: scanRun.pages.length,
+        },
+        timestamp: new Date().toISOString(),
+      } as any);
+    } catch (error) {
+      logger.warn('Failed to persist partial report for paused scan', {
+        scanId,
+        error: error instanceof Error ? error.message : 'Unknown',
+      });
+      try {
+        const { scanEventEmitter } = await import('./events/scan-events.js');
+        scanEventEmitter.emitEvent(scanId, {
+          type: 'manual_checkpoint',
+          scanId,
+          url: checkpoint.pageUrl,
+          pageNumber: checkpoint.pageNumber,
+          message: checkpoint.message,
+          checkpoint: {
+            kind: checkpoint.kind,
+            source: checkpoint.source,
+            formPurpose: checkpoint.formPurpose,
+            checkpointHeading: checkpoint.checkpointHeading,
+            otpLikeFields: checkpoint.otpLikeFields,
+            hasResendCode: checkpoint.hasResendCode,
+            hasForgotPassword: checkpoint.hasForgotPassword,
+          },
+          timestamp: new Date().toISOString(),
+        } as any);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   /**
    * Close browser if needed, then write report.json + findings/summary to DB (partial/canceled).
    */
@@ -432,6 +521,35 @@ export class JobQueue {
     await this.persistPartialReportForCanceledScan(scanId, seedUrl, started, logger);
   }
 
+  private async flushPartialResultsAfterPause(
+    scanId: string,
+    seedUrl: string,
+    startedAt: string | undefined,
+    checkpoint: ManualCheckpoint,
+    logger: StructuredLogger,
+    pageCapture: PageCapture | null,
+    outputDir: string
+  ): Promise<void> {
+    if (pageCapture) {
+      try {
+        await pageCapture.close();
+      } catch {
+        // ignore
+      }
+      this.activePageCaptures.delete(scanId);
+    }
+    try {
+      await this.saveManualCheckpointArtifact(outputDir, checkpoint);
+    } catch (error) {
+      logger.warn('Failed to save manual checkpoint artifact', {
+        scanId,
+        error: error instanceof Error ? error.message : 'Unknown',
+      });
+    }
+    const started = startedAt ?? new Date().toISOString();
+    await this.persistPartialReportForPausedScan(scanId, seedUrl, started, checkpoint, logger);
+  }
+
   /**
    * Strict state machine transition
    */
@@ -446,7 +564,8 @@ export class JobQueue {
     // Validate state transition
     const validTransitions: Record<ScanStatus, ScanStatus[]> = {
       queued: ['running', 'completed', 'canceled'],
-      running: ['completed', 'failed', 'canceled'],
+      running: ['paused', 'completed', 'failed', 'canceled'],
+      paused: ['running', 'failed', 'canceled'],
       completed: [], // Terminal state
       failed: [], // Terminal state
       canceled: [], // Terminal state
@@ -757,6 +876,7 @@ export class JobQueue {
       logger.info('[JOB-QUEUE] Checking selectedUrls', { hasSelectedUrls: !!selectedUrls, length: selectedUrls?.length || 0 });
 
       let crawlResult;
+      let manualCheckpoint: ManualCheckpoint | null = null;
       if (selectedUrls && selectedUrls.length > 0) {
         // Sequential scanning mode: scan selected URLs one by one
         console.log('[JOB-QUEUE] Using SEQUENTIAL SCANNING mode for', selectedUrls.length, 'pages');
@@ -886,6 +1006,18 @@ export class JobQueue {
               durationMs: Date.now() - pageStartedAt,
               timings: pageResult.timings,
             });
+
+            if (job.request.auditMode === 'raawi-agent' && pageResult.manualCheckpoint) {
+              manualCheckpoint = pageResult.manualCheckpoint;
+              job.manualCheckpoint = manualCheckpoint;
+              logger.info('Manual checkpoint detected during sequential scan', {
+                scanId,
+                pageNumber: pageCounter,
+                url,
+                checkpoint: manualCheckpoint,
+              });
+              break;
+            }
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             const errorStack = error instanceof Error ? error.stack : undefined;
@@ -1000,6 +1132,22 @@ export class JobQueue {
         job.canceledAt = new Date().toISOString();
         this.running.delete(scanId);
         await this.flushPartialResultsAfterCancel(scanId, seedUrl, job.startedAt, logger, pageCapture);
+        return;
+      }
+
+      if (manualCheckpoint) {
+        logger.info('Pausing scan for manual checkpoint', { scanId, checkpoint: manualCheckpoint });
+        this.transitionState(job, 'paused', logger);
+        this.running.delete(scanId);
+        await this.flushPartialResultsAfterPause(
+          scanId,
+          seedUrl,
+          job.startedAt,
+          manualCheckpoint,
+          logger,
+          pageCapture,
+          outputDir
+        );
         return;
       }
 

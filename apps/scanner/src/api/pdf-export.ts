@@ -110,7 +110,7 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       });
     }
 
-    const isPartialTerminal = scan.status === 'canceled' || scan.status === 'failed';
+    const isPartialTerminal = scan.status === 'canceled' || scan.status === 'failed' || scan.status === 'paused';
     if (isPartialTerminal && !hasExportableData) {
       return res.status(400).json({
         error: 'No scan results available to export. Complete at least one page or save findings first.',

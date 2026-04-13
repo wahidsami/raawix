@@ -1,7 +1,7 @@
 import type { Browser, BrowserContext, Page } from 'playwright';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join, resolve, normalize } from 'node:path';
-import type { PageScanResult, ResolvedScanPipeline } from '@raawi-x/core';
+import type { ManualCheckpoint, PageScanResult, ResolvedScanPipeline } from '@raawi-x/core';
 import { validateUrl } from '../security/ssrf.js';
 import { checkUrlPolicy, checkRedirectSafety } from '../security/url-policy.js';
 import { config } from '../config.js';
@@ -20,6 +20,68 @@ export interface CaptureOptions {
   pipeline?: ResolvedScanPipeline;
   /** When true with pipeline.layer1 false, still write HTML + extract links (BFS crawl). */
   crawlLinkDiscovery?: boolean;
+}
+
+function extractManualCheckpoint(
+  artifact: {
+    issues?: Array<{ kind?: string; message?: string; evidence?: unknown }>;
+    probes?: Array<{ name?: string; evidence?: unknown }>;
+  } | null | undefined,
+  pageUrl: string,
+  pageNumber: number
+): ManualCheckpoint | undefined {
+  if (!artifact) return undefined;
+
+  const checkpointIssue = artifact.issues?.find((issue) => issue.kind === 'verification_checkpoint_requires_manual_input');
+  if (!checkpointIssue) return undefined;
+
+  const issueEvidence =
+    checkpointIssue.evidence && typeof checkpointIssue.evidence === 'object'
+      ? (checkpointIssue.evidence as Record<string, unknown>)
+      : {};
+  const probeEvidence = artifact.probes
+    ?.find((probe) => probe.name === 'form_validation_probe')
+    ?.evidence;
+  const probeCheckpoint =
+    probeEvidence && typeof probeEvidence === 'object' && (probeEvidence as Record<string, unknown>).verificationCheckpoint
+      ? ((probeEvidence as Record<string, unknown>).verificationCheckpoint as Record<string, unknown>)
+      : {};
+
+  const formPurpose = typeof issueEvidence.formPurpose === 'string' ? issueEvidence.formPurpose : undefined;
+  return {
+    kind: 'verification_code',
+    pageNumber,
+    pageUrl,
+    message:
+      checkpointIssue.message ||
+      'Verification-code checkpoint detected; manual user input is required to continue this flow.',
+    source: 'analysis-agent',
+    ...(formPurpose ? { formPurpose: formPurpose as ManualCheckpoint['formPurpose'] } : {}),
+    checkpointHeading:
+      typeof probeCheckpoint.heading === 'string'
+        ? probeCheckpoint.heading
+        : typeof issueEvidence.checkpointHeading === 'string'
+          ? issueEvidence.checkpointHeading
+          : null,
+    otpLikeFields:
+      typeof probeCheckpoint.otpLikeFields === 'number'
+        ? probeCheckpoint.otpLikeFields
+        : typeof issueEvidence.otpLikeFields === 'number'
+          ? issueEvidence.otpLikeFields
+          : undefined,
+    hasResendCode:
+      typeof probeCheckpoint.hasResendCode === 'boolean'
+        ? probeCheckpoint.hasResendCode
+        : typeof issueEvidence.hasResendCode === 'boolean'
+          ? issueEvidence.hasResendCode
+          : undefined,
+    hasForgotPassword:
+      typeof probeCheckpoint.hasForgotPassword === 'boolean'
+        ? probeCheckpoint.hasForgotPassword
+        : typeof issueEvidence.hasForgotPassword === 'boolean'
+          ? issueEvidence.hasForgotPassword
+          : undefined,
+  };
 }
 
 export class PageCapture {
@@ -445,6 +507,10 @@ export class PageCapture {
           const interactionPath = join(interactionDir, 'interaction.json');
           await writeFile(interactionPath, JSON.stringify(artifact, null, 2), 'utf-8');
           result.agentPath = interactionPath;
+          const manualCheckpoint = extractManualCheckpoint(artifact as any, finalUrl, pageNumber);
+          if (manualCheckpoint) {
+            result.manualCheckpoint = manualCheckpoint;
+          }
           timings.agentMs = Date.now() - agentStartedAt;
 
           if (this.scanId) {
@@ -487,6 +553,7 @@ export class PageCapture {
         a11yPath: result.a11yPath,
         visionPath: result.visionPath,
         agentPath: result.agentPath,
+        manualCheckpoint: result.manualCheckpoint,
         timings,
       };
       const metadataWriteStartedAt = Date.now();

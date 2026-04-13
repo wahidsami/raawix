@@ -13,6 +13,7 @@ export type ScanEventType =
   | 'agent_done'
   | 'analyst_started'
   | 'analyst_done'
+  | 'manual_checkpoint'
   | 'error';
 
 export interface CrawlDiscoveredEvent {
@@ -153,6 +154,28 @@ export interface AnalystDoneEvent {
   timestamp: string;
 }
 
+export interface ManualCheckpointEvent {
+  type: 'manual_checkpoint';
+  scanId: string;
+  url: string;
+  pageNumber: number;
+  message: string;
+  checkpoint: {
+    kind: 'verification_code';
+    source: 'analysis-agent';
+    formPurpose?: 'login' | 'register' | 'contact' | 'search' | 'generic';
+    checkpointHeading?: string | null;
+    otpLikeFields?: number;
+    hasResendCode?: boolean;
+    hasForgotPassword?: boolean;
+  };
+  totals?: {
+    pages: number;
+    scanned: number;
+  };
+  timestamp: string;
+}
+
 export interface ScanErrorEvent {
   type: 'error';
   scanId: string;
@@ -174,6 +197,7 @@ export type ScanEvent =
   | AgentDoneEvent
   | AnalystStartedEvent
   | AnalystDoneEvent
+  | ManualCheckpointEvent
   | ScanErrorEvent;
 
 /**

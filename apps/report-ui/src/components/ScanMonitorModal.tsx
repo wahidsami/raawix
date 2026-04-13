@@ -71,6 +71,18 @@ interface ScanMonitorModalProps {
   onComplete?: () => void;
 }
 
+interface ManualCheckpointState {
+  kind: 'verification_code';
+  pageNumber: number;
+  pageUrl: string;
+  message: string;
+  formPurpose?: 'login' | 'register' | 'contact' | 'search' | 'generic';
+  checkpointHeading?: string | null;
+  otpLikeFields?: number;
+  hasResendCode?: boolean;
+  hasForgotPassword?: boolean;
+}
+
 export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain', maxPages, maxDepth, entityId, propertyId, onClose, onComplete }: ScanMonitorModalProps) {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
@@ -251,6 +263,8 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   const [showDebug, setShowDebug] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [banner, setBanner] = useState<{ tone: 'info' | 'success' | 'warning' | 'error'; message: string } | null>(null);
+  const [scanPaused, setScanPaused] = useState(false);
+  const [manualCheckpoint, setManualCheckpoint] = useState<ManualCheckpointState | null>(null);
   const scanStartedAtRef = useRef<number>(Date.now());
   const [elapsedMs, setElapsedMs] = useState(0);
   const [simulation, setSimulation] = useState<{
@@ -339,6 +353,8 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
           return t('scanMonitor.eventScanDone') || 'Report ready';
         case 'scan_canceled':
           return t('scanMonitor.eventScanCanceled') || 'Stopped (partial report saved)';
+        case 'manual_checkpoint':
+          return t('scanMonitor.eventManualCheckpoint') || 'Manual checkpoint detected';
         case 'agent_started':
           return t('scanMonitor.eventAgentStarted') || 'Starting keyboard simulation';
         case 'agent_progress':
@@ -429,6 +445,8 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
           addDebugLog('info', 'Starting discovery phase...');
           setIsScanning(true);
+          setScanPaused(false);
+          setManualCheckpoint(null);
           setBanner({ tone: 'info', message: (t('scanMonitor.stageDiscovering') as string) || 'Discovering pages' });
           scanStartedAtRef.current = Date.now();
           setElapsedMs(0);
@@ -578,6 +596,47 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       case 'scan_done':
         handleScanDone(event);
         break;
+      case 'manual_checkpoint': {
+        addDebugLog('warning', `Manual checkpoint detected on ${event.url ? friendlyUrlPath(event.url) : 'current page'}`);
+        freezeElapsedTimer();
+        setIsScanning(false);
+        setScanPaused(true);
+        setScanCompleted(false);
+        setCurrentStep((t('scanMonitor.manualCheckpointTitle') as string) || 'Manual checkpoint required');
+        setCurrentActivity((t('scanMonitor.manualCheckpointActivity') as string) || 'Scan paused for verification-code checkpoint');
+        setCurrentPage(event.url || null);
+        if (event.pageNumber != null) {
+          setActiveScanPageNumber(event.pageNumber);
+        }
+        setManualCheckpoint({
+          kind: 'verification_code',
+          pageNumber: event.pageNumber || 0,
+          pageUrl: event.url || seedUrl,
+          message: event.message || 'Verification-code checkpoint detected.',
+          formPurpose: (event as any).checkpoint?.formPurpose,
+          checkpointHeading: (event as any).checkpoint?.checkpointHeading,
+          otpLikeFields: (event as any).checkpoint?.otpLikeFields,
+          hasResendCode: (event as any).checkpoint?.hasResendCode,
+          hasForgotPassword: (event as any).checkpoint?.hasForgotPassword,
+        });
+        setBanner({
+          tone: 'warning',
+          message:
+            (t('scanMonitor.manualCheckpointBanner') as string) ||
+            'Scan paused at a manual verification checkpoint. Partial findings were saved.',
+        });
+        if ((event as any).totals?.scanned) {
+          setStats((prev) => ({
+            ...prev,
+            pagesScanned: (event as any).totals.scanned,
+          }));
+        }
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+          eventSourceRef.current = null;
+        }
+        break;
+      }
       case 'agent_started': {
         const pagePath = event.url ? friendlyUrlPath(event.url) : '/';
         setSimulation((prev) => ({
@@ -633,9 +692,10 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       }
       case 'scan_canceled': {
         addDebugLog('warning', `Scan canceled: ${(event as any).message || 'Canceled by user'}`);
-        freezeElapsedTimer();
-        setIsScanning(false);
-        setScanCompleted(true);
+    freezeElapsedTimer();
+    setIsScanning(false);
+    setScanPaused(false);
+    setScanCompleted(true);
         setCurrentPage(null);
         setCurrentActivity('');
         setCurrentStep(t('scanMonitor.stopped') || 'Stopped');
@@ -1285,6 +1345,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         totals: event.totals
       });
       setIsScanning(false);
+      setScanPaused(false);
       setCurrentPage(null);
       setCurrentActivity(''); // Clear activity
       setCurrentStep(t('scanMonitor.completed'));
@@ -1423,9 +1484,10 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
     console.error('[SCAN] Error event received:', { error: errorMessage, isTimeout, event });
 
     // Stop scanning state
-    freezeElapsedTimer();
-    setIsScanning(false);
-    setScanCompleted(true);
+        freezeElapsedTimer();
+        setIsScanning(false);
+        setScanPaused(false);
+        setScanCompleted(true);
     setCurrentPage(null);
     setCurrentActivity('');
 
@@ -1499,6 +1561,9 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       onComplete();
     }
     onClose();
+    if (phase === 'scanning' && (scanCompleted || scanPaused)) {
+      navigate(`/scans/${scanId}`);
+    }
   };
 
   // Handle modal close with confirmation if scan is active
@@ -2077,6 +2142,34 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                       )}
                     </div>
 
+                    {scanPaused && manualCheckpoint && (
+                      <div className="p-4 rounded-lg border border-amber-400/30 bg-amber-500/10 space-y-2">
+                        <div className="text-sm font-semibold text-foreground">
+                          {t('scanMonitor.manualCheckpointTitle') || 'Manual checkpoint required'}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {manualCheckpoint.message}
+                        </div>
+                        <div className="text-xs text-foreground">
+                          <span className="font-medium">{t('scanMonitor.currentPage') || 'Current Page'}:</span>{' '}
+                          <span className="font-mono">{friendlyUrlPath(manualCheckpoint.pageUrl)}</span>
+                        </div>
+                        {(manualCheckpoint.formPurpose || manualCheckpoint.otpLikeFields || manualCheckpoint.checkpointHeading) && (
+                          <div className="text-xs text-muted-foreground">
+                            {manualCheckpoint.formPurpose ? `Form: ${manualCheckpoint.formPurpose}` : null}
+                            {manualCheckpoint.formPurpose && manualCheckpoint.otpLikeFields ? ' • ' : null}
+                            {manualCheckpoint.otpLikeFields ? `${manualCheckpoint.otpLikeFields} OTP-like field(s)` : null}
+                            {(manualCheckpoint.formPurpose || manualCheckpoint.otpLikeFields) && manualCheckpoint.checkpointHeading ? ' • ' : null}
+                            {manualCheckpoint.checkpointHeading ? manualCheckpoint.checkpointHeading : null}
+                          </div>
+                        )}
+                        <div className="text-xs text-muted-foreground">
+                          {(t('scanMonitor.manualCheckpointNextStep') as string) ||
+                            'Partial findings are ready now. OTP/code-entry resume is the next implementation step.'}
+                        </div>
+                      </div>
+                    )}
+
                     {phase === 'scanning' && isScanning && (
                       <div className="p-4 rounded-lg border border-border bg-card space-y-3">
                         <div>
@@ -2202,9 +2295,9 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                     </div>
 
                     {/* Completion CTA */}
-                    {(scanCompleted || phase === 'scanning') && (
+                    {(scanCompleted || scanPaused || phase === 'scanning') && (
                       <div className="flex items-center gap-2">
-                        {scanCompleted && (
+                        {(scanCompleted || scanPaused) && (
                           <button
                             onClick={() => {
                               if (onComplete) onComplete();
@@ -2689,7 +2782,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
         <div className="border-t border-border p-4 flex justify-end gap-2">
           {(() => {
             // Debug logging for button render
-            console.log('[BUTTON-RENDER] Current state:', { phase, isScanning, scanCompleted, selectedUrls: selectedUrls.size });
+            console.log('[BUTTON-RENDER] Current state:', { phase, isScanning, scanCompleted, scanPaused, selectedUrls: selectedUrls.size });
 
             if (phase === 'selection') {
               return (
@@ -2726,7 +2819,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                   </button>
                 </>
               );
-            } else if (!isScanning && phase === 'scanning' && scanCompleted) {
+            } else if (!isScanning && phase === 'scanning' && (scanCompleted || scanPaused)) {
               console.log('[BUTTON-RENDER] ✅ Showing SAVE FINDINGS button!');
               return (
                 <>
@@ -2740,7 +2833,7 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                     onClick={handleSaveFindings}
                     className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
                   >
-                    {t('scanMonitor.saveFindings') || 'Save Findings'}
+                    {scanPaused ? (t('scanMonitor.viewReport') || 'View report') : (t('scanMonitor.saveFindings') || 'Save Findings')}
                   </button>
                 </>
               );
