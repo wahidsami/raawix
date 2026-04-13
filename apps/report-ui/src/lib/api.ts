@@ -607,6 +607,61 @@ class ApiClient {
     return this.request(`/api/properties/${propertyId}/auth-profile`);
   }
 
+  async savePropertyAuthProfile(
+    propertyId: string,
+    data: {
+      authType: 'none' | 'cookie' | 'scripted_login';
+      loginUrl?: string;
+      successUrlPrefix?: string;
+      successSelector?: string;
+      usernameSelector?: string;
+      passwordSelector?: string;
+      submitSelector?: string;
+      usernameValue?: string;
+      passwordValue?: string;
+      postLoginSeedPaths?: string[];
+      extraHeaders?: Record<string, string>;
+      isActive?: boolean;
+    }
+  ): Promise<{
+    id: string;
+    propertyId: string;
+    authType: 'none' | 'cookie' | 'scripted_login';
+    loginUrl?: string | null;
+    successUrlPrefix?: string | null;
+    successSelector?: string | null;
+    usernameSelector?: string | null;
+    passwordSelector?: string | null;
+    submitSelector?: string | null;
+    postLoginSeedPaths?: string[] | null;
+    extraHeaders?: Record<string, string> | null;
+    isActive: boolean;
+    lastTestedAt?: string | null;
+    lastTestResult?: string | null;
+    lastTestError?: string | null;
+  }> {
+    return this.request(`/api/properties/${propertyId}/auth-profile`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async testPropertyAuthProfile(propertyId: string): Promise<{
+    success: boolean;
+    message: string;
+    error?: string;
+  }> {
+    return this.request(`/api/properties/${propertyId}/auth-profile/test`, {
+      method: 'POST',
+    });
+  }
+
+  async deletePropertyAuthProfile(propertyId: string): Promise<{ success: boolean }> {
+    return this.request(`/api/properties/${propertyId}/auth-profile`, {
+      method: 'DELETE',
+    });
+  }
+
   async startScan(data: {
     entityId?: string;
     propertyId?: string;

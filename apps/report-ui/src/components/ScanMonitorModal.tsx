@@ -90,11 +90,28 @@ interface PropertyAuthProfileState {
   loginUrl?: string | null;
   successUrlPrefix?: string | null;
   successSelector?: string | null;
+  usernameSelector?: string | null;
+  passwordSelector?: string | null;
+  submitSelector?: string | null;
   postLoginSeedPaths?: string[] | null;
   isActive: boolean;
   lastTestedAt?: string | null;
   lastTestResult?: string | null;
   lastTestError?: string | null;
+}
+
+interface AuthProfileEditorState {
+  authType: 'none' | 'cookie' | 'scripted_login';
+  loginUrl: string;
+  successUrlPrefix: string;
+  successSelector: string;
+  usernameSelector: string;
+  passwordSelector: string;
+  submitSelector: string;
+  usernameValue: string;
+  passwordValue: string;
+  postLoginSeedPathsText: string;
+  isActive: boolean;
 }
 
 export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain', maxPages, maxDepth, entityId, propertyId, onClose, onComplete }: ScanMonitorModalProps) {
@@ -131,6 +148,22 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   const [authProfileLoading, setAuthProfileLoading] = useState(false);
   const [authProfileError, setAuthProfileError] = useState<string | null>(null);
   const [useSavedAuthProfile, setUseSavedAuthProfile] = useState(true);
+  const [showAuthProfileEditor, setShowAuthProfileEditor] = useState(false);
+  const [authProfileEditor, setAuthProfileEditor] = useState<AuthProfileEditorState>({
+    authType: 'scripted_login',
+    loginUrl: '',
+    successUrlPrefix: '',
+    successSelector: '',
+    usernameSelector: '',
+    passwordSelector: '',
+    submitSelector: '',
+    usernameValue: '',
+    passwordValue: '',
+    postLoginSeedPathsText: '',
+    isActive: true,
+  });
+  const [authProfileSaving, setAuthProfileSaving] = useState(false);
+  const [authProfileTesting, setAuthProfileTesting] = useState(false);
   const propertyDefaultsAppliedRef = useRef(false);
   const scanPipelineInvalid = !pipelineLayer1 && !pipelineLayer2;
 
@@ -216,6 +249,38 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       cancelled = true;
     };
   }, [propertyId]);
+
+  useEffect(() => {
+    if (authProfile) {
+      setAuthProfileEditor({
+        authType: authProfile.authType,
+        loginUrl: authProfile.loginUrl || '',
+        successUrlPrefix: authProfile.successUrlPrefix || '',
+        successSelector: authProfile.successSelector || '',
+        usernameSelector: authProfile.usernameSelector || '',
+        passwordSelector: '',
+        submitSelector: authProfile.submitSelector || '',
+        usernameValue: '',
+        passwordValue: '',
+        postLoginSeedPathsText: (authProfile.postLoginSeedPaths || []).join('\n'),
+        isActive: authProfile.isActive,
+      });
+    } else {
+      setAuthProfileEditor({
+        authType: 'scripted_login',
+        loginUrl: '',
+        successUrlPrefix: '',
+        successSelector: '',
+        usernameSelector: '',
+        passwordSelector: '',
+        submitSelector: '',
+        usernameValue: '',
+        passwordValue: '',
+        postLoginSeedPathsText: '',
+        isActive: true,
+      });
+    }
+  }, [authProfile]);
 
   const [currentPage, setCurrentPage] = useState<string | null>(null);
   /** Scan output folder index — used to load screenshot.png while the scan runs */
@@ -384,6 +449,122 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
       : authProfile && !authProfile.isActive
         ? 'Saved profile is inactive'
         : 'Unauthenticated scan';
+
+  const refreshAuthProfile = useCallback(async () => {
+    if (!propertyId) {
+      setAuthProfile(null);
+      setUseSavedAuthProfile(false);
+      return;
+    }
+
+    setAuthProfileLoading(true);
+    setAuthProfileError(null);
+    try {
+      const profile = await apiClient.getPropertyAuthProfile(propertyId);
+      setAuthProfile(profile);
+      setUseSavedAuthProfile(profile.isActive && profile.authType === 'scripted_login');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load auth profile';
+      if (/404/.test(message) || /not found/i.test(message)) {
+        setAuthProfile(null);
+        setUseSavedAuthProfile(false);
+        setAuthProfileError(null);
+      } else {
+        setAuthProfile(null);
+        setUseSavedAuthProfile(false);
+        setAuthProfileError(message);
+      }
+    } finally {
+      setAuthProfileLoading(false);
+    }
+  }, [propertyId]);
+
+  const parsePostLoginSeedPaths = (): string[] =>
+    authProfileEditor.postLoginSeedPathsText
+      .split(/\r?\n/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+  const handleSaveAuthProfile = async (runTestAfterSave = false) => {
+    if (!propertyId) return;
+    try {
+      setAuthProfileSaving(true);
+      setBanner(null);
+      const payload = {
+        authType: authProfileEditor.authType,
+        loginUrl: authProfileEditor.loginUrl.trim() || undefined,
+        successUrlPrefix: authProfileEditor.successUrlPrefix.trim() || undefined,
+        successSelector: authProfileEditor.successSelector.trim() || undefined,
+        usernameSelector: authProfileEditor.usernameSelector.trim() || undefined,
+        passwordSelector: authProfileEditor.passwordSelector.trim() || undefined,
+        submitSelector: authProfileEditor.submitSelector.trim() || undefined,
+        usernameValue: authProfileEditor.usernameValue.trim() || undefined,
+        passwordValue: authProfileEditor.passwordValue.trim() || undefined,
+        postLoginSeedPaths: parsePostLoginSeedPaths(),
+        isActive: authProfileEditor.isActive,
+      };
+      const saved = await apiClient.savePropertyAuthProfile(propertyId, payload);
+      setAuthProfile(saved);
+      setUseSavedAuthProfile(saved.isActive && saved.authType === 'scripted_login');
+      setShowAuthProfileEditor(false);
+      setBanner({ tone: 'success', message: 'Saved login profile for this property.' });
+
+      if (runTestAfterSave) {
+        setAuthProfileTesting(true);
+        const result = await apiClient.testPropertyAuthProfile(propertyId);
+        await refreshAuthProfile();
+        setBanner({
+          tone: result.success ? 'success' : 'warning',
+          message: result.message,
+        });
+      }
+    } catch (error) {
+      setBanner({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Failed to save login profile.',
+      });
+    } finally {
+      setAuthProfileSaving(false);
+      setAuthProfileTesting(false);
+    }
+  };
+
+  const handleTestAuthProfile = async () => {
+    if (!propertyId) return;
+    try {
+      setAuthProfileTesting(true);
+      setBanner(null);
+      const result = await apiClient.testPropertyAuthProfile(propertyId);
+      await refreshAuthProfile();
+      setBanner({
+        tone: result.success ? 'success' : 'warning',
+        message: result.message,
+      });
+    } catch (error) {
+      setBanner({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Failed to test login profile.',
+      });
+    } finally {
+      setAuthProfileTesting(false);
+    }
+  };
+
+  const handleDeleteAuthProfile = async () => {
+    if (!propertyId) return;
+    try {
+      await apiClient.deletePropertyAuthProfile(propertyId);
+      setAuthProfile(null);
+      setUseSavedAuthProfile(false);
+      setShowAuthProfileEditor(false);
+      setBanner({ tone: 'success', message: 'Removed the saved login profile for this property.' });
+    } catch (error) {
+      setBanner({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Failed to remove login profile.',
+      });
+    }
+  };
 
   const elapsedLabel = useMemo(() => {
     const totalSeconds = Math.floor(Math.max(0, elapsedMs) / 1000);
@@ -2631,12 +2812,217 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
                             If the signed-in flow reaches a verification code step, Raawi can pause and ask for the code before continuing.
                           </div>
                         ) : null}
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowAuthProfileEditor((prev) => !prev)}
+                            className="rounded border border-input px-3 py-1.5 text-xs hover:bg-muted"
+                          >
+                            {showAuthProfileEditor ? 'Close login profile' : 'Edit login profile'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleTestAuthProfile}
+                            disabled={authProfileTesting || !authProfile.isActive || authProfile.authType !== 'scripted_login'}
+                            className="rounded border border-input px-3 py-1.5 text-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {authProfileTesting ? 'Testing...' : 'Test login'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDeleteAuthProfile}
+                            className="rounded border border-red-500/30 px-3 py-1.5 text-xs text-red-700 hover:bg-red-500/5"
+                          >
+                            Remove profile
+                          </button>
+                        </div>
                       </div>
                     ) : (
-                      <div className="rounded border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
-                        No saved login profile was found for this property. This scan will run unauthenticated.
+                      <div className="space-y-3">
+                        <div className="rounded border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
+                          No saved login profile was found for this property. This scan will run unauthenticated.
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowAuthProfileEditor((prev) => !prev)}
+                          className="rounded border border-input px-3 py-1.5 text-xs hover:bg-muted"
+                        >
+                          {showAuthProfileEditor ? 'Close login profile' : 'Create login profile'}
+                        </button>
                       </div>
                     )}
+                    {showAuthProfileEditor && propertyId ? (
+                      <div className="rounded-md border border-border bg-background/70 p-3 space-y-3">
+                        <div className="text-sm font-semibold text-foreground">
+                          {authProfile ? 'Edit saved login profile' : 'Create login profile'}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Use scripted login to sign in before scan start. If the flow later requires a verification code, the scan can pause and wait for operator input.
+                        </p>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-foreground">Auth type</label>
+                            <select
+                              value={authProfileEditor.authType}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({
+                                  ...prev,
+                                  authType: e.target.value as AuthProfileEditorState['authType'],
+                                }))
+                              }
+                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                            >
+                              <option value="scripted_login">Scripted login</option>
+                              <option value="none">None</option>
+                              <option value="cookie">Cookie</option>
+                            </select>
+                          </div>
+                          <label className="flex items-center gap-2 rounded border border-border px-3 py-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={authProfileEditor.isActive}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({ ...prev, isActive: e.target.checked }))
+                              }
+                            />
+                            <span>Profile active</span>
+                          </label>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-foreground">Login URL</label>
+                            <input
+                              type="url"
+                              value={authProfileEditor.loginUrl}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({ ...prev, loginUrl: e.target.value }))
+                              }
+                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="https://example.com/login"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-foreground">Submit selector</label>
+                            <input
+                              type="text"
+                              value={authProfileEditor.submitSelector}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({ ...prev, submitSelector: e.target.value }))
+                              }
+                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="button[type='submit']"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-foreground">Username selector</label>
+                            <input
+                              type="text"
+                              value={authProfileEditor.usernameSelector}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({ ...prev, usernameSelector: e.target.value }))
+                              }
+                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="input[name='email']"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-foreground">Password selector</label>
+                            <input
+                              type="text"
+                              value={authProfileEditor.passwordSelector}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({ ...prev, passwordSelector: e.target.value }))
+                              }
+                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="input[type='password']"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-foreground">Username value</label>
+                            <input
+                              type="text"
+                              value={authProfileEditor.usernameValue}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({ ...prev, usernameValue: e.target.value }))
+                              }
+                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="user@example.com"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-foreground">Password value</label>
+                            <input
+                              type="password"
+                              value={authProfileEditor.passwordValue}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({ ...prev, passwordValue: e.target.value }))
+                              }
+                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="Password"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-foreground">Success URL prefix</label>
+                            <input
+                              type="text"
+                              value={authProfileEditor.successUrlPrefix}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({ ...prev, successUrlPrefix: e.target.value }))
+                              }
+                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="https://example.com/dashboard"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-foreground">Success selector</label>
+                            <input
+                              type="text"
+                              value={authProfileEditor.successSelector}
+                              onChange={(e) =>
+                                setAuthProfileEditor((prev) => ({ ...prev, successSelector: e.target.value }))
+                              }
+                              className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                              placeholder="[data-test='dashboard']"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-foreground">
+                            Post-login seed paths
+                          </label>
+                          <textarea
+                            value={authProfileEditor.postLoginSeedPathsText}
+                            onChange={(e) =>
+                              setAuthProfileEditor((prev) => ({ ...prev, postLoginSeedPathsText: e.target.value }))
+                            }
+                            rows={4}
+                            className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                            placeholder={"/dashboard\n/account\n/services"}
+                          />
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            One path per line. These paths are added to discovery after login succeeds.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveAuthProfile(false)}
+                            disabled={authProfileSaving || authProfileTesting}
+                            className="rounded bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {authProfileSaving ? 'Saving...' : 'Save profile'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleSaveAuthProfile(true)}
+                            disabled={authProfileSaving || authProfileTesting}
+                            className="rounded border border-input px-3 py-1.5 text-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {authProfileTesting ? 'Saving & testing...' : 'Save and test'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                   {isRaawiAgentMode ? (
                     <div className="rounded-md border border-emerald-500/25 bg-emerald-500/5 p-3">
