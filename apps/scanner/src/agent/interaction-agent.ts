@@ -790,6 +790,85 @@ async function inspectAuthenticatedWorkspaceState(page: Page): Promise<{
   });
 }
 
+async function findWorkspaceControls(
+  page: Page,
+  max: number,
+  excludeSelectors: string[] = [],
+  excludeNames: string[] = []
+): Promise<WorkspaceProbeCandidate[]> {
+  return page.evaluate(
+    ({ cap, excludedSelectors, excludedNames }) => {
+      const controls: WorkspaceProbeCandidate[] = [];
+      const workspaceKeywords = /account|profile|dashboard|settings|workspace|portal|billing|security|orders|notifications|preferences|الحساب|الملف|لوحة|الإعدادات|الفواتير|الأمان|الطلبات/i;
+      const destructiveKeywords = /logout|log out|sign out|signout|delete|remove|cancel plan|unsubscribe|تسجيل الخروج|خروج|حذف|إزالة|إلغاء/i;
+      const normalize = (value: string) => value.trim().toLowerCase();
+      const excludedSelectorSet = new Set(excludedSelectors.map(normalize));
+      const excludedNameSet = new Set(excludedNames.map(normalize));
+      const controlName = (el: Element): string => {
+        const ariaLabel = el.getAttribute('aria-label');
+        if (ariaLabel?.trim()) return ariaLabel.trim();
+        const labelledBy = el.getAttribute('aria-labelledby');
+        if (labelledBy?.trim()) {
+          const text = labelledBy
+            .split(/\s+/)
+            .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          if (text) return text;
+        }
+        const id = el.getAttribute('id');
+        if (id) {
+          const label = document.querySelector(`label[for="${CSS.escape(id)}"]`);
+          if (label?.textContent?.trim()) return label.textContent.trim();
+        }
+        return (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+      };
+      const simpleSelector = (el: Element): string => {
+        const htmlEl = el as HTMLElement;
+        if (htmlEl.id) return `#${htmlEl.id}`;
+        const name = el.getAttribute('name');
+        if (name) return `${el.tagName}[name="${name}"]`;
+        const className = htmlEl.className ? String(htmlEl.className).split(/\s+/).slice(0, 2).join('.') : '';
+        return `${el.tagName}${className ? `.${className}` : ''}`;
+      };
+
+      document.querySelectorAll('a[href], button, [role="button"], summary').forEach((node) => {
+        if (controls.length >= cap) return;
+        const el = node as HTMLElement;
+        if (el.offsetParent === null) return;
+        const name = controlName(el);
+        const href = el.getAttribute('href');
+        const signature = `${name} ${href ?? ''} ${el.getAttribute('aria-label') ?? ''}`.trim();
+        if (!workspaceKeywords.test(signature)) return;
+        if (destructiveKeywords.test(signature)) return;
+        const selector = simpleSelector(el);
+        if (excludedSelectorSet.has(selector.toLowerCase())) return;
+        if (name && excludedNameSet.has(name.trim().toLowerCase())) return;
+        if (controls.some((item) => item.selector === selector)) return;
+        const tag = el.tagName.toLowerCase();
+        controls.push({
+          selector,
+          tag: el.tagName,
+          role: el.getAttribute('role'),
+          name: name.slice(0, 120),
+          kind: tag === 'a' && !!href ? 'link' : 'button',
+          href,
+          ariaExpanded: el.getAttribute('aria-expanded'),
+          hasPopup: !!el.getAttribute('aria-haspopup'),
+        });
+      });
+
+      return controls;
+    },
+    {
+      cap: max,
+      excludedSelectors: excludeSelectors,
+      excludedNames: excludeNames,
+    }
+  );
+}
+
 async function inspectMediaState(page: Page): Promise<{
   mediaCount: number;
   mediaWithControls: number;
@@ -1743,7 +1822,7 @@ export async function runInteractionAgent(
               async () => {
                 const beforeSnapshot = await getActiveSnapshot(page, ctx.url);
                 const beforeFingerprint = await getDomChangeFingerprint(page);
-                const beforeExpanded = workspaceControl.ariaExpanded;
+                const beforeExpanded = workspaceControl.ariaExpanded ?? null;
                 const beforeState = await inspectAuthenticatedWorkspaceState(page);
 
                 await page.locator(workspaceControl.selector).first().focus();
@@ -1766,9 +1845,113 @@ export async function runInteractionAgent(
                 const structureImproved =
                   (afterState.heading?.trim().length ?? 0) > 0 &&
                   afterState.landmarkCount >= Math.max(1, beforeState.landmarkCount);
+                const firstStepUnlockedJourney =
+                  navigationHappenedInside ||
+                  accountDestinationsRevealed ||
+                  beforeExpanded !== afterExpanded;
+
+                let secondaryStep:
+                  | {
+                      controlName: string;
+                      selector: string;
+                      kind: WorkspaceProbeCandidate['kind'];
+                      navigationOccurred: boolean;
+                      domChanged: boolean;
+                      structureImproved: boolean;
+                      beforeExpanded: string | null;
+                      afterExpanded: string | null;
+                      afterState: Awaited<ReturnType<typeof inspectAuthenticatedWorkspaceState>>;
+                    }
+                  | null = null;
+
+                if (firstStepUnlockedJourney) {
+                  const secondaryCandidates = await findWorkspaceControls(
+                    page,
+                    2,
+                    [workspaceControl.selector],
+                    [workspaceControl.name]
+                  );
+                  const secondaryControl = secondaryCandidates[0];
+                  if (secondaryControl) {
+                    const secondBeforeUrl = page.url();
+                    const secondBeforeFingerprint = await getDomChangeFingerprint(page);
+                    const secondBeforeExpanded = secondaryControl.ariaExpanded ?? null;
+                    await page.locator(secondaryControl.selector).first().focus();
+                    if (secondaryControl.kind === 'link') {
+                      await page.keyboard.press('Enter');
+                    } else {
+                      await page.keyboard.press('Space');
+                    }
+                    await page.waitForTimeout(PROBE_WAIT_MS);
+                    const secondAfterFingerprint = await getDomChangeFingerprint(page);
+                    const secondAfterExpanded = await getExpandedState(page, secondaryControl.selector);
+                    const secondAfterState = await inspectAuthenticatedWorkspaceState(page);
+                    const secondNavigationOccurred = page.url() !== secondBeforeUrl;
+                    const secondDomChanged = domFingerprintChanged(secondBeforeFingerprint, secondAfterFingerprint);
+                    const secondStructureImproved =
+                      (secondAfterState.heading?.trim().length ?? 0) > 0 &&
+                      secondAfterState.landmarkCount >= Math.max(1, afterState.landmarkCount);
+
+                    secondaryStep = {
+                      controlName: secondaryControl.name,
+                      selector: secondaryControl.selector,
+                      kind: secondaryControl.kind,
+                      navigationOccurred: secondNavigationOccurred,
+                      domChanged: secondDomChanged,
+                      structureImproved: secondStructureImproved,
+                      beforeExpanded: secondBeforeExpanded,
+                      afterExpanded: secondAfterExpanded,
+                      afterState: secondAfterState,
+                    };
+
+                    if (
+                      !secondNavigationOccurred &&
+                      !secondDomChanged &&
+                      secondBeforeExpanded === secondAfterExpanded
+                    ) {
+                      issues.push({
+                        kind: 'authenticated_workspace_navigation_unclear',
+                        message: 'A second authenticated destination could not be reached clearly from the signed-in workspace journey.',
+                        confidence: 0.72,
+                        evidence: {
+                          selector: secondaryControl.selector,
+                          controlName: secondaryControl.name,
+                          beforeExpanded: secondBeforeExpanded,
+                          afterExpanded: secondAfterExpanded,
+                          secondDomChanged,
+                        },
+                        suggestedWcagIds: ['2.4.3', '2.4.6', '3.2.3'],
+                        howToVerify: 'From the signed-in workspace, continue to a second account destination such as settings or billing and confirm the path is clear and reachable with keyboard only.',
+                      });
+                    }
+
+                    if (
+                      secondNavigationOccurred &&
+                      !secondStructureImproved &&
+                      secondAfterState.accountCueCount === 0 &&
+                      secondAfterState.logoutCueCount === 0
+                    ) {
+                      issues.push({
+                        kind: 'authenticated_workspace_navigation_unclear',
+                        message: 'A deeper authenticated destination opened, but the follow-up page still lacked clear account context or structure.',
+                        confidence: 0.69,
+                        evidence: {
+                          selector: secondaryControl.selector,
+                          controlName: secondaryControl.name,
+                          heading: secondAfterState.heading,
+                          landmarkCount: secondAfterState.landmarkCount,
+                          accountCueCount: secondAfterState.accountCueCount,
+                          logoutCueCount: secondAfterState.logoutCueCount,
+                        },
+                        suggestedWcagIds: ['2.4.6', '1.3.1', '3.2.3'],
+                        howToVerify: 'Move across multiple signed-in destinations and confirm each page preserves clear headings, landmarks, and account context.',
+                      });
+                    }
+                  }
+                }
 
                 if (
-                  !nav.navigationOccurred &&
+                  !navigationHappenedInside &&
                   !domChanged &&
                   beforeExpanded === afterExpanded &&
                   !accountDestinationsRevealed
@@ -1821,26 +2004,40 @@ export async function runInteractionAgent(
                   afterExpanded,
                   beforeState,
                   afterState,
+                  navigationHappenedInside,
                   domChanged,
                   focusMoved,
                   accountDestinationsRevealed,
                   structureImproved,
+                  secondaryStep,
                 };
               }
             );
 
             const hasResult = nav.result !== null;
-            const workspaceMessage = nav.error
-              ? nav.error.message
-              : !hasResult
-                ? 'Probe did not complete.'
-                : nav.navigationOccurred
-                  ? nav.result!.structureImproved || nav.result!.afterState.accountCueCount > 0
+            let workspaceMessage = 'Probe did not complete.';
+            if (nav.error) {
+              workspaceMessage = nav.error.message;
+            } else if (hasResult) {
+              if (nav.result!.secondaryStep?.navigationOccurred) {
+                workspaceMessage = 'Authenticated journey reached multiple signed-in destinations.';
+              } else if (
+                nav.result!.secondaryStep?.domChanged ||
+                nav.result!.secondaryStep?.beforeExpanded !== nav.result!.secondaryStep?.afterExpanded
+              ) {
+                workspaceMessage = 'Authenticated journey revealed a follow-up signed-in destination.';
+              } else if (nav.navigationOccurred) {
+                workspaceMessage =
+                  nav.result!.structureImproved || nav.result!.afterState.accountCueCount > 0
                     ? 'Authenticated navigation reached a clearer account destination.'
-                    : 'Authenticated navigation changed page, but destination structure needs review.'
-                  : nav.result!.accountDestinationsRevealed || nav.result!.beforeExpanded !== nav.result!.afterExpanded
+                    : 'Authenticated navigation changed page, but destination structure needs review.';
+              } else {
+                workspaceMessage =
+                  nav.result!.accountDestinationsRevealed || nav.result!.beforeExpanded !== nav.result!.afterExpanded
                     ? 'Account/workspace control revealed additional signed-in destinations.'
                     : 'Account/workspace control did not reveal a clearer signed-in path.';
+              }
+            }
             probes.push({
               name: 'workspace_probe',
               attempted: true,
@@ -1858,8 +2055,10 @@ export async function runInteractionAgent(
                 focusMoved: hasResult ? nav.result!.focusMoved : undefined,
                 accountDestinationsRevealed: hasResult ? nav.result!.accountDestinationsRevealed : undefined,
                 structureImproved: hasResult ? nav.result!.structureImproved : undefined,
+                navigationHappenedInside: hasResult ? nav.result!.navigationHappenedInside : undefined,
                 beforeState: hasResult ? nav.result!.beforeState : undefined,
                 afterState: hasResult ? nav.result!.afterState : undefined,
+                secondaryStep: hasResult ? nav.result!.secondaryStep : undefined,
               },
             });
           } else {
