@@ -114,6 +114,28 @@ export interface ManualCheckpoint {
   hasForgotPassword?: boolean;
 }
 
+export type AuthScanCoverageStatus =
+  | 'authenticated'
+  | 'unauthenticated'
+  | 'configured_but_failed'
+  | 'profile_inactive'
+  | 'unsupported_profile';
+
+export interface AuthScanContext {
+  timestamp: string;
+  propertyId?: string;
+  configured: boolean;
+  attempted: boolean;
+  authenticated: boolean;
+  profileActive: boolean;
+  method: 'none' | 'cookie' | 'scripted_login';
+  status: AuthScanCoverageStatus;
+  loginUrl?: string | null;
+  successSignal?: string | null;
+  postLoginSeedPathCount?: number;
+  message: string;
+}
+
 export type ManualCheckpointHistoryEvent = 'paused' | 'resumed' | 'resume_failed';
 
 export interface ManualCheckpointHistoryEntry {

@@ -1,4 +1,5 @@
 import type {
+  AuthScanContext,
   ManualCheckpoint,
   ScanRequest,
   ScanRun,
@@ -27,6 +28,7 @@ import {
   createManualCheckpointHistoryEntry,
   saveManualCheckpoint,
 } from './utils/manual-checkpoint-history.js';
+import { saveAuthScanContext } from './utils/auth-scan-context.js';
 
 /**
  * Strict scan state machine: queued -> running -> paused|completed|failed|canceled
@@ -1078,6 +1080,16 @@ export class JobQueue {
     let timeoutHandle: NodeJS.Timeout | null = null;
     let pageCapture: PageCapture | null = null;
     let storageStatePath: string | undefined = undefined;
+    let authScanContext: AuthScanContext = {
+      timestamp: new Date().toISOString(),
+      configured: false,
+      attempted: false,
+      authenticated: false,
+      profileActive: false,
+      method: 'none',
+      status: 'unauthenticated',
+      message: 'No authentication profile was used for this scan.',
+    };
 
     // Calculate timeout based on scan mode
     // Sequential scanning: 60 seconds per page (includes L1+L2+L3)
@@ -1142,11 +1154,50 @@ export class JobQueue {
       const authProfileId = (job.request as any).authProfileId;
       const propertyId = (job.request as any).propertyId || authProfileId;
       if (propertyId) {
+        authScanContext.propertyId = propertyId;
         try {
           const { authProfileRepository } = await import('./db/auth-profile-repository.js');
           const authProfile = await authProfileRepository.getByPropertyId(propertyId);
 
-          if (authProfile && authProfile.authType === 'scripted_login' && authProfile.isActive) {
+          if (!authProfile) {
+            authScanContext = {
+              ...authScanContext,
+              configured: false,
+              attempted: false,
+              authenticated: false,
+              profileActive: false,
+              method: 'none',
+              status: 'unauthenticated',
+              message: 'No authentication profile was found for this property; scan ran unauthenticated.',
+            };
+          } else if (!authProfile.isActive) {
+            authScanContext = {
+              ...authScanContext,
+              configured: true,
+              attempted: false,
+              authenticated: false,
+              profileActive: false,
+              method: authProfile.authType,
+              status: 'profile_inactive',
+              loginUrl: authProfile.loginUrl ?? null,
+              successSignal: authProfile.successUrlPrefix ?? authProfile.successSelector ?? null,
+              postLoginSeedPathCount: authProfile.postLoginSeedPaths?.length ?? 0,
+              message: 'Authentication profile exists but is inactive; scan ran unauthenticated.',
+            };
+          } else if (authProfile.authType === 'scripted_login') {
+            authScanContext = {
+              ...authScanContext,
+              configured: true,
+              attempted: true,
+              authenticated: false,
+              profileActive: true,
+              method: 'scripted_login',
+              status: 'configured_but_failed',
+              loginUrl: authProfile.loginUrl ?? null,
+              successSignal: authProfile.successUrlPrefix ?? authProfile.successSelector ?? null,
+              postLoginSeedPathCount: authProfile.postLoginSeedPaths?.length ?? 0,
+              message: 'Authentication profile is configured; login is being attempted for this scan.',
+            };
             logger.info('Authenticated scan detected, performing login', { scanId, propertyId });
 
             const { performLoginAndSaveState } = await import('./crawler/auth-helper.js');
@@ -1154,6 +1205,12 @@ export class JobQueue {
 
             if (loginResult.success && loginResult.storageStatePath) {
               storageStatePath = loginResult.storageStatePath;
+              authScanContext = {
+                ...authScanContext,
+                authenticated: true,
+                status: 'authenticated',
+                message: 'Authentication succeeded and the scan continued with a stored session.',
+              };
               logger.info('Login successful, storage state saved', { scanId, storageStatePath });
 
               // Emit event for UI
@@ -1168,16 +1225,57 @@ export class JobQueue {
                 timestamp: new Date().toISOString(),
               });
             } else {
+              authScanContext = {
+                ...authScanContext,
+                authenticated: false,
+                status: 'configured_but_failed',
+                message:
+                  loginResult.error ||
+                  'Authentication profile is configured, but login failed and the scan continued unauthenticated.',
+              };
               logger.warn('Login failed, continuing without authentication', { scanId, error: loginResult.error });
             }
+          } else {
+            authScanContext = {
+              ...authScanContext,
+              configured: true,
+              attempted: false,
+              authenticated: false,
+              profileActive: true,
+              method: authProfile.authType,
+              status: 'unsupported_profile',
+              loginUrl: authProfile.loginUrl ?? null,
+              successSignal: authProfile.successUrlPrefix ?? authProfile.successSelector ?? null,
+              postLoginSeedPathCount: authProfile.postLoginSeedPaths?.length ?? 0,
+              message: `Authentication profile type "${authProfile.authType}" is configured but not yet automated; scan ran unauthenticated.`,
+            };
           }
         } catch (error) {
+          authScanContext = {
+            ...authScanContext,
+            configured: true,
+            attempted: false,
+            authenticated: false,
+            profileActive: false,
+            status: 'configured_but_failed',
+            message:
+              error instanceof Error
+                ? `Authentication profile could not be loaded: ${error.message}`
+                : 'Authentication profile could not be loaded; scan ran unauthenticated.',
+          };
           logger.warn('Failed to load auth profile, continuing without authentication', {
             scanId,
             error: error instanceof Error ? error.message : 'Unknown error'
           });
         }
       }
+
+      await saveAuthScanContext(outputDir, authScanContext).catch((error) => {
+        logger.warn('Failed to save auth scan context', {
+          scanId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      });
 
       // Step 2: Run BFS crawler + Playwright capture to produce artifacts
       // Concurrency is enforced at crawler level (2 pages at a time)

@@ -8,7 +8,8 @@ import {
 } from '../utils/analysis-agent-summary.js';
 import { config } from '../config.js';
 import { loadManualCheckpointHistory } from '../utils/manual-checkpoint-history.js';
-import type { ManualCheckpointHistoryEntry } from '@raawi-x/core';
+import type { AuthScanContext, ManualCheckpointHistoryEntry } from '@raawi-x/core';
+import { loadAuthScanContext } from '../utils/auth-scan-context.js';
 
 /**
  * Excel Report Generator
@@ -41,18 +42,19 @@ export class ExcelReportGenerator {
     workbook.modified = new Date();
     const isRaawiAgentReport = scan.auditMode === 'raawi-agent';
     const manualCheckpointHistory = await loadManualCheckpointHistory(`${config.outputDir}/${scanId}`);
+    const authContext = await loadAuthScanContext(`${config.outputDir}/${scanId}`);
 
     const agentFindings = (scanData.agentFindings || []) as any[];
     if (isRaawiAgentReport) {
-      await this.addRaawiSummarySheet(workbook, scan, pages, agentFindings, locale);
+      await this.addRaawiSummarySheet(workbook, scan, pages, agentFindings, authContext, locale);
       await this.addAnalysisTraceSheet(workbook, pages, locale, true);
       await this.addManualContinuationSheet(workbook, manualCheckpointHistory, locale, true);
       await this.addAnalysisAgentSheet(workbook, agentFindings, pages, locale, true);
-      await this.addSummarySheet(workbook, scan, wcagFindings, pages, locale, true);
+      await this.addSummarySheet(workbook, scan, wcagFindings, pages, authContext, locale, true);
       await this.addFindingsSheet(workbook, wcagFindings, pages, locale, true);
     } else {
       // Add Summary Sheet
-      await this.addSummarySheet(workbook, scan, wcagFindings, pages, locale);
+      await this.addSummarySheet(workbook, scan, wcagFindings, pages, authContext, locale);
 
       // Add WCAG Findings Sheet
       await this.addFindingsSheet(workbook, wcagFindings, pages, locale);
@@ -73,6 +75,7 @@ export class ExcelReportGenerator {
     scan: any,
     pages: any[],
     agentFindings: any[],
+    authContext: AuthScanContext | null,
     locale: 'en' | 'ar'
   ) {
     const sheet = workbook.addWorksheet(locale === 'ar' ? 'ملخص راوي' : 'Raawi Summary');
@@ -135,6 +138,7 @@ export class ExcelReportGenerator {
     this.addInfoRow(sheet, t.website, scan.seedUrl || 'N/A');
     this.addInfoRow(sheet, t.auditDate, new Date(scan.createdAt).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US'));
     this.addInfoRow(sheet, t.auditMode, t.auditModeRaawiAgent);
+    this.addInfoRow(sheet, t.authCoverage, this.formatAuthCoverage(authContext, locale));
     this.addInfoRow(sheet, locale === 'ar' ? 'إجمالي الصفحات' : 'Total pages', pages.length.toString());
     this.addInfoRow(sheet, locale === 'ar' ? 'صفحات لها تتبّع راوي' : 'Pages with Raawi trace', totals.pagesWithTrace.toString());
     this.addInfoRow(sheet, locale === 'ar' ? 'نجح' : 'Pass', totals.pass.toString(), 'FF10B981');
@@ -167,6 +171,7 @@ export class ExcelReportGenerator {
     scan: any,
     findings: any[],
     pages: any[],
+    authContext: AuthScanContext | null,
     locale: 'en' | 'ar',
     supporting = false
   ) {
@@ -209,6 +214,7 @@ export class ExcelReportGenerator {
     this.addInfoRow(sheet, t.website, scan.seedUrl);
     this.addInfoRow(sheet, t.auditDate, new Date(scan.createdAt).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US'));
     this.addInfoRow(sheet, t.auditMode, scan.auditMode === 'raawi-agent' ? t.auditModeRaawiAgent : t.auditModeClassic);
+    this.addInfoRow(sheet, t.authCoverage, this.formatAuthCoverage(authContext, locale));
     this.addInfoRow(sheet, t.pagesAudited, pages.length.toString());
 
     // Empty row
@@ -781,6 +787,44 @@ export class ExcelReportGenerator {
     return severity ? severity.charAt(0).toUpperCase() + severity.slice(1) : 'N/A';
   }
 
+  private formatAuthCoverage(authContext: AuthScanContext | null, locale: 'en' | 'ar'): string {
+    if (!authContext) {
+      return locale === 'ar' ? 'لا توجد بيانات مصادقة محفوظة' : 'No authentication metadata saved';
+    }
+
+    const statusLabel =
+      authContext.status === 'authenticated'
+        ? locale === 'ar'
+          ? 'تمت المصادقة'
+          : 'Authenticated'
+        : authContext.status === 'configured_but_failed'
+          ? locale === 'ar'
+            ? 'فشلت المصادقة'
+            : 'Auth failed'
+          : authContext.status === 'profile_inactive'
+            ? locale === 'ar'
+              ? 'ملف غير نشط'
+              : 'Inactive profile'
+            : authContext.status === 'unsupported_profile'
+              ? locale === 'ar'
+                ? 'ملف غير مدعوم'
+                : 'Unsupported profile'
+              : locale === 'ar'
+                ? 'بدون مصادقة'
+                : 'Unauthenticated';
+
+    const parts = [
+      statusLabel,
+      authContext.method !== 'none' ? authContext.method : '',
+      typeof authContext.postLoginSeedPathCount === 'number'
+        ? `${locale === 'ar' ? 'مسارات ما بعد الدخول' : 'Post-login seed paths'}: ${authContext.postLoginSeedPathCount}`
+        : '',
+      authContext.message,
+    ].filter(Boolean);
+
+    return parts.join(' | ');
+  }
+
   /**
    * Get translations
    */
@@ -795,6 +839,7 @@ export class ExcelReportGenerator {
         website: 'الموقع الإلكتروني',
         auditDate: 'تاريخ التدقيق',
         auditMode: 'وضع التدقيق',
+        authCoverage: 'تغطية المصادقة',
         auditModeClassic: 'التدقيق الكلاسيكي',
         auditModeRaawiAgent: 'وكيل راوي',
         pagesAudited: 'الصفحات المدققة',
@@ -836,6 +881,7 @@ export class ExcelReportGenerator {
       website: 'Website',
       auditDate: 'Audit Date',
       auditMode: 'Audit Mode',
+      authCoverage: 'Authentication Coverage',
       auditModeClassic: 'Classic audit',
       auditModeRaawiAgent: 'Raawi agent',
       pagesAudited: 'Pages Audited',

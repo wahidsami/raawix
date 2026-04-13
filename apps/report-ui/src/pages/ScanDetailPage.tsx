@@ -219,6 +219,26 @@ type ManualCheckpointHistoryItem = {
   verificationCodeLength?: number;
 };
 
+type AuthScanContext = {
+  timestamp: string;
+  propertyId?: string;
+  configured: boolean;
+  attempted: boolean;
+  authenticated: boolean;
+  profileActive: boolean;
+  method: 'none' | 'cookie' | 'scripted_login';
+  status:
+    | 'authenticated'
+    | 'unauthenticated'
+    | 'configured_but_failed'
+    | 'profile_inactive'
+    | 'unsupported_profile';
+  loginUrl?: string | null;
+  successSignal?: string | null;
+  postLoginSeedPathCount?: number;
+  message: string;
+};
+
 interface ScanDetail {
   scanId: string;
   seedUrl: string;
@@ -303,6 +323,7 @@ interface ScanDetail {
     findings: AuditorFinding[];
     categorySummary: Record<string, number>;
   };
+  authContext?: AuthScanContext | null;
   manualCheckpoint?: ManualCheckpointDetail | null;
   manualCheckpointHistory?: ManualCheckpointHistoryItem[];
   pages: Array<{
@@ -506,6 +527,7 @@ export default function ScanDetailPage() {
   const analysisAgentTrace = scanDetail.analysisAgent?.trace ?? [];
   const analysisAgentSummary = scanDetail.analysisAgent?.summary;
   const auditorFindings = scanDetail.auditorFindings?.findings ?? [];
+  const authContext = scanDetail.authContext;
   const manualCheckpoint = scanDetail.manualCheckpoint;
   const manualCheckpointHistory = scanDetail.manualCheckpointHistory ?? [];
   const isRaawiAgentReport = scanDetail.auditMode === 'raawi-agent';
@@ -521,6 +543,24 @@ export default function ScanDetailPage() {
   const reportModeIntro = isRaawiAgentReport
     ? 'Raawi agent results are the primary report for this scan. DOM, vision, and assistive map results are kept as supporting technical evidence.'
     : 'Classic audit results are based on DOM/WCAG rules, vision checks, and assistive map output.';
+  const authCoverageLabel =
+    authContext?.status === 'authenticated'
+      ? 'Authenticated'
+      : authContext?.status === 'configured_but_failed'
+        ? 'Auth failed'
+        : authContext?.status === 'profile_inactive'
+          ? 'Inactive auth profile'
+          : authContext?.status === 'unsupported_profile'
+            ? 'Unsupported auth profile'
+            : 'Unauthenticated';
+  const authCoverageClass =
+    authContext?.status === 'authenticated'
+      ? 'bg-emerald-500/15 text-emerald-700 ring-emerald-500/20'
+      : authContext?.status === 'configured_but_failed'
+        ? 'bg-red-500/15 text-red-700 ring-red-500/20'
+        : authContext?.status === 'profile_inactive' || authContext?.status === 'unsupported_profile'
+          ? 'bg-amber-500/15 text-amber-700 ring-amber-500/20'
+          : 'bg-muted text-muted-foreground ring-border';
   const technicalEvidenceTitle = isRaawiAgentReport
     ? 'Supporting technical evidence'
     : (t('scans.allFindings') || 'All scan findings');
@@ -654,6 +694,9 @@ export default function ScanDetailPage() {
                 {auditModeLabel}
               </span>
               <span className="text-muted-foreground">{reportModeTitle}</span>
+              <span className={`inline-flex items-center rounded-full px-2.5 py-1 font-medium ring-1 ${authCoverageClass}`}>
+                {authCoverageLabel}
+              </span>
             </div>
           </div>
         </div>
@@ -775,6 +818,25 @@ export default function ScanDetailPage() {
           <p className="text-sm text-muted-foreground mb-4">
             This report focuses on the Raawi agent trace and interaction results. Technical layers are available later as supporting evidence only.
           </p>
+          <div className="mb-4 rounded-lg border border-border bg-background p-4">
+            <div className="text-sm font-semibold">Authentication coverage</div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className={`inline-flex rounded px-2 py-1 text-xs font-medium ring-1 ${authCoverageClass}`}>
+                {authCoverageLabel}
+              </span>
+              {authContext?.method && authContext.method !== 'none' ? (
+                <span className="text-xs text-muted-foreground">Method: {authContext.method}</span>
+              ) : null}
+              {typeof authContext?.postLoginSeedPathCount === 'number' ? (
+                <span className="text-xs text-muted-foreground">
+                  Post-login seed paths: {authContext.postLoginSeedPathCount}
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {authContext?.message || 'No authentication coverage metadata was saved for this scan.'}
+            </p>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="rounded border border-border bg-background p-4">
               <div className="text-sm text-muted-foreground">Pages scanned</div>
@@ -831,12 +893,26 @@ export default function ScanDetailPage() {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-lg p-6">
-            <h2 className="text-xl font-bold mb-2">DOM scan vs Raawi agent</h2>
-            <p className="mb-4 text-sm text-muted-foreground">
-              This comparison separates automated technical findings from interaction trace findings.
+        <div className="bg-card border border-border rounded-lg p-6">
+          <h2 className="text-xl font-bold mb-2">DOM scan vs Raawi agent</h2>
+          <p className="mb-4 text-sm text-muted-foreground">
+            This comparison separates automated technical findings from interaction trace findings.
+          </p>
+          <div className="mb-4 rounded-lg border border-border bg-background p-4">
+            <div className="text-sm font-semibold">Authentication coverage</div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className={`inline-flex rounded px-2 py-1 text-xs font-medium ring-1 ${authCoverageClass}`}>
+                {authCoverageLabel}
+              </span>
+              {authContext?.method && authContext.method !== 'none' ? (
+                <span className="text-xs text-muted-foreground">Method: {authContext.method}</span>
+              ) : null}
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {authContext?.message || 'No authentication coverage metadata was saved for this scan.'}
             </p>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="rounded-lg border border-border bg-muted/30 p-4">
                 <div className="text-sm text-muted-foreground mb-2">Normal DOM / WCAG scan</div>
                 <div className="text-3xl font-bold">{scanDetail.summary.totalFindings}</div>

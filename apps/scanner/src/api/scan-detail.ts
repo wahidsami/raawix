@@ -32,11 +32,12 @@ import {
   normalizeVisionFinding,
   type NormalizedIssue,
 } from '../utils/normalized-issue.js';
-import type { ManualCheckpoint, ManualCheckpointHistoryEntry } from '@raawi-x/core';
+import type { AuthScanContext, ManualCheckpoint, ManualCheckpointHistoryEntry } from '@raawi-x/core';
 import {
   loadManualCheckpoint,
   loadManualCheckpointHistory,
 } from '../utils/manual-checkpoint-history.js';
+import { loadAuthScanContext } from '../utils/auth-scan-context.js';
 
 const router: Router = Router();
 
@@ -371,12 +372,15 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
     const scanOutputDir = join(resolve(config.outputDir), scanId);
     let manualCheckpoint: ManualCheckpoint | null = null;
     let manualCheckpointHistory: ManualCheckpointHistoryEntry[] = [];
+    let authContext: AuthScanContext | null = null;
     try {
       manualCheckpoint = await loadManualCheckpoint(scanOutputDir);
       manualCheckpointHistory = await loadManualCheckpointHistory(scanOutputDir);
+      authContext = await loadAuthScanContext(scanOutputDir);
     } catch {
       manualCheckpoint = null;
       manualCheckpointHistory = [];
+      authContext = null;
     }
 
     // Build response
@@ -410,6 +414,7 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
         findings: allAuditorFindings,
         categorySummary: auditorCategorySummary,
       },
+      authContext,
       manualCheckpoint,
       manualCheckpointHistory,
       pages: pagesDetail,

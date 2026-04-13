@@ -28,6 +28,7 @@ import {
 import { renderFallbackScanPdf } from '../utils/pdf-lib-fallback-report.js';
 import type { ManualCheckpointHistoryEntry } from '@raawi-x/core';
 import { loadManualCheckpointHistory } from '../utils/manual-checkpoint-history.js';
+import { loadAuthScanContext } from '../utils/auth-scan-context.js';
 
 const router: Router = Router();
 
@@ -215,6 +216,7 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
     const auditModeText = getPDFTranslation(auditMode === 'raawi-agent' ? 'auditModeRaawiAgent' : 'auditModeClassic', locale);
     const scanOutputDir = `${config.outputDir}/${scanId}`;
     const manualCheckpointHistory = await loadManualCheckpointHistory(scanOutputDir);
+    const authContext = await loadAuthScanContext(scanOutputDir);
 
     const scoreAText = scores.scoreA !== null ? `${scores.scoreA.toFixed(1)}%` : 'N/A';
     const scoreAAText = scores.scoreAA !== null ? `${scores.scoreAA.toFixed(1)}%` : 'N/A';
@@ -466,6 +468,7 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
             continuationPaused: 'توقّف بانتظار إدخال يدوي',
             continuationResumed: 'تم الاستئناف',
             continuationResumeFailed: 'تعذّر الاستئناف',
+            authCoverageTitle: 'تغطية المصادقة',
           }
         : {
             reportTitle: 'Raawi Agent Accessibility Report',
@@ -500,6 +503,7 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
             continuationPaused: 'Paused for manual checkpoint',
             continuationResumed: 'Resumed after code entry',
             continuationResumeFailed: 'Resume failed',
+            authCoverageTitle: 'Authentication Coverage',
           };
 
     const getContinuationEventLabel = (event: ManualCheckpointHistoryEntry['event']) => {
@@ -507,6 +511,45 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
       if (event === 'resumed') return raawiLabels.continuationResumed;
       return raawiLabels.continuationResumeFailed;
     };
+
+    const authCoverageLabel =
+      authContext?.status === 'authenticated'
+        ? locale === 'ar'
+          ? 'تمت المصادقة'
+          : 'Authenticated'
+        : authContext?.status === 'configured_but_failed'
+          ? locale === 'ar'
+            ? 'فشلت المصادقة'
+            : 'Auth failed'
+          : authContext?.status === 'profile_inactive'
+            ? locale === 'ar'
+              ? 'ملف المصادقة غير نشط'
+              : 'Inactive auth profile'
+            : authContext?.status === 'unsupported_profile'
+              ? locale === 'ar'
+                ? 'ملف مصادقة غير مدعوم'
+                : 'Unsupported auth profile'
+              : locale === 'ar'
+                ? 'بدون مصادقة'
+                : 'Unauthenticated';
+    const authCoverageText = authContext
+      ? [
+          `${locale === 'ar' ? 'الحالة' : 'Status'}: ${authCoverageLabel}`,
+          authContext.method !== 'none' ? `${locale === 'ar' ? 'الطريقة' : 'Method'}: ${authContext.method}` : '',
+          typeof authContext.postLoginSeedPathCount === 'number'
+            ? `${locale === 'ar' ? 'مسارات ما بعد الدخول' : 'Post-login seed paths'}: ${authContext.postLoginSeedPathCount}`
+            : '',
+          authContext.message,
+        ]
+          .filter(Boolean)
+          .join(' | ')
+      : locale === 'ar'
+        ? 'لا توجد بيانات مصادقة محفوظة لهذا الفحص.'
+        : 'No authentication coverage metadata was saved for this scan.';
+    const authCoverageSectionHtml = `<div class="section">
+      <h2 class="section-title">${escapeHtml(raawiLabels.authCoverageTitle)}</h2>
+      <p class="intro-content">${escapeHtml(authCoverageText)}</p>
+    </div>`;
 
     const continuationHistorySummaryText =
       manualCheckpointHistory.length > 0
@@ -595,8 +638,8 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
     </div>`;
 
     const findingsBodyHtml = isRaawiAgentReport
-      ? `${agentSectionHtml}${continuationHistorySectionHtml}${wcagFindingsSectionHtml}`
-      : `${wcagFindingsSectionHtml}${agentSectionHtml}${continuationHistorySectionHtml}`;
+      ? `${authCoverageSectionHtml}${agentSectionHtml}${continuationHistorySectionHtml}${wcagFindingsSectionHtml}`
+      : `${authCoverageSectionHtml}${wcagFindingsSectionHtml}${agentSectionHtml}${continuationHistorySectionHtml}`;
 
     const findingsForFallback = reportFindings.map((f: any) => {
       const statusText =
@@ -835,6 +878,8 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
         analysisAgentEmpty:
           agentRowsForFallback.length > 0 ? '—' : analysisAgentNoRowsPlain,
         agentRows: agentRowsForFallback,
+        authCoverageTitle: raawiLabels.authCoverageTitle,
+        authCoverageText,
         manualContinuationTitle: manualCheckpointHistory.length > 0 ? raawiLabels.continuationTitle : '',
         manualContinuationIntro: continuationHistorySummaryText,
         continuationRows: continuationRowsForFallback,

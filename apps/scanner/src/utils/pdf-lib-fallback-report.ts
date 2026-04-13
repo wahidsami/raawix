@@ -162,6 +162,8 @@ export interface FallbackScanPdfParams {
   traceRows: FallbackAgentTraceRow[];
   analysisAgentEmpty: string;
   agentRows: FallbackAgentRow[];
+  authCoverageTitle?: string;
+  authCoverageText?: string;
   manualContinuationTitle?: string;
   manualContinuationIntro?: string;
   continuationRows?: FallbackContinuationRow[];
@@ -310,6 +312,14 @@ export async function renderFallbackScanPdf(params: FallbackScanPdfParams): Prom
       const block = `${r.kind} | ${r.source} | ${r.confidence}\n${r.message}\n${r.howToVerify}\nWCAG: ${r.suggestedWcag}\n${r.pageUrl}`;
       drawLines(block, bodySize - 0.5, 3);
       y -= 6;
+    }
+  }
+
+  // —— Authentication coverage
+  if (params.authCoverageTitle?.trim() || params.authCoverageText?.trim()) {
+    drawHeading(params.authCoverageTitle || 'Authentication Coverage');
+    if (params.authCoverageText?.trim()) {
+      drawLines(params.authCoverageText, bodySize - 0.5, 3);
     }
   }
 
