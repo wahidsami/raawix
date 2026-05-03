@@ -296,6 +296,8 @@ class AccessibilityWidget {
   private cachedGuidance: PageGuidance | null = null;
   private cachedIssues: PageIssues | null = null;
   private cachedPagePackage: PagePackage | null = null; // Third Layer - single fetch
+  private cachedSemanticModel: Record<string, unknown> | null = null;
+  private semanticMode: boolean = false;
   private temporaryActions: Array<{ label: string; description: string; contextTitle?: string; selector?: string; element?: HTMLElement | null }> = []; // For "go to action" command
   
   // Form Assistant state
@@ -347,6 +349,7 @@ class AccessibilityWidget {
     // Get API configuration
     this.apiUrl = (window as any).RAWI_API_URL || '';
     this.scanId = (window as any).RAWI_SCAN_ID || 'latest';
+    this.semanticMode = (window as any).RAAWI_WIDGET_MODE === 'semantic';
 
     // Inject CSS
     this.injectStyles();
@@ -3974,6 +3977,7 @@ class AccessibilityWidget {
       const response = await fetch(url);
       if (response.ok) {
         this.cachedPagePackage = await response.json();
+        this.cachedSemanticModel = this.cachedPagePackage?.semanticModel || null;
         console.log('[RaawiX Widget] Page package fetched from API');
         
         // Extract guidance and issues from package for backward compatibility
@@ -4280,6 +4284,10 @@ class AccessibilityWidget {
    * This ensures narration reflects current page state while benefiting from scan intelligence.
    */
   private buildReadingQueue(mode: 'full' | 'summary' | 'detailed-summary'): ReadingQueue {
+    if (this.semanticMode && this.cachedSemanticModel) {
+      return this.buildSemanticReadingQueue(mode);
+    }
+
     const segments: ReadingSegment[] = [];
     let priority = 0;
 
@@ -4480,6 +4488,149 @@ class AccessibilityWidget {
     }
 
     return { segments, currentIndex: 0, mode };
+  }
+
+  private buildSemanticReadingQueue(mode: 'full' | 'summary' | 'detailed-summary'): ReadingQueue {
+    const segments: ReadingSegment[] = [];
+    let priority = 0;
+    const model = this.cachedSemanticModel as any;
+
+    const pageTitle = document.title || model?.metadata?.title || 'Page';
+    segments.push({
+      id: 'title',
+      type: 'title',
+      text: `Page: ${pageTitle}`,
+      priority: priority++,
+    });
+
+    const summaryText = this.getSemanticSummary(model);
+    if (summaryText) {
+      segments.push({
+        id: 'summary',
+        type: 'summary',
+        text: `Summary: ${summaryText}`,
+        priority: priority++,
+      });
+    }
+
+    if (mode === 'summary') {
+      return { segments, currentIndex: 0, mode };
+    }
+
+    const sections = this.getSemanticSections(model);
+    sections.slice(0, 5).forEach((section, idx) => {
+      segments.push({
+        id: `section-${idx}`,
+        type: 'section',
+        text: section.text,
+        heading: section.heading,
+        element: this.findSemanticElement(section.selector),
+        priority: priority++,
+      });
+    });
+
+    if (mode === 'detailed-summary') {
+      return { segments, currentIndex: 0, mode };
+    }
+
+    const forms = this.getSemanticForms(model);
+    forms.slice(0, 3).forEach((form, idx) => {
+      segments.push({
+        id: `form-${idx}`,
+        type: 'form',
+        text: form.text,
+        heading: form.heading,
+        element: this.findSemanticElement(form.selector),
+        priority: priority++,
+      });
+    });
+
+    const actions = this.getSemanticActions(model);
+    actions.slice(0, 5).forEach((action, idx) => {
+      segments.push({
+        id: `action-${idx}`,
+        type: 'action',
+        text: action.text,
+        heading: action.label,
+        element: this.findSemanticElement(action.selector),
+        priority: priority++,
+      });
+    });
+
+    return { segments, currentIndex: 0, mode };
+  }
+
+  private getSemanticSummary(model: any): string | null {
+    if (!model?.structure || !Array.isArray(model.structure)) {
+      return null;
+    }
+
+    const pageBlock = model.structure.find((block: any) => block?.type === 'page' && typeof block?.content === 'string');
+    if (pageBlock) {
+      return pageBlock.content;
+    }
+
+    const headingBlock = model.structure.find((block: any) => block?.type === 'heading' && typeof block?.content === 'string');
+    if (headingBlock) {
+      return headingBlock.content;
+    }
+
+    const paragraphBlock = model.structure.find((block: any) => block?.type === 'paragraph' && typeof block?.content === 'string');
+    return paragraphBlock?.content || null;
+  }
+
+  private getSemanticSections(model: any): Array<{ heading: string; text: string; selector?: string }> {
+    if (!model?.structure || !Array.isArray(model.structure)) {
+      return [];
+    }
+
+    return model.structure
+      .filter((block: any) => ['section', 'heading', 'paragraph', 'list'].includes(block?.type))
+      .map((block: any) => ({
+        heading: typeof block?.label === 'string' ? block.label : (typeof block?.content === 'string' ? block.content.split('.')[0] : 'Section'),
+        text: typeof block?.content === 'string' ? block.content : '',
+        selector: typeof block?.selector === 'string' ? block.selector : undefined,
+      }));
+  }
+
+  private getSemanticForms(model: any): Array<{ heading: string; text: string; selector?: string }> {
+    if (!model?.structure || !Array.isArray(model.structure)) {
+      return [];
+    }
+
+    return model.structure
+      .filter((block: any) => block?.type === 'form')
+      .map((block: any) => ({
+        heading: typeof block?.label === 'string' ? block.label : 'Form',
+        text: Array.isArray(block?.fields)
+          ? block.fields.slice(0, 4).map((field: any) => `${field?.label || 'Field'}${field?.required ? ' (required)' : ''}`).join(', ')
+          : 'Form fields available',
+        selector: typeof block?.selector === 'string' ? block.selector : undefined,
+      }));
+  }
+
+  private getSemanticActions(model: any): Array<{ label: string; text: string; selector?: string }> {
+    if (!model?.actions || !Array.isArray(model.actions)) {
+      return [];
+    }
+
+    return model.actions.map((action: any) => ({
+      label: typeof action?.label === 'string' ? action.label : (typeof action?.type === 'string' ? action.type : 'Action'),
+      text: typeof action?.label === 'string' ? action.label : (typeof action?.type === 'string' ? `Action: ${action.type}` : 'Action'),
+      selector: typeof action?.selector === 'string' ? action.selector : undefined,
+    }));
+  }
+
+  private findSemanticElement(selector?: string): HTMLElement | null {
+    if (!selector) {
+      return null;
+    }
+
+    try {
+      return document.querySelector(selector) as HTMLElement | null;
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -5865,6 +6016,25 @@ class AccessibilityWidget {
       });
     }
 
+    // Priority 2a: If no keyActions, use semantic actions if available
+    if (actions.length === 0 && this.cachedSemanticModel?.actions && Array.isArray(this.cachedSemanticModel.actions)) {
+      const semanticActions = (this.cachedSemanticModel.actions as any[]).slice(0, 5);
+      semanticActions.forEach((action) => {
+        let element: HTMLElement | null = null;
+        if (typeof action?.selector === 'string') {
+          element = this.findSemanticElement(action.selector);
+        }
+
+        actions.push({
+          label: typeof action?.label === 'string' ? action.label : (typeof action?.type === 'string' ? action.type : 'Action'),
+          description: typeof action?.description === 'string' ? action.description : '',
+          contextTitle: typeof action?.label === 'string' ? action.label : undefined,
+          selector: typeof action?.selector === 'string' ? action.selector : undefined,
+          element,
+        });
+      });
+    }
+
     // Priority 2: If no keyActions, fallback to scanning DOM for buttons/links in main landmark
     if (actions.length === 0) {
       const main = document.querySelector('main, [role="main"]') || document.body;
@@ -6343,6 +6513,21 @@ class AccessibilityWidget {
   private collectActions(): void {
     this.availableActions = [];
     this.currentActionIndex = -1;
+
+    if (this.semanticMode && this.cachedSemanticModel?.actions && Array.isArray(this.cachedSemanticModel.actions)) {
+      const semanticActions = (this.cachedSemanticModel.actions as any[]).slice(0, 10);
+      semanticActions.forEach((action) => {
+        const label = typeof action?.label === 'string' ? action.label : (typeof action?.type === 'string' ? action.type : 'Action');
+        const selector = typeof action?.selector === 'string' ? action.selector : undefined;
+        const element = selector ? this.findSemanticElement(selector) : null;
+        this.availableActions.push({
+          label,
+          description: typeof action?.description === 'string' ? action.description : '',
+          element,
+        });
+      });
+      return;
+    }
 
     // Find buttons, links, and form controls
     const interactiveElements = document.querySelectorAll(

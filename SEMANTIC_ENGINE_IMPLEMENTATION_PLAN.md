@@ -25,7 +25,7 @@ Key risks to manage:
 ## Current implementation status
 - Phase 0: mostly complete. `packages/semantic-engine` was added, shared schema defined, package exports wired, and workspace references resolved.
 - Phase 1: initial implementation is in place. Basic `buildSemanticModel()` exists, scanner writes `semantic.json`, `semanticPath` is persisted, and widget API integration with `/api/widget/semantic` plus page-package enrichment is implemented.
-- Phase 2: not started. The widget semantic runtime, dual-mode rollout, virtual cursor, and execution layer are still pending.
+- Phase 2: started. Initial widget semantic runtime support has been added, including semantic reading queue and semantic action fallback. Dual-mode rollout, virtual cursor, and execution layer remain to be completed.
 
 ## New Core Contract
 
@@ -242,6 +242,8 @@ Responsibilities:
 - render semantic blocks into the widget UI
 - expose semantic navigation and semantic actions
 - maintain event mapping from `actionId` → real DOM execution
+
+Status: [x] initial semantic runtime support is implemented in `apps/widget/src/widget.ts`, including semantic reading segments and semantic action fallback.
 
 ### Task 2: Dual mode rollout
 
