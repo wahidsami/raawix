@@ -22,6 +22,11 @@ Key risks to manage:
 - action execution safety and accessibility compliance
 - complexity of fusing vision, DOM, assistive map, and AI hints
 
+## Current implementation status
+- Phase 0: mostly complete. `packages/semantic-engine` was added, shared schema defined, package exports wired, and workspace references resolved.
+- Phase 1: initial implementation is in place. Basic `buildSemanticModel()` exists, scanner writes `semantic.json`, `semanticPath` is persisted, and widget API integration with `/api/widget/semantic` plus page-package enrichment is implemented.
+- Phase 2: not started. The widget semantic runtime, dual-mode rollout, virtual cursor, and execution layer are still pending.
+
 ## New Core Contract
 
 ### SemanticPageModel
@@ -163,6 +168,8 @@ Status: [x] implemented basic semantic builder skeleton with page structure and 
 
 Implement fusion logic in `packages/semantic-engine/fusion/`.
 
+Status: [ ] pending implementation.
+
 Priority order:
 1. Assistive Map — intent and action source
 2. Vision — validation, missing context, and visual confidence
@@ -178,6 +185,8 @@ Essential behavior:
 ### Task 3: Confidence Scoring
 
 Implement `packages/semantic-engine/confidence.ts`.
+
+Status: [ ] pending implementation.
 
 For each block and action:
 - assign `confidence` from weighted mix of DOM, vision, ai/assistive map
