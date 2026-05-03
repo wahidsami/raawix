@@ -140,6 +140,7 @@ interface PagePackage {
       }>;
     }>;
   } | null;
+  semanticModel?: Record<string, unknown> | null;
   confidenceSummary: {
     labelOverrides: { high: number; medium: number; low: number };
     imageDescriptions: { high: number; medium: number; low: number };
@@ -4310,6 +4311,15 @@ class AccessibilityWidget {
         }
       }
     }
+    if (!summaryText && this.cachedPagePackage?.semanticModel?.structure) {
+      const pageBlock = (this.cachedPagePackage.semanticModel.structure as Array<Record<string, unknown>>).find(
+        (block) => block?.type === 'page' || block?.type === 'heading'
+      );
+      if (pageBlock && typeof pageBlock.content === 'string') {
+        summaryText = pageBlock.content;
+      }
+    }
+
     if (summaryText) {
       segments.push({
         id: 'summary',
@@ -4448,6 +4458,22 @@ class AccessibilityWidget {
           text: `Action: ${action.label}. ${action.description || ''}`,
           heading: action.label,
           element: action.selector ? document.querySelector(action.selector) as HTMLElement : null,
+          priority: priority++,
+        });
+      });
+    } else if (this.cachedPagePackage?.semanticModel?.actions) {
+      const semanticActions = this.cachedPagePackage.semanticModel.actions as Array<Record<string, unknown>>;
+      semanticActions.slice(0, 5).forEach((action, idx) => {
+        const label = typeof action?.label === 'string' ? action.label : 'Page action';
+        const description = typeof action?.type === 'string' ? `Type: ${action.type}` : '';
+        const selector = typeof action?.selector === 'string' ? action.selector : undefined;
+
+        segments.push({
+          id: `action-${idx}`,
+          type: 'action',
+          text: `Action: ${label}. ${description}`,
+          heading: label,
+          element: selector ? document.querySelector(selector) as HTMLElement : null,
           priority: priority++,
         });
       });

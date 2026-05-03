@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { config } from '../config.js';
@@ -240,6 +240,136 @@ export class WidgetService {
       console.error('Failed to get issues from scan:', error);
       return null;
     }
+  }
+
+  /**
+   * Get semantic model from a scan by URL
+   */
+  async getPageSemanticModel(requestUrl: string, scanId?: string): Promise<Record<string, unknown> | null> {
+    const normalizedUrl = normalizeUrl(requestUrl);
+    const cached = widgetCache.getSemanticModel(normalizedUrl);
+    if (cached) {
+      return cached;
+    }
+
+    if (scanId === 'latest') {
+      const latestScanId = await this.findLatestScanForDomain(requestUrl);
+      if (latestScanId) {
+        const semanticModel = await this.getSemanticModelFromScan(latestScanId, requestUrl);
+        if (semanticModel) {
+          widgetCache.setSemanticModel(normalizedUrl, semanticModel);
+          return semanticModel;
+        }
+      }
+      return null;
+    }
+
+    if (scanId) {
+      const semanticModel = await this.getSemanticModelFromScan(scanId, requestUrl);
+      if (semanticModel) {
+        widgetCache.setSemanticModel(normalizedUrl, semanticModel);
+        return semanticModel;
+      }
+    }
+
+    const semanticModel = await this.findSemanticModelInRecentScans(requestUrl);
+    if (semanticModel) {
+      widgetCache.setSemanticModel(normalizedUrl, semanticModel);
+      return semanticModel;
+    }
+
+    return null;
+  }
+
+  private async getSemanticModelFromScan(scanId: string, requestUrl: string): Promise<Record<string, unknown> | null> {
+    try {
+      const reportPath = join(config.outputDir, scanId, 'report.json');
+      if (!existsSync(reportPath)) {
+        return null;
+      }
+
+      const reportData = await readFile(reportPath, 'utf-8');
+      const scanRun: ScanRun = JSON.parse(reportData);
+
+      const pages: PageArtifact[] = scanRun.pages.map((p) => ({
+        pageNumber: p.pageNumber,
+        url: p.url,
+        title: p.title,
+        finalUrl: p.finalUrl,
+        canonicalUrl: p.canonicalUrl,
+        pageFingerprint: p.pageFingerprint,
+        htmlPath: p.htmlPath,
+        screenshotPath: p.screenshotPath,
+        a11yPath: p.a11yPath,
+        semanticPath: p.semanticPath,
+        visionPath: p.visionPath,
+        metadataPath: p.metadataPath,
+      }));
+
+      const match = resolvePageByUrl(requestUrl, pages);
+      if (!match || !match.page.semanticPath) {
+        return null;
+      }
+
+      let semanticPath = match.page.semanticPath;
+      if (!existsSync(semanticPath)) {
+        const fallbackPath = join(dirname(reportPath), semanticPath);
+        if (existsSync(fallbackPath)) {
+          semanticPath = fallbackPath;
+        }
+      }
+
+      if (!existsSync(semanticPath)) {
+        return null;
+      }
+
+      const semanticJson = await readFile(semanticPath, 'utf-8');
+      const semanticModel = JSON.parse(semanticJson);
+      return semanticModel;
+    } catch (error) {
+      console.error('Failed to get semantic model from scan:', error);
+      return null;
+    }
+  }
+
+  private async findSemanticModelInRecentScans(requestUrl: string): Promise<Record<string, unknown> | null> {
+    try {
+      const { readdir, stat } = await import('node:fs/promises');
+      const outputDir = config.outputDir;
+
+      if (!existsSync(outputDir)) {
+        return null;
+      }
+
+      const scanDirs = await readdir(outputDir, { withFileTypes: true });
+      const scanStats = await Promise.all(
+        scanDirs
+          .filter((dir) => dir.isDirectory() && dir.name.startsWith('scan_'))
+          .map(async (dir) => {
+            const reportPath = join(outputDir, dir.name, 'report.json');
+            try {
+              const stats = await stat(reportPath);
+              return { scanId: dir.name, mtime: stats.mtime.getTime() };
+            } catch {
+              return null;
+            }
+          })
+      );
+
+      const validScans = scanStats.filter((s): s is { scanId: string; mtime: number } => s !== null);
+      validScans.sort((a, b) => b.mtime - a.mtime);
+
+      for (const scan of validScans.slice(0, 5)) {
+        const semanticModel = await this.getSemanticModelFromScan(scan.scanId, requestUrl);
+        if (semanticModel) {
+          return semanticModel;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to find semantic model in recent scans:', error);
+    }
+
+    return null;
   }
 
   /**

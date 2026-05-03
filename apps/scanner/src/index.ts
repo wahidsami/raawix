@@ -737,6 +737,7 @@ app.get('/api/widget/config', async (req, res) => {
       readingMode: true,
       pageGuidance: true,
       knownIssues: true,
+      semanticModel: true,
       translation: GeminiTranslator.isEnabled(),
     };
 
@@ -1001,6 +1002,9 @@ app.get('/api/widget/page-package', async (req, res) => {
     const scanIdForGuidance = latestScan?.scanId || undefined;
     const guidance = await widgetService.getPageGuidance(url, scanIdForGuidance);
 
+    // Get semantic model (if available)
+    const semanticModel = await widgetService.getPageSemanticModel(url, scanIdForGuidance);
+
     // Get issues summary
     const issues = await widgetService.getPageIssues(url, scanIdForGuidance);
     const issuesSummary = issues ? {
@@ -1032,6 +1036,7 @@ app.get('/api/widget/page-package', async (req, res) => {
       fingerprint: guidance?.pageFingerprint || null,
       assistiveMap: assistiveMapData?.map || null,
       confidenceSummary: assistiveMapData?.confidenceSummary || null,
+      semanticModel: semanticModel || null,
       guidance: guidance ? {
         summary: guidance.summary,
         landmarks: guidance.landmarks,
@@ -1046,6 +1051,30 @@ app.get('/api/widget/page-package', async (req, res) => {
   } catch (error) {
     console.error('Error fetching page package:', error);
     res.status(500).json({ error: 'Failed to fetch page package' });
+  }
+});
+
+// GET /api/widget/semantic?url=...&scanId=...
+app.get('/api/widget/semantic', async (req, res) => {
+  try {
+    const url = req.query.url as string;
+    const scanId = req.query.scanId as string | undefined;
+
+    if (!url) {
+      res.status(400).json({ error: 'url parameter is required' });
+      return;
+    }
+
+    const semanticModel = await widgetService.getPageSemanticModel(url, scanId);
+    if (!semanticModel) {
+      res.status(404).json({ error: 'Semantic model not found for this page.' });
+      return;
+    }
+
+    res.json(semanticModel);
+  } catch (error) {
+    console.error('Error fetching semantic model:', error);
+    res.status(500).json({ error: 'Failed to fetch semantic model' });
   }
 });
 

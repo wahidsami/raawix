@@ -128,11 +128,11 @@ Create `packages/semantic-engine/`:
 - Build the new core package before changing downstream consumers
 
 ### Tasks
-1. Add `packages/semantic-engine/` package to the workspace.
-2. Define the `SemanticPageModel` schema and all related block/action/relationship types.
-3. Add package exports and type re-exports for `apps/scanner`, `apps/widget`, and `apps/agent-runtime`.
-4. Add package build/checkout hooks to root `package.json` if needed.
-5. Add a small smoke test or type-check script for `packages/semantic-engine`.
+1. [x] Add `packages/semantic-engine/` package to the workspace.
+2. [x] Define the `SemanticPageModel` schema and all related block/action/relationship types.
+3. [x] Add package exports and type re-exports for `apps/scanner`, `apps/widget`, and `apps/agent-runtime`.
+4. [ ] Add package build/checkout hooks to root `package.json` if needed.
+5. [ ] Add a small smoke test or type-check script for `packages/semantic-engine`.
 
 ## Phase 1 — Build the Semantic Engine
 
@@ -156,6 +156,8 @@ Responsibilities:
 - assemble actions from assistive intents and DOM affordances
 - build relationships between blocks and actions
 - compute global and block-level confidence
+
+Status: [x] implemented basic semantic builder skeleton with page structure and action extraction.
 
 ### Task 2: Fusion Logic
 
@@ -198,6 +200,8 @@ Keep raw artifacts in place for debugging:
 - `vision-summary.json`
 - `page.json`
 
+Status: [x] semantic output file is written during page capture and persisted in `page.json` metadata.
+
 ### Task 5: Scanner integration
 
 In scanner capture flow:
@@ -210,6 +214,8 @@ Update code paths:
 - `apps/scanner/src/crawler/page-capture.ts`
 - `apps/scanner/src/db/scan-repository.ts`
 - `apps/scanner/src/runner/report-generator.ts`
+
+Status: [x] scanner integration is complete, including semantic model emission, persistence, and API surface propagation.
 
 ## Phase 2 — Replace Widget Brain
 

@@ -126,6 +126,9 @@ importers:
       '@raawi-x/rules':
         specifier: workspace:*
         version: link:../../packages/rules
+      '@raawi-x/semantic-engine':
+        specifier: workspace:*
+        version: link:../../packages/semantic-engine
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
@@ -292,6 +295,12 @@ importers:
       '@types/jsdom':
         specifier: ^21.1.6
         version: 21.1.7
+      typescript:
+        specifier: ^5.3.2
+        version: 5.9.3
+
+  packages/semantic-engine:
+    devDependencies:
       typescript:
         specifier: ^5.3.2
         version: 5.9.3
