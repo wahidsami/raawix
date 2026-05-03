@@ -1,7 +1,8 @@
 import type { Browser, BrowserContext, Page } from 'playwright';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { join, resolve, normalize } from 'node:path';
 import type { ManualCheckpoint, PageScanResult, ResolvedScanPipeline } from '@raawi-x/core';
+import { buildSemanticModel } from '@raawi-x/semantic-engine';
 import { validateUrl } from '../security/ssrf.js';
 import { checkUrlPolicy, checkRedirectSafety } from '../security/url-policy.js';
 import { config } from '../config.js';
@@ -567,6 +568,25 @@ export class PageCapture {
         } as any);
       }
 
+      try {
+        const semanticHtml = result.htmlPath ? await readFile(result.htmlPath, 'utf-8') : await page.content();
+        const semanticA11y = result.a11yPath
+          ? JSON.parse(await readFile(result.a11yPath, 'utf-8'))
+          : undefined;
+        const semanticModel = buildSemanticModel({
+          html: semanticHtml,
+          url: finalUrl,
+          pageNumber,
+          title: result.title,
+          a11y: semanticA11y,
+        });
+        const semanticPath = join(pageDir, 'semantic.json');
+        await writeFile(semanticPath, JSON.stringify(semanticModel, null, 2), 'utf-8');
+        result.semanticPath = semanticPath;
+      } catch (semanticError) {
+        console.warn(`[Semantic] Failed to build semantic model for page ${pageNumber}:`, semanticError);
+      }
+
       // Save metadata
       timings.totalMs = Date.now() - captureStartedAt;
       const metadata = {
@@ -580,6 +600,7 @@ export class PageCapture {
         screenshotPath: result.screenshotPath,
         htmlPath: result.htmlPath,
         a11yPath: result.a11yPath,
+        semanticPath: result.semanticPath,
         visionPath: result.visionPath,
         agentPath: result.agentPath,
         manualCheckpoint: result.manualCheckpoint,

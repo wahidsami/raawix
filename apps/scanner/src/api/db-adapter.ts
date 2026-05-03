@@ -21,6 +21,7 @@ export async function dbScanToApiResponse(
     htmlPath: page.htmlPath || undefined,
     screenshotPath: page.screenshotPath || undefined,
     a11yPath: page.a11yPath || undefined,
+    semanticPath: page.semanticPath || undefined,
     visionPath: page.visionPath || undefined,
   }));
 

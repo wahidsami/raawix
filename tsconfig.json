@@ -17,7 +17,7 @@
     "sourceMap": true,
     "composite": true,
     "incremental": true,
-    "noEmit": true
+    "noEmit": false
   },
   "exclude": [
     "**/node_modules",

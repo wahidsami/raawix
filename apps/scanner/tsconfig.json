@@ -24,6 +24,9 @@
     },
     {
       "path": "../../packages/report"
+    },
+    {
+      "path": "../../packages/semantic-engine"
     }
   ]
 }

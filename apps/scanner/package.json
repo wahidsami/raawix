@@ -23,6 +23,7 @@
     "@raawi-x/core": "workspace:*",
     "@raawi-x/report": "workspace:*",
     "@raawi-x/rules": "workspace:*",
+    "@raawi-x/semantic-engine": "workspace:*",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",

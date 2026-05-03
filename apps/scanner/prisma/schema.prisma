@@ -180,6 +180,7 @@ model Page {
   screenshotPath String?
   htmlPath     String?
   a11yPath     String?
+  semanticPath String?
   visionPath  String?
   agentPath   String?
   error        String?

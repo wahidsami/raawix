@@ -132,6 +132,7 @@ export class WidgetService {
         htmlPath: p.htmlPath,
         screenshotPath: p.screenshotPath,
         a11yPath: p.a11yPath,
+        semanticPath: p.semanticPath,
         visionPath: p.visionPath,
         metadataPath: p.metadataPath,
       }));
@@ -202,6 +203,7 @@ export class WidgetService {
         htmlPath: p.htmlPath,
         screenshotPath: p.screenshotPath,
         a11yPath: p.a11yPath,
+        semanticPath: p.semanticPath,
         visionPath: p.visionPath,
         metadataPath: p.metadataPath,
       }));

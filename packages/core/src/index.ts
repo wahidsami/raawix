@@ -165,6 +165,7 @@ export interface PageScanResult {
   screenshotPath?: string;
   htmlPath?: string;
   a11yPath?: string;
+  semanticPath?: string;
   visionPath?: string;
   agentPath?: string;
   metadataPath?: string;
@@ -224,6 +225,7 @@ export interface PageArtifact {
   htmlPath?: string;
   screenshotPath?: string;
   a11yPath?: string;
+  semanticPath?: string;
   visionPath?: string; // Path to vision.json
   agentPath?: string;
   metadataPath?: string;

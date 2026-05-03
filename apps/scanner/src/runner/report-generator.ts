@@ -84,6 +84,7 @@ export class ReportGenerator {
         htmlPath: metadata.htmlPath || join(pageDir, 'page.html'),
         screenshotPath: metadata.screenshotPath || join(pageDir, 'screenshot.png'),
         a11yPath: metadata.a11yPath || join(pageDir, 'a11y.json'),
+        semanticPath: metadata.semanticPath || join(pageDir, 'semantic.json'),
         metadataPath,
         timings: metadata.timings,
         error: metadata.error,

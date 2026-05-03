@@ -226,6 +226,7 @@ export class ScanRepository {
           screenshotPath: page.screenshotPath,
           htmlPath: page.htmlPath,
           a11yPath: page.a11yPath,
+          semanticPath: page.semanticPath,
           visionPath: page.visionPath,
           agentPath: page.agentPath,
           error: page.error,

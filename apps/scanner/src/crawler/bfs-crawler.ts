@@ -504,6 +504,7 @@ export class BFSCrawler {
           screenshotPath: pageResult.screenshotPath,
           htmlPath: pageResult.htmlPath,
           a11yPath: pageResult.a11yPath,
+          semanticPath: pageResult.semanticPath,
           visionPath: pageResult.visionPath,
           agentPath: pageResult.agentPath,
           error: pageResult.error,
