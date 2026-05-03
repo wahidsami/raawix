@@ -1,0 +1,750 @@
+# Semantic Accessibility Platform Implementation Plan
+
+## Overview
+
+This is a detailed implementation plan for the proposed Raawi X semantic accessibility platform.
+It transforms the current layered scan system into a single Semantic Accessibility Model (SAM), gives the widget a semantic runtime, and builds a Raawi agent execution engine.
+
+The plan is organized by phase and includes concrete tasks, file/component guidance, priorities, and risks.
+
+## Is this a good direction?
+
+Yes. The proposed direction is strong and strategically correct for Raawi X:
+- it elevates the assistive model above raw DOM noise
+- it unifies fragmented artifacts into a single truth contract
+- it separates analysis from execution
+- it creates a clear product moat around semantic action execution
+- it preserves the existing scanner while moving toward an AI-driven assistive layer
+
+Key risks to manage:
+- overfitting on the semantic contract before it is stable
+- stale/dynamic pages where semantic model may diverge from live DOM
+- action execution safety and accessibility compliance
+- complexity of fusing vision, DOM, assistive map, and AI hints
+
+## New Core Contract
+
+### SemanticPageModel
+
+Create a new shared contract in `packages/semantic-engine/schema.ts`.
+
+```ts
+export interface SemanticPageModel {
+  metadata: {
+    url: string;
+    title: string;
+    language?: string;
+    scanId?: string;
+    matchedUrl?: string;
+  };
+
+  structure: SemanticBlock[];
+  actions: SemanticAction[];
+  relationships: SemanticRelationship[];
+
+  confidence: number;
+  sourceMix: {
+    dom: number;
+    vision: number;
+    ai: number;
+  };
+}
+
+export type SemanticBlock =
+  | TextBlock
+  | ImageBlock
+  | FormBlock
+  | NavigationBlock
+  | ButtonBlock
+  | LandmarkBlock;
+
+export interface TextBlock {
+  type: 'text';
+  content: string;
+  label?: string;
+  confidence: number;
+}
+
+export interface ImageBlock {
+  type: 'image';
+  description: string;
+  src?: string;
+  confidence: number;
+}
+
+export interface FormBlock {
+  type: 'form';
+  fields: SemanticField[];
+  label?: string;
+  confidence: number;
+}
+
+export interface NavigationBlock {
+  type: 'navigation';
+  items: NavItem[];
+  confidence: number;
+}
+
+export interface ButtonBlock {
+  type: 'button';
+  label: string;
+  actionId: string;
+  confidence: number;
+}
+
+export interface SemanticAction {
+  id: string;
+  type: 'click' | 'fill' | 'select' | 'navigate' | 'submit' | 'custom';
+  label: string;
+  selector?: string;
+  targetBlockId?: string;
+  confidence: number;
+}
+
+export interface SemanticRelationship {
+  from: string;
+  to: string;
+  type: 'labelFor' | 'hierarchy' | 'contains' | 'relatedTo' | 'fills' | 'triggers';
+  confidence: number;
+}
+```
+
+### New package layout
+
+Create `packages/semantic-engine/`:
+- `builder.ts`
+- `schema.ts`
+- `normalizers/` — DOM/vision/assistive normalizers
+- `fusion/` — merge and reconcile layer outputs
+- `confidence.ts` — scoring helpers and weighting
+- `index.ts` — package exports
+
+## Phase 0 — Define the New Core (Non-Negotiable)
+
+### Goals
+- Replace existing scattered semantic hints with one canonical `SemanticPageModel`
+- Keep the DOM as one input source, not truth
+- Keep raw artifacts for debug and audit, but make `semantic.json` the authoritative page model
+- Build the new core package before changing downstream consumers
+
+### Tasks
+1. Add `packages/semantic-engine/` package to the workspace.
+2. Define the `SemanticPageModel` schema and all related block/action/relationship types.
+3. Add package exports and type re-exports for `apps/scanner`, `apps/widget`, and `apps/agent-runtime`.
+4. Add package build/checkout hooks to root `package.json` if needed.
+5. Add a small smoke test or type-check script for `packages/semantic-engine`.
+
+## Phase 1 — Build the Semantic Engine
+
+### Goals
+- Build a semantic builder that consumes DOM, a11y snapshot, vision, and assistive map
+- Produce `semantic.json` as authoritative model output
+- Score confidence and source mix for every block/action
+
+### Task 1: SemanticBuilder
+
+Implement `packages/semantic-engine/builder.ts`.
+
+Pipeline:
+```ts
+buildSemanticModel({ dom, a11y, vision, assistiveMap }): SemanticPageModel
+```
+
+Responsibilities:
+- normalize all inputs into internal canonical shapes
+- create semantic blocks for text, images, forms, navigation, buttons, landmarks
+- assemble actions from assistive intents and DOM affordances
+- build relationships between blocks and actions
+- compute global and block-level confidence
+
+### Task 2: Fusion Logic
+
+Implement fusion logic in `packages/semantic-engine/fusion/`.
+
+Priority order:
+1. Assistive Map — intent and action source
+2. Vision — validation, missing context, and visual confidence
+3. DOM — structural baseline and fallback selectors
+4. a11y snapshot — support semantic hints and missing attributes
+
+Essential behavior:
+- if assistive map says a control is a button/action, preserve that intent
+- use vision only to validate or correct DOM-derived semantics
+- use DOM only to provide fallback selectors and structure when assistive map/vision are absent
+- use a11y snapshot as a weak support signal, not a primary truth source
+
+### Task 3: Confidence Scoring
+
+Implement `packages/semantic-engine/confidence.ts`.
+
+For each block and action:
+- assign `confidence` from weighted mix of DOM, vision, ai/assistive map
+- record `sourceMix` in the final model
+- use confidence thresholds for fallback decisions and UI warnings
+
+Suggested weights:
+- assistive map / ai: 0.5–0.7 for intent-rich actions
+- vision: 0.2–0.4 for validation/missing context
+- DOM: 0.1–0.3 for structural fallback
+
+### Task 4: Output storage
+
+Write `semantic.json` into page output directories in the scanner:
+- `output/<scanId>/pages/<pageNumber>/semantic.json`
+
+Keep raw artifacts in place for debugging:
+- `a11y.json`
+- `assistive-map.json`
+- `vision-summary.json`
+- `page.json`
+
+### Task 5: Scanner integration
+
+In scanner capture flow:
+- after assistive map generation, call `buildSemanticModel()`
+- write `semantic.json`
+- persist `semanticPath` on `Page` and in `page.json`
+- expose `semanticPath` in API responses if needed
+
+Update code paths:
+- `apps/scanner/src/crawler/page-capture.ts`
+- `apps/scanner/src/db/scan-repository.ts`
+- `apps/scanner/src/runner/report-generator.ts`
+
+## Phase 2 — Replace Widget Brain
+
+### Goals
+- stop the widget from trusting live DOM as truth
+- use semantic model to drive user experience and action recommendations
+- keep a dual mode rollout path
+
+### Task 1: Widget semantic runtime
+
+Create `apps/widget/src/semantic-runtime.ts`.
+
+Responsibilities:
+- load `semantic.json` from the API
+- render semantic blocks into the widget UI
+- expose semantic navigation and semantic actions
+- maintain event mapping from `actionId` → real DOM execution
+
+### Task 2: Dual mode rollout
+
+Support widget modes:
+- `assist` — current behavior, DOM-first enhancements
+- `semantic` — semantic runtime driven by `SemanticPageModel`
+
+Implementation:
+- add runtime mode selection in widget settings
+- start in `assist` by default, `semantic` behind feature flag
+- allow testing with `window.RAWI_WIDGET_MODE = 'semantic'`
+
+### Task 3: Virtual Cursor
+
+Implement a semantic cursor abstraction in `semantic-runtime.ts`:
+- the user navigates semantic blocks rather than raw DOM nodes
+- keyboard and voice input move through semantic items
+- the UI highlights semantic blocks, not DOM elements
+
+The semantic cursor should be able to:
+- move between text blocks, form blocks, buttons, navigation items
+- expose current block context for screen reader sync
+- present task-level affordances like "Next form field" or "Submit login"
+
+### Task 4: Action Execution Layer
+
+Implement mapping from semantic actions to actual page DOM behavior.
+
+Create a layer such as `apps/widget/src/action-execution.ts`.
+
+Responsibilities:
+- map `actionId` → selector or DOM binding
+- perform safe execution: click, fill, type, submit
+- preserve non-invasive behavior and avoid focus hijacking
+- verify success/failure and report back to semantic runtime
+
+Important:
+- DOM selectors should come from the scanner’s semantic builder as fallback hints
+- use live DOM only at the execution boundary, not for semantic decisions
+- keep the widget’s live DOM reading contract for actual page content display
+
+## Phase 3 — Raawi Agent (Execution Engine)
+
+### Goals
+- move from guidance to action
+- make Raawi agent a unique execution moat
+- let the agent plan and perform tasks using the semantic page model
+
+### Task 1: Agent runtime package
+
+Create `apps/agent-runtime/`.
+
+Key files:
+- `index.ts`
+- `agent.ts`
+- `planner.ts`
+- `executor.ts`
+- `intents.ts`
+- `types.ts`
+
+### Task 2: Core API
+
+Define an API similar to:
+```ts
+agent.execute({
+  goal: 'log in',
+  model: SemanticPageModel,
+  context?: { credentials?: { email: string; password: string } }
+});
+```
+
+### Task 3: Intent parsing
+
+Implement `intents.ts` to map natural goals into action plans:
+- `login`
+- `checkout`
+- `search`
+- `navigate to contact`
+- `fill form`
+
+### Task 4: Action planning
+
+Build a planner that resolves:
+- which semantic actions to execute
+- order of fields and clicks
+- conditional branches for pages with multiple login forms or similar controls
+
+Example plan:
+```ts
+[
+  { type: 'fill', fieldId: 'email', value: '...' },
+  { type: 'fill', fieldId: 'password', value: '...' },
+  { type: 'click', actionId: 'submit-login' }
+]
+```
+
+### Task 5: Execution engine
+
+Implement a runtime that can execute the plan with page bindings.
+
+Options:
+- browser-side DOM binding inside the widget for live interaction
+- scanner-side Playwright-style execution for automated scans/tests
+
+Since the user specifically wants a moat, build both:
+- widget agent runtime for assistive actions in the browser
+- scanner agent runtime for execution during scan or replay
+
+## Phase 4 — Multimodal Interaction Layer
+
+### Goals
+- support voice, keyboard, screenreader sync, and simplified UI
+- make voice intent-based, not only narration
+- support switch devices and alternate inputs
+
+### Task 1: Input layer redesign
+
+In widget and agent runtime, normalize inputs from:
+- voice commands
+- keyboard shortcuts / semantic cursor keys
+- screen reader focus hints
+- switch/assistive device events
+
+### Task 2: Output layer redesign
+
+Support:
+- speech synthesis for semantic blocks, actions, and step-by-step flows
+- simplified UI views for task flows
+- progress feedback and success/failure notifications
+
+### Task 3: Upgrade voice system
+
+Move voice from narration mode to intent mode.
+- accept commands like "Open login form", "Read menu", "Fill email"
+- map commands to semantic actions
+- use semantics + confidence to disambiguate
+
+## Phase 5 — Backend API Redesign
+
+### Goals
+- make the API semantic-first
+- expose semantic model data cleanly to widget and agents
+
+### Task 1: Replace `page-package`
+
+Create `/api/semantic-page?url=...`.
+
+Response payload:
+```json
+{
+  "semantic": { /* SemanticPageModel */ },
+  "actions": [ /* semantic action list */ ],
+  "confidence": 0.92,
+  "sourceMix": { "dom": 0.2, "vision": 0.1, "ai": 0.7 }
+}
+```
+
+### Task 2: Keep existing endpoints
+
+Retain:
+- `/api/widget/issues`
+- `/api/widget/translate`
+
+Add compatibility:
+- `/api/widget/page-package` can proxy or include `semantic` for rollout
+- preserve `latest` scan support
+
+### Task 3: API contracts and docs
+
+Update API docs and dashboard integration docs to reflect semantic-first contract.
+
+## Phase 6 — Kill Dead Weight
+
+### Goals
+- remove or integrate legacy artifacts that no longer belong
+- keep only data shapes that support the semantic model and user-impact delivery
+
+### Task 1: `a11y.json`
+
+Decide:
+- integrate `a11y.json` into `semantic.json` and stop storing it as a standalone contract, or
+- remove it entirely once semantic model coverage is complete
+
+### Task 2: Redundant reports
+
+Shift from artifact-heavy technical reports to user-impact reports anchored by:
+- semantic task completion
+- agent trace outcomes
+- “can user complete this task?” evidence
+
+### Task 3: Thin raw artifact layer
+
+If raw artifacts remain, treat them as debug-only and not as production input.
+- keep them in `output/` for audit
+- do not use them as authoritative widget or agent input
+
+## Phase 7 — Continuous Learning Loop
+
+### Goals
+- improve the platform from real usage and failure data
+- use a feedback loop to make semantic fusion smarter over time
+
+### Task 1: Collect failure signals
+
+Track:
+- failed action executions
+- user corrections and re-runs
+- agent retries and fallback flows
+- stale semantic model warnings
+
+### Task 2: Feed the engine
+
+Use collected signals to improve:
+- assistive map intent heuristics
+- selector reliability
+- confidence thresholds
+- action planning rules
+
+### Task 3: Model fine-tuning
+
+If AI models are used for vision/intent, feed anonymized failure cases into training or prompt improvement.
+
+## Phase 8 — Distribution Strategy
+
+### Short term
+- keep the embeddable widget as distribution lead
+- make semantic mode opt-in for early adopters
+
+### Mid term
+- build a browser extension for tighter DOM execution control and easier provisioning
+
+### Long term
+- evolve into a browser/proxy layer for full semantic interception and cross-site assistive execution
+
+## Phase 9 — KPI Redefinition
+
+### Stop optimizing for
+- WCAG error counts
+- raw scanner issue totals
+
+### Start optimizing for
+- task completion rate
+- time to complete task
+- user independence score
+- semantic trust/confidence
+- user-facing success metrics
+
+## Implementation Roadmap
+
+### Phase 0 deliverables
+- `packages/semantic-engine/` created
+- `SemanticPageModel` schema in place
+- type exports for scanner/widget/agent
+
+### Phase 1 deliverables
+- `buildSemanticModel()` implemented
+- `semantic.json` written in scan output
+- scanner integration and storage of `semanticPath`
+- confidence and sourceMix tracked
+
+### Phase 2 deliverables
+- `apps/widget/src/semantic-runtime.ts`
+- semantic mode added to widget
+- action mapping and virtual cursor built
+- DOM execution only via action layer
+
+### Phase 3 deliverables
+- `apps/agent-runtime/` package created
+- agent intent parsing and planning implemented
+- execution engine built and integrated
+
+### Phase 4 deliverables
+- intent-based voice layer
+- keyboard + multimodal input support
+- semantic output layer and progress UI
+
+### Phase 5 deliverables
+- `/api/semantic-page` endpoint available
+- widget and agent consume semantic-first API
+- docs updated for semantic API contract
+
+### Phase 6 deliverables
+- `a11y.json` either consolidated or removed
+- redundant report paths pruned
+- user-impact reports prioritized
+
+### Phase 7 deliverables
+- failure signal collection pipeline
+- feedback-driven semantic tuning
+
+### Phase 8 deliverables
+- widget rollout remains primary
+- browser extension prototypes scoped
+- architecture defined for proxy/browser product
+
+### Phase 9 deliverables
+- new KPI dashboard/metrics definitions
+- measurement of task completion and independence
+
+## Recommended First Sprint
+
+1. Create `packages/semantic-engine/`
+2. Define `SemanticPageModel` schema
+3. Add scanner-side `semantic.json` generation path
+4. Build widget semantic runtime skeleton
+5. Add `semantic` mode flag to widget
+
+This keeps the first sprint focused on architecture, schema, and small visible behavior changes.
+
+## Final Notes
+
+This is a good development path for Raawi X.
+
+The key to success is:
+- build a strong canonical semantic contract first
+- keep existing data sources as inputs, not truth
+- let the widget and agent consume semantic data, not raw DOM
+- preserve raw artifacts for debug only, not as user-facing source
+- phase out legacy layer artifacts once semantic coverage is stable
+
+If you want, I can also turn this into a prioritized kanban-style implementation backlog with stories, acceptance criteria, and estimated effort per phase.
+
+## Implementation Backlog
+
+This single-file tracker uses checkboxes for task status. Mark tasks complete by changing `[ ]` to `[x]`.
+
+## Execution Readiness
+
+This system is ready to start executing. The repo is deployed on a VPS via Coolify, so each sprint should be finished with a committed push and a deployment validation step.
+
+Workflow:
+- complete sprint tasks in `SEMANTIC_ENGINE_IMPLEMENTATION_PLAN.md`
+- update sprint-level status in the `Progress Summary` table
+- commit and push changes after each sprint
+- trigger Coolify deployment or verify it auto-deploys from the branch
+- validate the deployed app on the VPS and mark the sprint complete
+
+### Deployment Checklist
+- [ ] commit changes for sprint tasks
+- [ ] push to remote branch
+- [ ] confirm Coolify build/deploy starts successfully
+- [ ] smoke test the deployed app on VPS
+- [ ] update task status in this file
+
+### Branch strategy
+- use feature branches per sprint, e.g. `feature/semantic-core`, `feature/widget-semantic-mode`
+- merge to main only after successful deployment and validation
+- keep `main` deployable at all times
+
+### Notes
+- since the app is already hosted, keep changes incremental and test after each sprint
+- preserve existing production behavior during rollout by using feature flags
+
+### Progress Summary
+
+| Sprint | Task | Status |
+|---|---|---|
+| 1 | Semantic Core & Scanner Integration | ⬜️ Pending |
+| 2 | Widget Semantic Runtime & Dual Mode | ⬜️ Pending |
+| 3 | Agent Runtime and Intent Planning | ⬜️ Pending |
+| 4 | Multimodal Input and API Redesign | ⬜️ Pending |
+| 5 | Cleanup and Evaluation | ⬜️ Pending |
+| Ongoing | Learning and Metrics | ⬜️ Pending |
+
+### Sprint 1 — Semantic Core & Scanner Integration
+
+- [ ] Create `packages/semantic-engine/`
+  - [ ] add package folder and package manifest if needed
+  - [ ] define `SemanticPageModel` and block/action/relationship schemas
+  - [ ] export shared types for scanner, widget, agent
+  - Acceptance Criteria:
+    - package compiles and type-checks
+    - `SemanticPageModel` types are imported successfully from `apps/scanner`
+  - Effort: 2 days
+
+- [ ] Implement `buildSemanticModel()` skeleton
+  - [ ] add `packages/semantic-engine/builder.ts`
+  - [ ] define input shape and output `SemanticPageModel`
+  - [ ] wire basic normalization of DOM, vision, assistive map, a11y
+  - Acceptance Criteria:
+    - `buildSemanticModel()` returns valid `SemanticPageModel` for sample page input
+    - tests cover basic block creation
+  - Effort: 3 days
+
+- [ ] Add `semantic.json` write path in scanner
+  - [ ] integrate builder into capture flow after assistive map generation
+  - [ ] write `semantic.json` into `output/<scanId>/pages/<pageNumber>/`
+  - [ ] persist `semanticPath` on `Page` and in `page.json`
+  - Acceptance Criteria:
+    - completed scan output contains `semantic.json`
+    - `Page` records and `page.json` include `semanticPath`
+  - Effort: 2 days
+
+### Sprint 2 — Widget Semantic Runtime and Dual Mode
+
+- [ ] Create widget semantic runtime skeleton
+  - [ ] add `apps/widget/src/semantic-runtime.ts`
+  - [ ] implement semantic model loader from API
+  - [ ] render simple semantic block list in widget UI
+  - Acceptance Criteria:
+    - widget can fetch and display semantic blocks from `/api/semantic-page`
+    - no DOM-driven semantic mode changes yet
+  - Effort: 3 days
+
+- [ ] Add dual widget mode support
+  - [ ] add mode selection to widget settings
+  - [ ] preserve `assist` as default
+  - [ ] add `semantic` experimental mode behind flag
+  - Acceptance Criteria:
+    - widget can switch between `assist` and `semantic`
+    - semantic mode activates without breaking existing behavior
+  - Effort: 1 day
+
+- [ ] Implement action execution layer stub
+  - [ ] create `apps/widget/src/action-execution.ts`
+  - [ ] map simple action IDs to DOM selectors
+  - [ ] execute click/fill for a prototype action
+  - Acceptance Criteria:
+    - widget can execute a sample semantic action on a live page
+  - Effort: 2 days
+
+### Sprint 3 — Agent Runtime and Intent Planning
+
+- [ ] Create `apps/agent-runtime/`
+  - [ ] scaffold package and core API
+  - [ ] define `agent.execute({goal, model})`
+  - Acceptance Criteria:
+    - package builds
+    - agent can receive a semantic model and return a plan
+  - Effort: 2 days
+
+- [ ] Implement intent parsing and planning
+  - [ ] add intent definitions for login, search, checkout
+  - [ ] build planner mapping goals to plan steps
+  - Acceptance Criteria:
+    - goal `login` returns a sequence of semantic actions
+    - planner is test-covered
+  - Effort: 3 days
+
+- [ ] Build execution engine adapter
+  - [ ] implement plan executor using DOM bindings or Playwright-style calls
+  - [ ] connect executor to widget action layer and scanner runtime
+  - Acceptance Criteria:
+    - agent can execute a login plan against a test page
+  - Effort: 4 days
+
+### Sprint 4 — Multimodal Input and API Redesign
+
+- [ ] Redesign widget inputs for semantics
+  - [ ] add keyboard and voice intent event mapping
+  - [ ] support semantic cursor navigation
+  - Acceptance Criteria:
+    - widget can navigate semantic blocks with keyboard
+    - voice command can trigger a semantic action
+  - Effort: 3 days
+
+- [ ] Add `/api/semantic-page` endpoint
+  - [ ] create API route in scanner backend
+  - [ ] return `SemanticPageModel` and metadata
+  - Acceptance Criteria:
+    - endpoint returns valid semantic response for URL
+    - widget semantic mode uses this endpoint
+  - Effort: 2 days
+
+- [ ] Keep `/issues` and `/translate`
+  - [ ] ensure compatibility with existing widget flows
+  - [ ] document endpoint behavior for semantic mode
+  - Acceptance Criteria:
+    - widget still fetches issues and translation successfully
+  - Effort: 1 day
+
+### Sprint 5 — Cleanup and Evaluation
+
+- [ ] Decide fate of `a11y.json`
+  - [ ] evaluate semantic model coverage
+  - [ ] either integrate `a11y` hints into builder or deprecate file output
+  - Acceptance Criteria:
+    - `a11y.json` is either consumed by semantic builder or no longer written as legacy contract
+  - Effort: 1 day
+
+- [ ] Prepare user-impact report design
+  - [ ] define data model for task completion and agent trace outcomes
+  - [ ] update report generator docs
+  - Acceptance Criteria:
+    - documentation exists for new report direction
+  - Effort: 2 days
+
+### Ongoing Phase — Learning and Metrics
+
+- [ ] Track failed actions and user corrections
+  - [ ] instrument widget and agent runtime with failure logs
+  - [ ] persist feedback signals
+  - Acceptance Criteria:
+    - failures are logged and can be queried
+  - Effort: 2 days
+
+2. Define KPI dashboard metrics
+   - Tasks:
+     - add tasks completed, time to complete, independence score to roadmap
+     - align product metrics with semantic platform goals
+   - Acceptance Criteria:
+     - KPI docs added to the plan
+   - Effort: 1 day
+
+## Recommended Execution Order
+
+1. Semantic Core
+2. Scanner Semantic Output
+3. Widget Semantic Runtime
+4. Dual Mode + Action Execution
+5. Agent Runtime
+6. Semantic API
+7. Multimodal Input
+8. Cleanup and KPI tracking
+
+## Notes on Prioritization
+
+- The highest-value work is the schema + scanner integration. Without semantic output, the rest cannot follow reliably.
+- Widget semantic mode should be built cautiously behind a feature flag.
+- The agent runtime is the product moat, but it should be built after the semantic model is stable.
+- The cleanup phase should happen only after the semantic model covers the same data that legacy artifacts used.
