@@ -712,12 +712,12 @@ Workflow:
     - voice command can trigger a semantic action
   - Effort: 3 days
 
-- [ ] Add `/api/semantic-page` endpoint
-  - [ ] create API route in scanner backend
-  - [ ] return `SemanticPageModel` and metadata
+- [~] Add `/api/semantic-page` endpoint
+  - [x] create API route in scanner backend
+  - [x] return `SemanticPageModel` and metadata (`semantic`, `actions`, `confidence`, `sourceMix`)
   - Acceptance Criteria:
-    - endpoint returns valid semantic response for URL
-    - widget semantic mode uses this endpoint
+    - [x] endpoint returns valid semantic response for URL
+    - [ ] widget semantic mode uses this endpoint
   - Effort: 2 days
 
 - [ ] Keep `/issues` and `/translate`

@@ -1078,6 +1078,39 @@ app.get('/api/widget/semantic', async (req, res) => {
   }
 });
 
+// GET /api/semantic-page?url=...&scanId=...
+// Semantic-first endpoint for widget/agent consumers.
+app.get('/api/semantic-page', async (req, res) => {
+  try {
+    const url = req.query.url as string;
+    const scanId = req.query.scanId as string | undefined;
+
+    if (!url) {
+      res.status(400).json({ error: 'url parameter is required' });
+      return;
+    }
+
+    const semanticModel = await widgetService.getPageSemanticModel(url, scanId);
+    if (!semanticModel) {
+      res.status(404).json({ error: 'Semantic model not found for this page.' });
+      return;
+    }
+
+    const sourceMix = (semanticModel as any).sourceMix || { dom: 0, vision: 0, ai: 0 };
+    const confidence = (semanticModel as any).confidence ?? 'low';
+
+    res.json({
+      semantic: semanticModel,
+      actions: Array.isArray((semanticModel as any).actions) ? (semanticModel as any).actions : [],
+      confidence,
+      sourceMix,
+    });
+  } catch (error) {
+    console.error('Error fetching semantic page:', error);
+    res.status(500).json({ error: 'Failed to fetch semantic page' });
+  }
+});
+
 // Simple translation helper (simplified - in production, use proper i18n library)
 function translateToArabic(text: string): string {
   // This is a placeholder - in production, use a proper translation service
