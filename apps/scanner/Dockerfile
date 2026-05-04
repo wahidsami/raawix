@@ -11,6 +11,7 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
 COPY packages ./packages
+COPY apps/agent-runtime ./apps/agent-runtime
 COPY apps/scanner ./apps/scanner
 
 # Ensure devDependencies are installed for build (override Coolify build-time NODE_ENV=production)
@@ -21,6 +22,8 @@ RUN --mount=type=cache,id=pnpm-raawix-scanner,target=/pnpm-store \
     pnpm config set store-dir /pnpm-store \
     && pnpm install --frozen-lockfile
 RUN pnpm --filter @raawi-x/scanner db:generate
+RUN pnpm --filter @raawi-x/agent-runtime type-check
+RUN pnpm --filter @raawi-x/agent-runtime build
 RUN pnpm --filter @raawi-x/scanner... build
 
 WORKDIR /app/apps/scanner
