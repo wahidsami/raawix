@@ -464,7 +464,7 @@ export class PageCapture {
           });
         }
 
-        if (pl.layer1) {
+        if (pl.layer1 && config.artifacts.writeA11ySnapshot) {
           try {
             const a11ySnapshotStartedAt = Date.now();
             const a11ySnapshot = await page.evaluate(() => {
@@ -493,6 +493,8 @@ export class PageCapture {
           } catch (error) {
             console.warn(`Failed to capture a11y snapshot for ${url}:`, error);
           }
+        } else if (pl.layer1 && !config.artifacts.writeA11ySnapshot) {
+          console.log('[L1] a11y snapshot generation disabled by WRITE_A11Y_SNAPSHOT=false');
         }
       }
 

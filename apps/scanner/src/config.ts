@@ -55,6 +55,11 @@ export const config = {
     enabled: process.env.AUDIT_LOGGING !== 'false',
     logDir: process.env.AUDIT_LOG_DIR || './logs',
   },
+  artifacts: {
+    // Keep a11y snapshot generation enabled by default for backward compatibility.
+    // Can be disabled to reduce output size once semantic coverage is sufficient.
+    writeA11ySnapshot: process.env.WRITE_A11Y_SNAPSHOT !== 'false',
+  },
   raawi: {
     enabled: process.env.RAAWI_AGENT_ENABLED !== 'false', // Default enabled to preserve current deployments unless explicitly disabled
     execution: {

@@ -729,9 +729,9 @@ Workflow:
 
 ### Sprint 5 — Cleanup and Evaluation
 
-- [ ] Decide fate of `a11y.json`
-  - [ ] evaluate semantic model coverage
-  - [ ] either integrate `a11y` hints into builder or deprecate file output
+- [x] Decide fate of `a11y.json`
+  - [x] evaluate semantic model coverage
+  - [x] keep `a11y.json` as optional support/debug artifact for now (controlled via `WRITE_A11Y_SNAPSHOT`, default `true`), while semantic model remains the canonical output
   - Acceptance Criteria:
     - `a11y.json` is either consumed by semantic builder or no longer written as legacy contract
   - Effort: 1 day
