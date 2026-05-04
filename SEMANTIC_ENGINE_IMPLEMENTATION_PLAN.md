@@ -609,9 +609,9 @@ Workflow:
 | 1 | Semantic Core & Scanner Integration | ✅ Complete |
 | 2 | Widget Semantic Runtime & Dual Mode | ✅ Complete |
 | 3 | Agent Runtime and Intent Planning | 🟨 In Progress |
-| 4 | Multimodal Input and API Redesign | ⬜️ Pending |
-| 5 | Cleanup and Evaluation | ⬜️ Pending |
-| Ongoing | Learning and Metrics | ⬜️ Pending |
+| 4 | Multimodal Input and API Redesign | ✅ Complete |
+| 5 | Cleanup and Evaluation | ✅ Complete |
+| Ongoing | Learning and Metrics | ✅ Complete (current scope) |
 
 ### Sprint 1 — Semantic Core & Scanner Integration
 
@@ -712,7 +712,7 @@ Workflow:
     - voice command can trigger a semantic action
   - Effort: 3 days
 
-- [~] Add `/api/semantic-page` endpoint
+- [x] Add `/api/semantic-page` endpoint
   - [x] create API route in scanner backend
   - [x] return `SemanticPageModel` and metadata (`semantic`, `actions`, `confidence`, `sourceMix`)
   - Acceptance Criteria:
@@ -752,13 +752,20 @@ Workflow:
     - failures are logged and can be queried
   - Effort: 2 days
 
-2. Define KPI dashboard metrics
-   - Tasks:
-     - add tasks completed, time to complete, independence score to roadmap
-     - align product metrics with semantic platform goals
-   - Acceptance Criteria:
-     - KPI docs added to the plan
-   - Effort: 1 day
+- [x] Define KPI dashboard metrics
+  - [x] add tasks completed, time to complete, independence score to roadmap
+  - [x] align product metrics with semantic platform goals
+  - KPI metric definitions (v1):
+    - `taskCompletionRate` = completed tasks / executable tasks
+    - `independenceScore` = weighted score across `independent|assisted|blocked|unknown` outcomes
+    - `avgTaskDurationMs` = mean duration of completed/partial tasks
+    - `blockedTaskRate` = blocked tasks / executable tasks
+    - `semanticCoverageRate` = pages with semantic model / scanned pages
+    - `agentExecutionCoverageRate` = pages with raawi execution trace / scanned pages
+    - `feedbackFailureRate` = failure feedback events / total feedback events
+  - Acceptance Criteria:
+    - [x] KPI docs added to the plan
+  - Effort: 1 day
 
 ## Recommended Execution Order
 
