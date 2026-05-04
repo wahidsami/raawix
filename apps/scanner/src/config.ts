@@ -59,8 +59,20 @@ export const config = {
     enabled: process.env.RAAWI_AGENT_ENABLED !== 'false', // Default enabled to preserve current deployments unless explicitly disabled
     execution: {
       enabled: process.env.RAAWI_EXECUTION_AGENT_ENABLED === 'true', // Default off for safe rollout
+      enableNonLoginGoals: process.env.RAAWI_EXECUTION_NON_LOGIN_ENABLED === 'true', // Default off for safe rollout
       loginUsername: process.env.RAAWI_AGENT_LOGIN_USERNAME || '',
       loginPassword: process.env.RAAWI_AGENT_LOGIN_PASSWORD || '',
+      searchQuery: process.env.RAAWI_AGENT_SEARCH_QUERY || 'accessibility',
+      navigateTarget:
+        process.env.RAAWI_AGENT_NAVIGATE_TARGET ||
+        '/contact',
+      formDefaults: {
+        name: process.env.RAAWI_AGENT_FORM_NAME || 'Raawi QA',
+        email: process.env.RAAWI_AGENT_FORM_EMAIL || 'qa@raawi.local',
+        message:
+          process.env.RAAWI_AGENT_FORM_MESSAGE ||
+          'Automated semantic agent test message.',
+      },
     },
   },
   auth: {

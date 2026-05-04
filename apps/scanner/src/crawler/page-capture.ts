@@ -116,6 +116,35 @@ async function detectVerificationCheckpoint(page: Page): Promise<{
   });
 }
 
+async function detectRaawiTasks(page: Page): Promise<{
+  likelyLogin: boolean;
+  likelySearch: boolean;
+  likelyContactFlow: boolean;
+}> {
+  return page.evaluate(() => {
+    const hasPassword = !!document.querySelector('input[type="password"]');
+    const hasSubmit =
+      !!document.querySelector('button[type="submit"], input[type="submit"]') ||
+      !!Array.from(document.querySelectorAll('button,a,[role="button"]')).find((el) => {
+        const text = `${el.getAttribute('aria-label') ?? ''} ${(el.textContent ?? '').trim()}`.toLowerCase();
+        return /login|log in|sign in|submit|continue|دخول|تسجيل/.test(text);
+      });
+    const likelyLogin = hasPassword && hasSubmit;
+
+    const likelySearch =
+      !!document.querySelector(
+        'input[type="search"], input[name*="search" i], input[aria-label*="search" i], form[role="search"] input'
+      ) || /search|find|ابحث/.test((document.body?.innerText ?? '').toLowerCase());
+
+    const likelyContactFlow =
+      !!document.querySelector(
+        'form input[name*="email" i], form input[type="email"], form textarea, form input[name*="message" i]'
+      ) || /contact|support|feedback|تواصل|اتصل/.test((document.body?.innerText ?? '').toLowerCase());
+
+    return { likelyLogin, likelySearch, likelyContactFlow };
+  });
+}
+
 export class PageCapture {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
@@ -587,47 +616,79 @@ export class PageCapture {
         result.semanticPath = semanticPath;
 
         if (config.raawi.execution.enabled) {
-          const loginProbe = await page.evaluate(() => {
-            const hasPassword = !!document.querySelector('input[type="password"]');
-            const hasSubmit =
-              !!document.querySelector('button[type="submit"], input[type="submit"]') ||
-              !!Array.from(document.querySelectorAll('button,a,[role="button"]')).find((el) => {
-                const text = `${el.getAttribute('aria-label') ?? ''} ${(el.textContent ?? '').trim()}`.toLowerCase();
-                return /login|log in|sign in|submit|continue|دخول|تسجيل/.test(text);
-              });
-            return { hasPassword, hasSubmit, likelyLogin: hasPassword && hasSubmit };
-          });
+          const probes = await detectRaawiTasks(page);
+          const agent = new RaawiAgent({ verbose: false });
+          const bindings = createPlaywrightActionBindings(page);
+          const username = config.raawi.execution.loginUsername;
+          const password = config.raawi.execution.loginPassword;
+          const hasCredentials = Boolean(username && password);
 
-          if (loginProbe.likelyLogin) {
-            const raawiDir = join(pageDir, 'raawi-agent');
-            await mkdir(raawiDir, { recursive: true });
-
-            const agent = new RaawiAgent({ verbose: false });
-            const username = config.raawi.execution.loginUsername;
-            const password = config.raawi.execution.loginPassword;
-            const hasCredentials = Boolean(username && password);
-            const task = {
-              goal: 'login' as const,
+          const tasks: Array<{ goal: 'login' | 'search' | 'navigate' | 'fill-form'; description: string; context: Record<string, unknown> }> = [];
+          if (probes.likelyLogin) {
+            tasks.push({
+              goal: 'login',
               description: 'Complete login flow on detected login page',
               context: hasCredentials ? { username, password } : {},
-            };
-
-            const plan = await agent.getPlan({
-              model: semanticModel as any,
-              task,
-              dryRun: !hasCredentials,
             });
-            await writeFile(join(raawiDir, 'plan.json'), JSON.stringify(plan, null, 2), 'utf-8');
-
-            const executionResult = await agent.execute({
-              model: semanticModel as any,
-              task,
-              dryRun: !hasCredentials,
-              bindings: createPlaywrightActionBindings(page),
-              timeout: 20000,
+          }
+          if (config.raawi.execution.enableNonLoginGoals) {
+            if (probes.likelySearch) {
+              tasks.push({
+                goal: 'search',
+                description: 'Run a search flow on detected search UI',
+                context: { query: config.raawi.execution.searchQuery },
+              });
+            }
+            tasks.push({
+              goal: 'navigate',
+              description: 'Navigate to a likely contact/help page',
+              context: { target: config.raawi.execution.navigateTarget },
             });
-            await writeFile(join(raawiDir, 'execution.json'), JSON.stringify(executionResult, null, 2), 'utf-8');
+            if (probes.likelyContactFlow) {
+              tasks.push({
+                goal: 'fill-form',
+                description: 'Fill a likely contact/support form with safe defaults',
+                context: { ...config.raawi.execution.formDefaults },
+              });
+            }
+          }
 
+          if (tasks.length > 0) {
+            const raawiDir = join(pageDir, 'raawi-agent');
+            await mkdir(raawiDir, { recursive: true });
+            const outputs: Array<{ goal: string; task: unknown; plan: unknown; execution: unknown }> = [];
+
+            for (const task of tasks) {
+              const dryRun = task.goal === 'login' ? !hasCredentials : false;
+              const plan = await agent.getPlan({
+                model: semanticModel as any,
+                task,
+                dryRun,
+              });
+              const executionResult = await agent.execute({
+                model: semanticModel as any,
+                task,
+                dryRun,
+                bindings,
+                timeout: 20000,
+              });
+              outputs.push({ goal: task.goal, task, plan, execution: executionResult });
+            }
+
+            await writeFile(join(raawiDir, 'plan.json'), JSON.stringify(outputs.map((o) => ({ goal: o.goal, task: o.task, plan: o.plan })), null, 2), 'utf-8');
+            await writeFile(
+              join(raawiDir, 'execution.json'),
+              JSON.stringify(
+                {
+                  generatedAt: new Date().toISOString(),
+                  pageUrl: finalUrl,
+                  runs: outputs.map((o) => ({ goal: o.goal, execution: o.execution })),
+                },
+                null,
+                2
+              ),
+              'utf-8'
+            );
             (result as any).raawiExecutionPath = join(raawiDir, 'execution.json');
           }
         }

@@ -28,7 +28,7 @@ Last updated: 2026-05-04
 - Phase 0: mostly complete. `packages/semantic-engine` was added, shared schema defined, package exports wired, and workspace references resolved.
 - Phase 1: complete for current sprint scope. Semantic output is generated and persisted end-to-end; `semanticPath` DB backfill and create-path persistence were completed; initial `fusion/` + `confidence.ts` scaffolding added.
 - Phase 2: complete for current sprint scope. Dual widget mode, semantic runtime, virtual cursor, and action execution layer are live. Cursor activation was aligned to use semantic action execution path first.
-- Phase 3: in progress. `apps/agent-runtime` is created and integrated. Pluggable execution bindings and scanner-side Playwright bindings are implemented, with initial login vertical-slice plan/execution artifacts written under `raawi-agent/`.
+- Phase 3: in progress. `apps/agent-runtime` is created and integrated. Pluggable execution bindings and scanner-side Playwright bindings are implemented; execution now covers login plus scanner-side search/navigate/fill-form slices with rollout flags, and writes grouped agent artifacts under `raawi-agent/`.
 
 ## New Core Contract
 
@@ -698,8 +698,8 @@ Workflow:
 ### Immediate Next (Phase 3)
 
 - [x] Add scan-detail/report surfacing for `raawi-agent/plan.json` and `raawi-agent/execution.json` (scan-detail API now includes `raawiExecution.pages` + summary and page-level `raawiExecution` details)
-- [ ] Add automated test for login vertical slice (plan + execute + artifact assertions)
-- [ ] Expand execution coverage beyond login (search, navigate, fill-form)
+- [x] Add automated test for login vertical slice (plan + execute + artifact assertions)
+- [x] Expand execution coverage beyond login (search, navigate, fill-form)
 - [ ] Add robust field/action resolution heuristics from assistive map and semantic relationships
 
 ### Sprint 4 — Multimodal Input and API Redesign
