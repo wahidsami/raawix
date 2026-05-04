@@ -736,9 +736,9 @@ Workflow:
     - `a11y.json` is either consumed by semantic builder or no longer written as legacy contract
   - Effort: 1 day
 
-- [ ] Prepare user-impact report design
-  - [ ] define data model for task completion and agent trace outcomes
-  - [ ] update report generator docs
+- [x] Prepare user-impact report design
+  - [x] define data model for task completion and agent trace outcomes
+  - [x] update report generator docs (`docs/USER_IMPACT_REPORT_MODEL.md`)
   - Acceptance Criteria:
     - documentation exists for new report direction
   - Effort: 2 days
