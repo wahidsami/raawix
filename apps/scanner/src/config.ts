@@ -57,6 +57,11 @@ export const config = {
   },
   raawi: {
     enabled: process.env.RAAWI_AGENT_ENABLED !== 'false', // Default enabled to preserve current deployments unless explicitly disabled
+    execution: {
+      enabled: process.env.RAAWI_EXECUTION_AGENT_ENABLED === 'true', // Default off for safe rollout
+      loginUsername: process.env.RAAWI_AGENT_LOGIN_USERNAME || '',
+      loginPassword: process.env.RAAWI_AGENT_LOGIN_PASSWORD || '',
+    },
   },
   auth: {
     credentialEncryptionKey: process.env.AUTH_CREDENTIAL_ENCRYPTION_KEY || '',

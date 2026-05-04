@@ -12,6 +12,8 @@ import { computePageFingerprint } from './page-fingerprint.js';
 import { PageStabilizer, type StabilizationConfig } from './page-stabilizer.js';
 import { scanEventEmitter } from '../events/scan-events.js';
 import { launchChromium } from './browser-launch.js';
+import { RaawiAgent } from '@raawi-x/agent-runtime';
+import { createPlaywrightActionBindings } from '../agent/playwright-action-bindings.js';
 
 export interface CaptureOptions {
   timeout?: number;
@@ -583,6 +585,52 @@ export class PageCapture {
         const semanticPath = join(pageDir, 'semantic.json');
         await writeFile(semanticPath, JSON.stringify(semanticModel, null, 2), 'utf-8');
         result.semanticPath = semanticPath;
+
+        if (config.raawi.execution.enabled) {
+          const loginProbe = await page.evaluate(() => {
+            const hasPassword = !!document.querySelector('input[type="password"]');
+            const hasSubmit =
+              !!document.querySelector('button[type="submit"], input[type="submit"]') ||
+              !!Array.from(document.querySelectorAll('button,a,[role="button"]')).find((el) => {
+                const text = `${el.getAttribute('aria-label') ?? ''} ${(el.textContent ?? '').trim()}`.toLowerCase();
+                return /login|log in|sign in|submit|continue|دخول|تسجيل/.test(text);
+              });
+            return { hasPassword, hasSubmit, likelyLogin: hasPassword && hasSubmit };
+          });
+
+          if (loginProbe.likelyLogin) {
+            const raawiDir = join(pageDir, 'raawi-agent');
+            await mkdir(raawiDir, { recursive: true });
+
+            const agent = new RaawiAgent({ verbose: false });
+            const username = config.raawi.execution.loginUsername;
+            const password = config.raawi.execution.loginPassword;
+            const hasCredentials = Boolean(username && password);
+            const task = {
+              goal: 'login' as const,
+              description: 'Complete login flow on detected login page',
+              context: hasCredentials ? { username, password } : {},
+            };
+
+            const plan = await agent.getPlan({
+              model: semanticModel as any,
+              task,
+              dryRun: !hasCredentials,
+            });
+            await writeFile(join(raawiDir, 'plan.json'), JSON.stringify(plan, null, 2), 'utf-8');
+
+            const executionResult = await agent.execute({
+              model: semanticModel as any,
+              task,
+              dryRun: !hasCredentials,
+              bindings: createPlaywrightActionBindings(page),
+              timeout: 20000,
+            });
+            await writeFile(join(raawiDir, 'execution.json'), JSON.stringify(executionResult, null, 2), 'utf-8');
+
+            (result as any).raawiExecutionPath = join(raawiDir, 'execution.json');
+          }
+        }
       } catch (semanticError) {
         console.warn(`[Semantic] Failed to build semantic model for page ${pageNumber}:`, semanticError);
       }
@@ -603,6 +651,7 @@ export class PageCapture {
         semanticPath: result.semanticPath,
         visionPath: result.visionPath,
         agentPath: result.agentPath,
+        raawiExecutionPath: (result as any).raawiExecutionPath,
         manualCheckpoint: result.manualCheckpoint,
         timings,
       };
