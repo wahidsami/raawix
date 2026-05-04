@@ -189,7 +189,7 @@ Essential behavior:
 
 Implement `packages/semantic-engine/confidence.ts`.
 
-Status: [~] baseline `sourceMix` + confidence mapping implemented in `packages/semantic-engine/src/confidence.ts`; per-block/action weighted scoring remains pending.
+Status: [x] baseline `sourceMix` + confidence mapping implemented and extended with per-block/action/relationship weighted scoring in `packages/semantic-engine/src/confidence.ts` and `builder.ts`.
 
 For each block and action:
 - assign `confidence` from weighted mix of DOM, vision, ai/assistive map

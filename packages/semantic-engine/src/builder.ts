@@ -6,7 +6,13 @@ import type {
   SemanticPageModel,
   SemanticRelationship,
 } from './schema.js';
-import { mixToConfidence, computeSourceMix } from './confidence.js';
+import {
+  mixToConfidence,
+  computeSourceMix,
+  weightedConfidenceForAction,
+  weightedConfidenceForBlock,
+  weightedConfidenceForRelationship,
+} from './confidence.js';
 import { collectFusionSignals } from './fusion/index.js';
 
 const normalizeText = (text: string | undefined): string | undefined =>
@@ -71,14 +77,30 @@ export function buildSemanticModel(input: SemanticBuilderInput): SemanticPageMod
   if (input.html) {
     const headingText = firstMatch(input.html, /<h1[^>]*>([^<]+)<\/h1>/i);
     if (headingText) {
-      const headingBlock = createBlock('heading-1', 'heading', headingText, headingText, 'high', { level: 1 });
+      const headingBlock = createBlock(
+        'heading-1',
+        'heading',
+        headingText,
+        headingText,
+        weightedConfidenceForBlock(sourceMix, {
+          hasLabel: true,
+          hasContent: true,
+          isStructural: true,
+          hasA11yEvidence: Array.isArray(input.a11y),
+        }),
+        { level: 1 }
+      );
       structure.push(headingBlock);
       relationships.push({
         id: 'rel-root-heading',
         type: 'contains',
         sourceId: rootBlock.id,
         targetId: headingBlock.id,
-        confidence: 'high',
+        confidence: weightedConfidenceForRelationship(sourceMix, {
+          isStructural: true,
+          hasA11yEvidence: Array.isArray(input.a11y),
+          hasAssistiveEvidence: Boolean(input.assistiveMap),
+        }),
       });
     }
 
@@ -86,17 +108,51 @@ export function buildSemanticModel(input: SemanticBuilderInput): SemanticPageMod
     buttonMatches.forEach((match, index) => {
       const label = normalizeText(match[1]) || `button-${index + 1}`;
       const buttonId = createId('button', index + 1);
-      const action = createAction(buttonId, 'click', label, buttonId, `button:nth-of-type(${index + 1})`, 'medium', {
+      const selector = `button:nth-of-type(${index + 1})`;
+      const action = createAction(
+        buttonId,
+        'click',
+        label,
+        buttonId,
+        selector,
+        weightedConfidenceForAction(sourceMix, {
+          hasLabel: Boolean(label),
+          hasSelector: true,
+          hasAssistiveEvidence: Boolean(input.assistiveMap),
+          hasA11yEvidence: Array.isArray(input.a11y),
+        }),
+        {
         htmlSnippet: match[0],
-      });
+        }
+      );
       actions.push(action);
-      structure.push(createBlock(buttonId, 'button', label, label, 'medium', { selector: action.selector }));
+      structure.push(
+        createBlock(
+          buttonId,
+          'button',
+          label,
+          label,
+          weightedConfidenceForBlock(sourceMix, {
+            hasLabel: Boolean(label),
+            hasContent: Boolean(label),
+            hasSelector: true,
+            hasAssistiveEvidence: Boolean(input.assistiveMap),
+            hasA11yEvidence: Array.isArray(input.a11y),
+            isStructural: true,
+          }),
+          { selector: action.selector }
+        )
+      );
       relationships.push({
         id: `rel-page-button-${index + 1}`,
         type: 'contains',
         sourceId: rootBlock.id,
         targetId: buttonId,
-        confidence: 'medium',
+        confidence: weightedConfidenceForRelationship(sourceMix, {
+          isStructural: true,
+          hasA11yEvidence: Array.isArray(input.a11y),
+          hasAssistiveEvidence: Boolean(input.assistiveMap),
+        }),
       });
     });
   }
@@ -108,7 +164,11 @@ export function buildSemanticModel(input: SemanticBuilderInput): SemanticPageMod
         'section',
         'Accessibility snapshot',
         `Captured ${input.a11y.length} accessibility nodes`,
-        'low',
+        weightedConfidenceForBlock(sourceMix, {
+          hasLabel: true,
+          hasContent: true,
+          hasA11yEvidence: true,
+        }),
         { source: 'a11y-snapshot' }
       )
     );
@@ -121,7 +181,11 @@ export function buildSemanticModel(input: SemanticBuilderInput): SemanticPageMod
         'section',
         'Assistive map',
         'Assistive guidance from the scanner pipeline',
-        'low',
+        weightedConfidenceForBlock(sourceMix, {
+          hasLabel: true,
+          hasContent: true,
+          hasAssistiveEvidence: true,
+        }),
         { source: 'assistive-map' }
       )
     );
