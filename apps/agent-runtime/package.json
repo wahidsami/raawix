@@ -1,0 +1,18 @@
+{
+  "name": "@raawi-x/agent-runtime",
+  "version": "0.1.0",
+  "description": "Raawi X Agent Execution Engine - Goal-based task planning and execution",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@raawi-x/semantic-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

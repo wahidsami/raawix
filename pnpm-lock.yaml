@@ -48,6 +48,16 @@ importers:
         specifier: ^5.3.2
         version: 5.9.3
 
+  apps/agent-runtime:
+    dependencies:
+      '@raawi-x/semantic-engine':
+        specifier: workspace:*
+        version: link:../../packages/semantic-engine
+    devDependencies:
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   apps/report-ui:
     dependencies:
       '@raawi-x/core':

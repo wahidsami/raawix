@@ -6,6 +6,8 @@ import type {
   SemanticPageModel,
   SemanticRelationship,
 } from './schema.js';
+import { mixToConfidence, computeSourceMix } from './confidence.js';
+import { collectFusionSignals } from './fusion/index.js';
 
 const normalizeText = (text: string | undefined): string | undefined =>
   text?.replace(/\s+/g, ' ').trim() || undefined;
@@ -52,6 +54,9 @@ const createAction = (
 });
 
 export function buildSemanticModel(input: SemanticBuilderInput): SemanticPageModel {
+  const sourceMix = computeSourceMix(input);
+  const fusionSignals = collectFusionSignals(input);
+  const modelConfidence = mixToConfidence(sourceMix);
   const title = normalizeText(input.title || firstMatch(input.html ?? '', /<title>([^<]+)<\/title>/i) || input.url || 'Untitled page');
   const rootBlock = createBlock('page-root', 'page', title, title, 'high', {
     url: input.url,
@@ -128,13 +133,15 @@ export function buildSemanticModel(input: SemanticBuilderInput): SemanticPageMod
     pageNumber: input.pageNumber,
     title,
     generatedAt: new Date().toISOString(),
-    confidence: 'medium',
+    confidence: modelConfidence,
+    sourceMix,
     structure,
     actions,
     relationships,
     metadata: {
       origin: 'semantic-engine',
       version: '0.1.0',
+      fusionSignals,
       builderInput: {
         url: input.url,
         pageNumber: input.pageNumber,

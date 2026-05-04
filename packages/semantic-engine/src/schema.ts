@@ -107,6 +107,11 @@ export interface SemanticPageModel {
   description?: string;
   generatedAt: string;
   confidence: SemanticConfidence;
+  sourceMix?: {
+    dom: number;
+    vision: number;
+    ai: number;
+  };
   structure: SemanticBlock[];
   actions: SemanticAction[];
   relationships: SemanticRelationship[];

@@ -9321,11 +9321,52 @@ class AccessibilityWidget {
     }
 
     if ((current.type === 'action' || current.type === 'form') && current.element) {
+      const matchedAction = this.findSemanticActionForElement(current.element);
+      if (matchedAction?.semanticAction) {
+        const result = executeSemanticAction(matchedAction.semanticAction, matchedAction.selector);
+        this.speak(result.success ? `Activated: ${current.heading || current.text}` : result.message);
+        return;
+      }
+
+      const fallbackSelector = this.deriveSelectorForElement(current.element);
+      if (fallbackSelector) {
+        const result = executeSemanticAction(
+          {
+            id: `cursor-${Date.now()}`,
+            type: 'click',
+            label: current.heading || current.text || 'Action',
+            selector: fallbackSelector,
+          } as SemanticAction,
+          fallbackSelector
+        );
+        this.speak(result.success ? `Activated: ${current.heading || current.text}` : result.message);
+        return;
+      }
+
       current.element.click();
       this.speak(`Activated: ${current.heading || current.text}`);
     } else {
       this.speak(`Current item is not actionable. Navigate to an action or form.`);
     }
+  }
+
+  private findSemanticActionForElement(element: HTMLElement): { label: string; description: string; selector?: string; element: HTMLElement | null; semanticAction?: SemanticAction } | undefined {
+    return this.availableActions.find((candidate) => candidate.element === element && candidate.semanticAction);
+  }
+
+  private deriveSelectorForElement(element: HTMLElement): string | undefined {
+    if (element.id) {
+      return `#${CSS.escape(element.id)}`;
+    }
+    const name = element.getAttribute('name');
+    if (name) {
+      return `${element.tagName.toLowerCase()}[name="${CSS.escape(name)}"]`;
+    }
+    const ariaLabel = element.getAttribute('aria-label');
+    if (ariaLabel) {
+      return `${element.tagName.toLowerCase()}[aria-label="${CSS.escape(ariaLabel)}"]`;
+    }
+    return undefined;
   }
 
   /**
@@ -9403,4 +9444,3 @@ if (typeof window !== 'undefined') {
 }
 
 export default AccessibilityWidget;
-
