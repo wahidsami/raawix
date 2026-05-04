@@ -127,6 +127,9 @@ importers:
       '@pdf-lib/fontkit':
         specifier: 1.1.1
         version: 1.1.1
+      '@raawi-x/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
       '@raawi-x/core':
         specifier: workspace:*
         version: link:../../packages/core
