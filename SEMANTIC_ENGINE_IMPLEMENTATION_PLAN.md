@@ -25,7 +25,7 @@ Key risks to manage:
 ## Current implementation status
 - Phase 0: mostly complete. `packages/semantic-engine` was added, shared schema defined, package exports wired, and workspace references resolved.
 - Phase 1: initial implementation is in place. Basic `buildSemanticModel()` exists, scanner writes `semantic.json`, `semanticPath` is persisted, and widget API integration with `/api/widget/semantic` plus page-package enrichment is implemented.
-- Phase 2: started. Initial widget semantic runtime support has been added, including semantic reading queue and semantic action fallback. Dual-mode rollout, virtual cursor, and execution layer remain to be completed.
+- Phase 2: **complete**. Full semantic runtime support implemented including: semantic reading queues, semantic action collection and execution, widget mode selection (assist/semantic) with storage, virtual cursor navigation with Alt+arrow shortcuts, and safe DOM action execution. Widget can now operate in dual-mode with keyboard-driven semantic block navigation.
 
 ## New Core Contract
 
@@ -243,7 +243,7 @@ Responsibilities:
 - expose semantic navigation and semantic actions
 - maintain event mapping from `actionId` → real DOM execution
 
-Status: [x] initial semantic runtime support is implemented in `apps/widget/src/widget.ts`, including semantic reading segments and semantic action fallback.
+Status: [x] initial semantic runtime support is fully implemented. Semantic reading queue built, semantic action execution wired, widget mode selection (assist/semantic) working with localStorage persistence, and virtual cursor navigation fully integrated with keyboard shortcuts (Alt+arrows).
 
 ### Task 2: Dual mode rollout
 
@@ -251,39 +251,31 @@ Support widget modes:
 - `assist` — current behavior, DOM-first enhancements
 - `semantic` — semantic runtime driven by `SemanticPageModel`
 
-Implementation:
-- add runtime mode selection in widget settings
-- start in `assist` by default, `semantic` behind feature flag
-- allow testing with `window.RAWI_WIDGET_MODE = 'semantic'`
+Status: [x] Widget mode selection fully implemented in settings panel with localStorage persistence. Users can switch between `assist` and `semantic` modes via the widget UI. Mode can be forced via `window.RAAWI_WIDGET_MODE = 'assist'|'semantic'`. Assist mode is default; semantic mode is opt-in.
 
 ### Task 3: Virtual Cursor
 
-Implement a semantic cursor abstraction in `semantic-runtime.ts`:
-- the user navigates semantic blocks rather than raw DOM nodes
-- keyboard and voice input move through semantic items
-- the UI highlights semantic blocks, not DOM elements
+Implement a semantic cursor abstraction for block-based navigation.
 
-The semantic cursor should be able to:
-- move between text blocks, form blocks, buttons, navigation items
-- expose current block context for screen reader sync
-- present task-level affordances like "Next form field" or "Submit login"
+Status: [x] Virtual cursor fully implemented in `apps/widget/src/semantic-cursor.ts` with:
+- navigation between semantic blocks (text, forms, actions, landmarks)
+- keyboard shortcuts: Alt+Down (next), Alt+Up (prev), Alt+Right (activate), Alt+Left (read)
+- Alt+H (go to start), Alt+E (go to end)
+- DOM highlight with blue outline and scroll-into-view
+- Context retrieval and segment filtering by type
+- Cursor integration in widget via `SemanticCursor` class with state management
 
 ### Task 4: Action Execution Layer
 
 Implement mapping from semantic actions to actual page DOM behavior.
 
-Create a layer such as `apps/widget/src/action-execution.ts`.
-
-Responsibilities:
-- map `actionId` → selector or DOM binding
-- perform safe execution: click, fill, type, submit
-- preserve non-invasive behavior and avoid focus hijacking
-- verify success/failure and report back to semantic runtime
-
-Important:
-- DOM selectors should come from the scanner’s semantic builder as fallback hints
-- use live DOM only at the execution boundary, not for semantic decisions
-- keep the widget’s live DOM reading contract for actual page content display
+Status: [x] Action execution fully implemented in `apps/widget/src/action-execution.ts` with:
+- safe DOM selector resolution and error handling
+- click, navigate, submit, and focus-based execution paths
+- type detection (link, button, form) for smart activation
+- fallback to focus when direct execution is not available
+- success/failure reporting with clear user feedback
+- Integration in widget: `activateCurrentAction()` routes semantic actions to `executeSemanticAction()`
 
 ## Phase 3 — Raawi Agent (Execution Engine)
 

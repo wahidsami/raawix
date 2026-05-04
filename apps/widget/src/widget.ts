@@ -1,3 +1,9 @@
+import { SemanticRuntime } from './semantic-runtime';
+import { SemanticCursor } from './semantic-cursor';
+import { executeSemanticAction } from './action-execution';
+import type { SemanticAction } from './semantic-runtime';
+
+
 /**
  * Raawi X Accessibility Widget
  * Provides assistive features without claiming compliance
@@ -20,6 +26,7 @@ interface AccessibilitySettings {
   magnifier: boolean; // Magnifier lens
   magnifierZoom: number; // Magnification level (1.5 to 5.0)
   voiceMode: 'off' | 'push_to_talk' | 'hands_free'; // Voice command mode (A)
+  widgetMode: 'assist' | 'semantic'; // Semantic runtime mode selection
   translateLanguage: 'off' | 'ar' | 'en'; // Translation for narration
 }
 
@@ -235,6 +242,7 @@ class AccessibilityWidget {
     magnifier: false,
     magnifierZoom: 2.0,
     voiceMode: 'push_to_talk', // Default: push_to_talk (A)
+    widgetMode: 'assist',
     translateLanguage: 'off',
   };
 
@@ -278,7 +286,7 @@ class AccessibilityWidget {
   private micPermissionGranted: boolean = false; // Mic permission status (C)
   private transcript: string = '';
   private currentActionIndex: number = -1;
-  private availableActions: Array<{ label: string; description: string; element: HTMLElement | null }> = [];
+  private availableActions: Array<{ label: string; description: string; selector?: string; element: HTMLElement | null; semanticAction?: SemanticAction }> = [];
   private apiUrl: string = '';
   private scanId: string = '';
 
@@ -298,6 +306,7 @@ class AccessibilityWidget {
   private cachedPagePackage: PagePackage | null = null; // Third Layer - single fetch
   private cachedSemanticModel: Record<string, unknown> | null = null;
   private semanticMode: boolean = false;
+  private semanticCursor: SemanticCursor | null = null;
   private temporaryActions: Array<{ label: string; description: string; contextTitle?: string; selector?: string; element?: HTMLElement | null }> = []; // For "go to action" command
   
   // Form Assistant state
@@ -349,7 +358,15 @@ class AccessibilityWidget {
     // Get API configuration
     this.apiUrl = (window as any).RAWI_API_URL || '';
     this.scanId = (window as any).RAWI_SCAN_ID || 'latest';
-    this.semanticMode = (window as any).RAAWI_WIDGET_MODE === 'semantic';
+
+    const forcedWidgetMode = (window as any).RAAWI_WIDGET_MODE as 'assist' | 'semantic' | undefined;
+    if (forcedWidgetMode === 'assist' || forcedWidgetMode === 'semantic') {
+      this.settings.widgetMode = forcedWidgetMode;
+      this.semanticMode = forcedWidgetMode === 'semantic';
+    } else {
+      this.loadWidgetModeFromStorage();
+      this.semanticMode = this.settings.widgetMode === 'semantic';
+    }
 
     // Inject CSS
     this.injectStyles();
@@ -363,13 +380,14 @@ class AccessibilityWidget {
     // A: Load voice mode from localStorage (only if user opted in)
     this.loadVoiceModeFromStorage();
 
+    // Pre-fetch page package if API is configured (single fetch for Third Layer)
+    if (this.apiUrl) {
+      this.fetchPagePackageAsync();
+    }
+
     // Initialize voice mode if enabled
     if (this.voiceEnabled) {
       this.initVoiceMode();
-      // Pre-fetch page package if API is configured (single fetch for Third Layer)
-      if (this.apiUrl) {
-        this.fetchPagePackageAsync();
-      }
       
       // B: Start wake-only mode if hands_free
       if (this.settings.voiceMode === 'hands_free' && this.micPermissionGranted) {
@@ -388,6 +406,11 @@ class AccessibilityWidget {
 
     // Watch for route changes (SPA navigation)
     this.setupRouteChangeObserver();
+
+    // Setup semantic cursor keyboard navigation if semantic mode is active
+    if (this.semanticMode) {
+      this.setupSemanticKeyboardNavigation();
+    }
 
     // Apply initial settings
     this.applySettings();
@@ -1536,7 +1559,16 @@ class AccessibilityWidget {
       <!-- Tab Content: Tools -->
       <div id="raawi-tab-tools" class="raawi-tab-content" role="tabpanel">
         <h2>${t.tools}</h2>
-        
+        <div class="raawi-accessibility-control" id="raawi-widget-mode-control">
+          <label for="raawi-widget-mode-select">${t.widgetMode}</label>
+          <select id="raawi-widget-mode-select" class="raawi-accessibility-select" aria-label="${t.selectWidgetMode}">
+            <option value="assist">${t.assistMode}</option>
+            <option value="semantic">${t.semanticMode}</option>
+          </select>
+          <div style="font-size: 0.85em; color: #666; margin-top: 4px;">
+            ${t.widgetModeDescription}
+          </div>
+        </div>
         ${this.voiceEnabled ? `
         <div class="raawi-accessibility-control" id="raawi-voice-control">
           <label for="raawi-voice-mode-select">${t.voiceMode}</label>
@@ -1855,6 +1887,18 @@ class AccessibilityWidget {
       });
     }
 
+    // Widget mode event listeners
+    const widgetModeSelect = this.panel.querySelector('#raawi-widget-mode-select') as HTMLSelectElement | null;
+    if (widgetModeSelect) {
+      widgetModeSelect.value = this.settings.widgetMode;
+      widgetModeSelect.addEventListener('change', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const mode = (e.target as HTMLSelectElement).value as 'assist' | 'semantic';
+        this.setWidgetModeType(mode);
+      });
+    }
+
     // Voice mode event listeners
     if (this.voiceEnabled) {
       const voiceModeSelect = this.panel.querySelector('#raawi-voice-mode-select') as HTMLSelectElement;
@@ -2067,6 +2111,11 @@ class AccessibilityWidget {
         voiceModePushToTalk: 'Push to Talk',
         voiceModeHandsFree: 'Hands Free (Wake Phrase)',
         voiceModeDescription: 'Hands Free: Say "hi raawi" or "هلا راوي" to activate',
+        widgetMode: 'Widget Mode',
+        selectWidgetMode: 'Select widget mode',
+        assistMode: 'Assist',
+        semanticMode: 'Semantic',
+        widgetModeDescription: 'Assist mode uses current guidance. Semantic mode uses the semantic page model when available.',
         togglePushToTalk: 'Toggle push to talk',
         presets: 'Presets',
         presetBlind: 'Blind',
@@ -2203,6 +2252,11 @@ class AccessibilityWidget {
         voiceModePushToTalk: 'اضغط للتحدث',
         voiceModeHandsFree: 'يدوي حر (عبارة الاستيقاظ)',
         voiceModeDescription: 'يدوي حر: قل "هلا راوي" أو "hi raawi" للتفعيل',
+        widgetMode: 'وضع الواجهة',
+        selectWidgetMode: 'اختر وضع الواجهة',
+        assistMode: 'المساعدة',
+        semanticMode: 'دلالي',
+        widgetModeDescription: 'الوضع المساعد يستخدم الإرشاد الحالي، والوضع الدلالي يستخدم نموذج الصفحة الدلالي عند توفره.',
         togglePushToTalk: 'تبديل اضغط للتحدث',
         presets: 'الإعدادات المسبقة',
         presetBlind: 'مكفوف',
@@ -3901,6 +3955,7 @@ class AccessibilityWidget {
       magnifier: false,
       magnifierZoom: 2.0,
       voiceMode: 'off',
+      widgetMode: 'assist',
       translateLanguage: 'off',
     };
     
@@ -3979,7 +4034,21 @@ class AccessibilityWidget {
         this.cachedPagePackage = await response.json();
         this.cachedSemanticModel = this.cachedPagePackage?.semanticModel || null;
         console.log('[RaawiX Widget] Page package fetched from API');
-        
+
+        // Try explicit semantic endpoint when semantic mode is enabled and the package does not include a model.
+        if (this.semanticMode && !this.cachedSemanticModel) {
+          try {
+            const semanticUrl = `${this.apiUrl}/api/widget/semantic?url=${encodeURIComponent(window.location.href)}&scanId=${encodeURIComponent(this.scanId)}`;
+            const semanticResponse = await fetch(semanticUrl);
+            if (semanticResponse.ok) {
+              this.cachedSemanticModel = await semanticResponse.json();
+              console.log('[RaawiX Widget] Fetched semantic model via semantic endpoint');
+            }
+          } catch (semanticError) {
+            console.warn('[RaawiX Widget] Failed to fetch semantic model from semantic endpoint', semanticError);
+          }
+        }
+
         // Extract guidance and issues from package for backward compatibility
         if (this.cachedPagePackage?.guidance) {
           this.cachedGuidance = {
@@ -4487,7 +4556,13 @@ class AccessibilityWidget {
       });
     }
 
-    return { segments, currentIndex: 0, mode };
+    const queue = { segments, currentIndex: 0, mode };
+    // Initialize semantic cursor when queue is built in semantic mode
+    if (this.semanticMode) {
+      this.narrationState.queue = queue;
+      this.initializeSemanticCursor();
+    }
+    return queue;
   }
 
   private buildSemanticReadingQueue(mode: 'full' | 'summary' | 'detailed-summary'): ReadingQueue {
@@ -5373,6 +5448,73 @@ class AccessibilityWidget {
       localStorage.setItem('raawi-voice-mode', this.settings.voiceMode);
     } catch (e) {
       console.warn('[RaawiX Widget] Could not save voice mode to storage:', e);
+    }
+  }
+
+  /**
+   * Load widget mode from localStorage (A)
+   */
+  private loadWidgetModeFromStorage(): void {
+    try {
+      const stored = localStorage.getItem('raawi-widget-mode-opted-in');
+      if (stored === 'true') {
+        const mode = localStorage.getItem('raawi-widget-mode') as 'assist' | 'semantic' | null;
+        if (mode && (mode === 'assist' || mode === 'semantic')) {
+          this.settings.widgetMode = mode;
+          this.semanticMode = mode === 'semantic';
+        }
+      }
+    } catch (e) {
+      console.warn('[RaawiX Widget] Could not load widget mode from storage:', e);
+    }
+  }
+
+  /**
+   * Save widget mode to localStorage (A)
+   */
+  private saveWidgetModeToStorage(): void {
+    try {
+      localStorage.setItem('raawi-widget-mode-opted-in', 'true');
+      localStorage.setItem('raawi-widget-mode', this.settings.widgetMode);
+    } catch (e) {
+      console.warn('[RaawiX Widget] Could not save widget mode to storage:', e);
+    }
+  }
+
+  /**
+   * Set widget mode type (assist | semantic)
+   */
+  private setWidgetModeType(mode: 'assist' | 'semantic'): void {
+    this.settings.widgetMode = mode;
+    this.semanticMode = mode === 'semantic';
+    this.saveWidgetModeToStorage();
+
+    const select = this.panel?.querySelector('#raawi-widget-mode-select') as HTMLSelectElement | null;
+    if (select) {
+      select.value = mode;
+    }
+
+    if (this.semanticMode && !this.cachedSemanticModel && this.apiUrl) {
+      void this.loadSemanticModelIfNeeded();
+    }
+
+    this.applySettings();
+  }
+
+  private async loadSemanticModelIfNeeded(): Promise<void> {
+    if (!this.semanticMode || this.cachedSemanticModel || !this.apiUrl) {
+      return;
+    }
+
+    try {
+      const semanticUrl = `${this.apiUrl}/api/widget/semantic?url=${encodeURIComponent(window.location.href)}&scanId=${encodeURIComponent(this.scanId)}`;
+      const response = await fetch(semanticUrl);
+      if (response.ok) {
+        this.cachedSemanticModel = await response.json();
+        console.log('[RaawiX Widget] Loaded semantic model on demand');
+      }
+    } catch (e) {
+      console.warn('[RaawiX Widget] Failed to load semantic model on demand:', e);
     }
   }
 
@@ -6514,18 +6656,15 @@ class AccessibilityWidget {
     this.availableActions = [];
     this.currentActionIndex = -1;
 
-    if (this.semanticMode && this.cachedSemanticModel?.actions && Array.isArray(this.cachedSemanticModel.actions)) {
-      const semanticActions = (this.cachedSemanticModel.actions as any[]).slice(0, 10);
-      semanticActions.forEach((action) => {
-        const label = typeof action?.label === 'string' ? action.label : (typeof action?.type === 'string' ? action.type : 'Action');
-        const selector = typeof action?.selector === 'string' ? action.selector : undefined;
-        const element = selector ? this.findSemanticElement(selector) : null;
-        this.availableActions.push({
-          label,
-          description: typeof action?.description === 'string' ? action.description : '',
-          element,
-        });
-      });
+    if (this.semanticMode && this.cachedSemanticModel) {
+      const semanticActions = SemanticRuntime.collectActions(this.cachedSemanticModel);
+      this.availableActions = semanticActions.map((action) => ({
+        label: action.label,
+        description: action.description,
+        selector: action.selector,
+        element: action.element,
+        semanticAction: action.semanticAction,
+      }));
       return;
     }
 
@@ -6544,6 +6683,7 @@ class AccessibilityWidget {
         this.availableActions.push({
           label: label,
           description: description,
+          selector: this.generateSelector(element),
           element: element,
         });
       }
@@ -6813,14 +6953,25 @@ class AccessibilityWidget {
   private activateCurrentAction(): void {
     if (this.currentActionIndex >= 0 && this.currentActionIndex < this.availableActions.length) {
       const action = this.availableActions[this.currentActionIndex];
+      if (action.semanticAction) {
+        const result = executeSemanticAction(action.semanticAction, action.selector);
+        if (result.success) {
+          this.speak(`Activated: ${action.label}`);
+        } else {
+          this.speak(result.message);
+        }
+        return;
+      }
+
       if (action.element) {
         // Don't hijack focus - just trigger click
         action.element.click();
         this.speak(`Activated: ${action.label}`);
+        return;
       }
-    } else {
-      this.speak('No action selected. Say "read actions" to list available actions.');
     }
+
+    this.speak('No action selected. Say "read actions" to list available actions.');
   }
 
   /**
@@ -9044,6 +9195,188 @@ class AccessibilityWidget {
       }
     }
   }
+
+  /**
+   * Setup keyboard navigation for semantic cursor in semantic mode
+   */
+  private setupSemanticKeyboardNavigation(): void {
+    if (!this.semanticMode) return;
+
+    document.addEventListener('keydown', (e) => {
+      // Only handle if not typing in an input field
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && e.target.contentEditable === 'true')
+      ) {
+        return;
+      }
+
+      // Semantic mode navigation shortcuts (Alt + arrows)
+      if (e.altKey) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          this.navigateSemanticCursorDown();
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          this.navigateSemanticCursorUp();
+          return;
+        }
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          this.activateSemanticCursorAction();
+          return;
+        }
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          this.readCurrentSemanticBlock();
+          return;
+        }
+      }
+
+      // Alt+H for semantic home (first segment)
+      if (e.altKey && (e.key === 'h' || e.key === 'H')) {
+        e.preventDefault();
+        this.goToSemanticStart();
+        return;
+      }
+
+      // Alt+E for semantic end
+      if (e.altKey && (e.key === 'e' || e.key === 'E')) {
+        e.preventDefault();
+        this.goToSemanticEnd();
+        return;
+      }
+    });
+  }
+
+  /**
+   * Initialize or update semantic cursor from current reading queue
+   */
+  private initializeSemanticCursor(): void {
+    const queue = this.narrationState.queue;
+    if (!queue || !this.semanticMode) {
+      this.semanticCursor = null;
+      return;
+    }
+
+    // Convert ReadingSegment to SemanticReadingSegment
+    const semanticSegments = queue.segments.map((seg) => ({
+      id: seg.id,
+      type: seg.type,
+      text: seg.text,
+      heading: seg.heading,
+      element: seg.element || null,
+      priority: seg.priority,
+    }));
+
+    this.semanticCursor = new SemanticCursor(semanticSegments);
+    this.semanticCursor.goToStart();
+  }
+
+  /**
+   * Navigate semantic cursor down (next segment)
+   */
+  private navigateSemanticCursorDown(): void {
+    if (!this.semanticCursor) {
+      this.initializeSemanticCursor();
+    }
+    if (!this.semanticCursor) return;
+
+    const next = this.semanticCursor.next();
+    if (next) {
+      this.semanticCursor.highlightCurrent();
+      this.readCurrentSemanticBlock();
+    }
+  }
+
+  /**
+   * Navigate semantic cursor up (previous segment)
+   */
+  private navigateSemanticCursorUp(): void {
+    if (!this.semanticCursor) {
+      this.initializeSemanticCursor();
+    }
+    if (!this.semanticCursor) return;
+
+    const prev = this.semanticCursor.previous();
+    if (prev) {
+      this.semanticCursor.highlightCurrent();
+      this.readCurrentSemanticBlock();
+    }
+  }
+
+  /**
+   * Activate current semantic block (if it's an action or form)
+   */
+  private activateSemanticCursorAction(): void {
+    if (!this.semanticCursor) return;
+
+    const current = this.semanticCursor.current();
+    if (!current) {
+      this.speak('No action available at current position.');
+      return;
+    }
+
+    if ((current.type === 'action' || current.type === 'form') && current.element) {
+      current.element.click();
+      this.speak(`Activated: ${current.heading || current.text}`);
+    } else {
+      this.speak(`Current item is not actionable. Navigate to an action or form.`);
+    }
+  }
+
+  /**
+   * Read current semantic block
+   */
+  private readCurrentSemanticBlock(): void {
+    if (!this.semanticCursor) return;
+
+    const current = this.semanticCursor.current();
+    if (!current) {
+      this.speak('No segment selected.');
+      return;
+    }
+
+    let message = '';
+    if (current.heading) {
+      message = `${current.heading}. ${current.text}`;
+    } else {
+      message = current.text;
+    }
+
+    this.speak(message);
+  }
+
+  /**
+   * Go to first semantic segment
+   */
+  private goToSemanticStart(): void {
+    if (!this.semanticCursor) {
+      this.initializeSemanticCursor();
+    }
+    if (!this.semanticCursor) return;
+
+    this.semanticCursor.goToStart();
+    this.semanticCursor.highlightCurrent();
+    this.readCurrentSemanticBlock();
+  }
+
+  /**
+   * Go to last semantic segment
+   */
+  private goToSemanticEnd(): void {
+    if (!this.semanticCursor) {
+      this.initializeSemanticCursor();
+    }
+    if (!this.semanticCursor) return;
+
+    this.semanticCursor.goToEnd();
+    this.semanticCursor.highlightCurrent();
+    this.readCurrentSemanticBlock();
+  }
 }
 
 // Auto-initialize when script loads
@@ -9070,3 +9403,4 @@ if (typeof window !== 'undefined') {
 }
 
 export default AccessibilityWidget;
+
