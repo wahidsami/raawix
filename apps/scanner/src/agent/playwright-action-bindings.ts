@@ -6,21 +6,63 @@ function escapeAttributeValue(value: string): string {
 }
 
 export function createPlaywrightActionBindings(page: Page): ActionBindings {
+  const fieldAliases: Record<string, string[]> = {
+    username: ['username', 'user', 'email', 'login', 'identifier'],
+    password: ['password', 'pass', 'pwd'],
+    mfa: ['mfa', 'otp', 'verification', 'code', 'token'],
+    search: ['search', 'query', 'keyword', 'q'],
+    name: ['name', 'full name', 'fullname'],
+    email: ['email', 'e-mail', 'mail'],
+    message: ['message', 'comment', 'details', 'description'],
+  };
+
   const resolveLocator = (target: { selector?: string; fieldKey?: string; actionId?: string }) => {
     if (target.selector) {
       return page.locator(target.selector).first();
     }
     if (target.fieldKey) {
       const key = escapeAttributeValue(target.fieldKey);
+      const aliases = fieldAliases[target.fieldKey.toLowerCase()] || [target.fieldKey];
+      const aliasSelector = aliases
+        .map((alias) => {
+          const safe = escapeAttributeValue(alias);
+          return [
+            `[name*="${safe}" i]`,
+            `[id*="${safe}" i]`,
+            `[aria-label*="${safe}" i]`,
+            `[placeholder*="${safe}" i]`,
+            `[autocomplete*="${safe}" i]`,
+            `input[type="${safe}"]`,
+          ].join(', ');
+        })
+        .join(', ');
       return page
         .locator(
-          `[name="${key}"], [data-field-key="${key}"], #${key}, input[aria-label*="${key}" i], textarea[aria-label*="${key}" i]`
+          [
+            `[name="${key}"]`,
+            `[data-field-key="${key}"]`,
+            `#${key}`,
+            `input[aria-label*="${key}" i]`,
+            `textarea[aria-label*="${key}" i]`,
+            aliasSelector,
+          ].join(', ')
         )
         .first();
     }
     if (target.actionId) {
       const id = escapeAttributeValue(target.actionId);
-      return page.locator(`[data-action-id="${id}"]`).first();
+      return page
+        .locator(
+          [
+            `[data-action-id="${id}"]`,
+            `[id="${id}"]`,
+            `[name="${id}"]`,
+            `[aria-label*="${id}" i]`,
+            `button:has-text("${id}")`,
+            `a:has-text("${id}")`,
+          ].join(', ')
+        )
+        .first();
     }
     return null;
   };

@@ -8,6 +8,16 @@ import type { ExecutionPlan, PlannedAction, Intent, AgentGoal } from './types.js
  * Plans the optimal sequence of actions to achieve a goal.
  */
 export class ActionPlanner {
+  private static readonly FIELD_ALIASES: Record<string, string[]> = {
+    username: ['username', 'user', 'email', 'login', 'identifier'],
+    password: ['password', 'pass', 'pwd'],
+    mfa: ['mfa', 'otp', 'verification', 'code', 'token'],
+    search: ['search', 'query', 'keyword', 'q'],
+    name: ['name', 'full name', 'fullname'],
+    email: ['email', 'e-mail', 'mail'],
+    message: ['message', 'comment', 'details', 'description'],
+  };
+
   private static normalizeModelConfidence(value: unknown): number {
     if (typeof value === 'number') {
       return Math.max(0, Math.min(1, value));
@@ -55,24 +65,22 @@ export class ActionPlanner {
     const password = intent.parameters.password as string | null;
 
     if (username) {
+      const usernameTarget = this.resolveFieldTarget(model, 'username');
       steps.push({
         type: 'fill',
         label: 'Enter username',
-        target: {
-          fieldKey: 'username',
-        },
+        target: usernameTarget,
         value: username,
         priority: priority++,
       });
     }
 
     if (password) {
+      const passwordTarget = this.resolveFieldTarget(model, 'password');
       steps.push({
         type: 'fill',
         label: 'Enter password',
-        target: {
-          fieldKey: 'password',
-        },
+        target: passwordTarget,
         value: password,
         priority: priority++,
       });
@@ -98,9 +106,7 @@ export class ActionPlanner {
       steps.push({
         type: 'fill',
         label: 'Enter MFA code',
-        target: {
-          fieldKey: 'mfa',
-        },
+        target: this.resolveFieldTarget(model, 'mfa'),
         value: mfaToken,
         priority: priority++,
       });
@@ -221,7 +227,7 @@ export class ActionPlanner {
       steps.push({
         type: 'fill',
         label: 'Enter search query',
-        target: { fieldKey: 'search' },
+        target: this.resolveFieldTarget(model, 'search'),
         value: query,
         priority: priority++,
       });
@@ -317,7 +323,7 @@ export class ActionPlanner {
         steps.push({
           type: 'fill',
           label: `Fill ${fieldKey}`,
-          target: { fieldKey },
+          target: this.resolveFieldTarget(model, fieldKey),
           value: String(value),
           priority: priority++,
         });
@@ -380,11 +386,35 @@ export class ActionPlanner {
       return null;
     }
 
-    const lowerLabels = labels.map((l) => l.toLowerCase());
-    return (model.actions as SemanticAction[]).find((a) => {
-      const actionLabel = (a.label || '').toLowerCase();
-      return lowerLabels.some((label) => actionLabel.includes(label) || label.includes(actionLabel));
-    }) || null;
+    const lowerLabels = labels.map((l) => l.toLowerCase().trim()).filter(Boolean);
+    const actions = model.actions as SemanticAction[];
+
+    const scored = actions
+      .map((a) => {
+        const label = (a.label || '').toLowerCase();
+        const selector = (a.selector || '').toLowerCase();
+        const meta = JSON.stringify(a.metadata || {}).toLowerCase();
+        let score = 0;
+        for (const candidate of lowerLabels) {
+          if (!candidate) continue;
+          if (label === candidate) score += 5;
+          if (label.includes(candidate)) score += 3;
+          if (selector.includes(candidate)) score += 2;
+          if (meta.includes(candidate)) score += 1;
+        }
+        return { action: a, score };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    if (scored.length > 0) return scored[0].action;
+
+    // Fallback: submit-like actions for submit-related labels.
+    if (lowerLabels.some((x) => ['submit', 'send', 'confirm', 'continue', 'verify'].includes(x))) {
+      return actions.find((a) => a.type === 'submit' || a.type === 'click') || null;
+    }
+
+    return null;
   }
 
   private static findFormByLabel(model: SemanticPageModel, labels: string[]): SemanticBlock | null {
@@ -406,5 +436,58 @@ export class ActionPlanner {
     const modelConfidence = this.normalizeModelConfidence((model as any).confidence);
     const stepCoverage = Math.min(steps.length / 5, 1); // Higher confidence for more steps planned
     return Math.min(modelConfidence * (0.7 + stepCoverage * 0.3), 1);
+  }
+
+  private static resolveFieldTarget(model: SemanticPageModel, fieldKey: string): { fieldKey?: string; selector?: string } {
+    const normalizedKey = fieldKey.toLowerCase().trim();
+    const aliases = this.FIELD_ALIASES[normalizedKey] || [normalizedKey];
+    const blocks = (model.structure || []) as SemanticBlock[];
+
+    const formBlocks = blocks.filter((b) => b.type === 'form');
+    const scoreText = (value: string): number => {
+      const text = value.toLowerCase();
+      let score = 0;
+      for (const alias of aliases) {
+        if (text === alias) score += 5;
+        if (text.includes(alias)) score += 3;
+      }
+      return score;
+    };
+
+    let bestSelector: string | undefined;
+    let bestScore = 0;
+
+    for (const form of formBlocks) {
+      const fields = Array.isArray((form as any).fields) ? ((form as any).fields as Array<Record<string, unknown>>) : [];
+      for (const field of fields) {
+        const label = typeof field.label === 'string' ? field.label : '';
+        const name = typeof field.name === 'string' ? field.name : '';
+        const placeholder = typeof field.placeholder === 'string' ? field.placeholder : '';
+        const id = typeof field.id === 'string' ? field.id : '';
+        const selector = typeof (field as any).selector === 'string' ? ((field as any).selector as string) : '';
+        const candidateScore =
+          scoreText(label) * 3 +
+          scoreText(name) * 2 +
+          scoreText(placeholder) * 2 +
+          scoreText(id) +
+          scoreText(selector);
+        if (candidateScore > bestScore) {
+          bestScore = candidateScore;
+          bestSelector = selector || undefined;
+        }
+      }
+    }
+
+    if (!bestSelector && Array.isArray(model.relationships)) {
+      const relationships = model.relationships as Array<{ type?: string; sourceId?: string; targetId?: string }>;
+      const relatedField = relationships.find(
+        (r) => r.type === 'labelled_by' && aliases.some((a) => (r.sourceId || '').toLowerCase().includes(a))
+      );
+      if (relatedField?.targetId) {
+        bestSelector = `#${relatedField.targetId}`;
+      }
+    }
+
+    return bestSelector ? { fieldKey, selector: bestSelector } : { fieldKey };
   }
 }

@@ -700,7 +700,7 @@ Workflow:
 - [x] Add scan-detail/report surfacing for `raawi-agent/plan.json` and `raawi-agent/execution.json` (scan-detail API now includes `raawiExecution.pages` + summary and page-level `raawiExecution` details)
 - [x] Add automated test for login vertical slice (plan + execute + artifact assertions)
 - [x] Expand execution coverage beyond login (search, navigate, fill-form)
-- [ ] Add robust field/action resolution heuristics from assistive map and semantic relationships
+- [x] Add robust field/action resolution heuristics from assistive map and semantic relationships (alias-based field matching, metadata-aware action scoring, and scanner Playwright locator fallback strengthening)
 
 ### Sprint 4 — Multimodal Input and API Redesign
 
