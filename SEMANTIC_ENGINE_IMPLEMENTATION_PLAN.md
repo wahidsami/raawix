@@ -704,9 +704,9 @@ Workflow:
 
 ### Sprint 4 — Multimodal Input and API Redesign
 
-- [ ] Redesign widget inputs for semantics
-  - [~] add keyboard and voice intent event mapping (semantic-mode voice intents now support action-label targeting: `activate/click/go to <action label>`; action navigation disambiguated to avoid generic `next` collisions; validation markers added via `RaawiE2E.getIntentLog()` + `[RaawiX Widget Intent]` console traces)
-  - [ ] support semantic cursor navigation
+- [x] Redesign widget inputs for semantics
+  - [x] add keyboard and voice intent event mapping (semantic-mode voice intents now support action-label targeting: `activate/click/go to <action label>`; action navigation disambiguated to avoid generic `next` collisions; validation markers added via `RaawiE2E.getIntentLog()` + `[RaawiX Widget Intent]` console traces)
+  - [x] support semantic cursor navigation (keyboard shortcuts + voice commands for next/previous/read/activate/start/end semantic blocks)
   - Acceptance Criteria:
     - widget can navigate semantic blocks with keyboard
     - voice command can trigger a semantic action

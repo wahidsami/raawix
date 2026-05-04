@@ -5757,6 +5757,40 @@ class AccessibilityWidget {
       return;
     }
 
+    // Semantic cursor voice navigation
+    if (this.semanticMode) {
+      if (normalized.includes('next block') || normalized.includes('next semantic block')) {
+        this.logVoiceIntent('voice.semantic_cursor.next', { normalized });
+        this.navigateSemanticCursorDown();
+        return;
+      }
+      if (normalized.includes('previous block') || normalized.includes('previous semantic block')) {
+        this.logVoiceIntent('voice.semantic_cursor.previous', { normalized });
+        this.navigateSemanticCursorUp();
+        return;
+      }
+      if (normalized.includes('read current block') || normalized.includes('read current semantic block')) {
+        this.logVoiceIntent('voice.semantic_cursor.read_current', { normalized });
+        this.readCurrentSemanticBlock();
+        return;
+      }
+      if (normalized.includes('activate current block') || normalized.includes('activate current semantic block')) {
+        this.logVoiceIntent('voice.semantic_cursor.activate_current', { normalized });
+        this.activateSemanticCursorAction();
+        return;
+      }
+      if (normalized.includes('semantic start') || normalized.includes('first semantic block')) {
+        this.logVoiceIntent('voice.semantic_cursor.start', { normalized });
+        this.goToSemanticStart();
+        return;
+      }
+      if (normalized.includes('semantic end') || normalized.includes('last semantic block')) {
+        this.logVoiceIntent('voice.semantic_cursor.end', { normalized });
+        this.goToSemanticEnd();
+        return;
+      }
+    }
+
     // Semantic-mode action intents by label, e.g.:
     // "activate login", "click submit", "go to checkout", "focus search"
     if (this.handleSemanticActionIntent(normalized)) {
