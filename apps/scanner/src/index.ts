@@ -41,6 +41,7 @@ import { dbScanToApiResponse } from './api/db-adapter.js';
 import { GeminiTranslator } from './api/gemini-translator.js';
 import { translationCache } from './api/translation-cache.js';
 import { scanEventEmitter } from './events/scan-events.js';
+import { appendWidgetFeedbackEvent } from './utils/widget-feedback-log.js';
 import { z } from 'zod';
 import type { ScanRun } from '@raawi-x/core';
 
@@ -763,6 +764,15 @@ const translateSchema = z.object({
   sourceLang: z.enum(['ar', 'en']).optional(),
 });
 
+const widgetFeedbackSchema = z.object({
+  url: z.string().url(),
+  event: z.string().min(1).max(120),
+  scanId: z.string().min(1).max(120).optional(),
+  locale: z.enum(['en', 'ar']).optional(),
+  severity: z.enum(['info', 'warn', 'error']).optional(),
+  payload: z.record(z.unknown()).optional(),
+});
+
 // POST /api/widget/translate
 // Body: { text: string, targetLang: "ar"|"en", sourceLang?: string }
 app.post('/api/widget/translate', translationLimiter, async (req, res) => {
@@ -812,6 +822,80 @@ app.post('/api/widget/translate', translationLimiter, async (req, res) => {
       error: 'Failed to translate text',
       message: error instanceof Error ? error.message : 'Unknown error'
     });
+  }
+});
+
+// POST /api/widget/feedback
+// Lightweight, unauthenticated widget telemetry for failure/correction signals.
+app.post('/api/widget/feedback', async (req, res) => {
+  try {
+    if (!config.feedback.enabled) {
+      res.status(202).json({ accepted: false, reason: 'feedback_disabled' });
+      return;
+    }
+
+    const parsed = widgetFeedbackSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid feedback payload', details: parsed.error.errors });
+      return;
+    }
+
+    await appendWidgetFeedbackEvent(config.outputDir, config.feedback.dir, {
+      at: new Date().toISOString(),
+      url: parsed.data.url,
+      event: parsed.data.event,
+      scanId: parsed.data.scanId,
+      locale: parsed.data.locale,
+      severity: parsed.data.severity || 'info',
+      payload: parsed.data.payload,
+      userAgent: req.get('user-agent') || undefined,
+      ip: req.ip || undefined,
+    });
+
+    res.status(202).json({ accepted: true });
+  } catch (error) {
+    console.error('[WIDGET-FEEDBACK] Failed to append feedback:', error);
+    res.status(500).json({ error: 'Failed to store feedback' });
+  }
+});
+
+// GET /api/widget/feedback?scanId=...&limit=100
+// Auth-protected retrieval for operations/debug.
+app.get('/api/widget/feedback', requireAuth, async (req, res) => {
+  try {
+    const limitRaw = Number(req.query.limit || 100);
+    const limit = Math.max(1, Math.min(Number.isFinite(limitRaw) ? limitRaw : 100, 1000));
+    const scanId = typeof req.query.scanId === 'string' ? req.query.scanId : '';
+
+    const feedbackFile = join(resolve(config.outputDir), config.feedback.dir, 'widget-feedback.jsonl');
+    if (!existsSync(feedbackFile)) {
+      res.json({ total: 0, items: [] });
+      return;
+    }
+
+    const raw = await readFile(feedbackFile, 'utf-8');
+    const rows = raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line) as Record<string, unknown>;
+        } catch {
+          return null;
+        }
+      })
+      .filter((row): row is Record<string, unknown> => row !== null);
+
+    const filtered = scanId
+      ? rows.filter((row) => String(row.scanId || '') === scanId)
+      : rows;
+
+    const items = filtered.slice(-limit).reverse();
+    res.json({ total: filtered.length, items });
+  } catch (error) {
+    console.error('[WIDGET-FEEDBACK] Failed to query feedback:', error);
+    res.status(500).json({ error: 'Failed to read feedback' });
   }
 });
 

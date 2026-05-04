@@ -6121,6 +6121,42 @@ class AccessibilityWidget {
     if (this.e2eMode) {
       this.e2eIntentLog.push(record);
     }
+
+    const highSignalEvents = new Set([
+      'voice.command.unrecognized',
+      'voice.semantic_action.no_match',
+      'widget.compat.issues.non_ok',
+      'widget.compat.issues.error',
+      'widget.compat.translate.non_ok',
+      'widget.compat.translate.error',
+    ]);
+    if (highSignalEvents.has(event)) {
+      this.sendFeedbackSignal(event, payload, event.includes('.error') || event.includes('.non_ok') ? 'error' : 'warn');
+    }
+  }
+
+  private async sendFeedbackSignal(
+    event: string,
+    payload?: Record<string, unknown>,
+    severity: 'info' | 'warn' | 'error' = 'warn'
+  ): Promise<void> {
+    if (!this.apiUrl) return;
+    try {
+      await fetch(`${this.apiUrl}/api/widget/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: window.location.href,
+          event,
+          scanId: this.scanId || undefined,
+          locale: this.context.locale,
+          severity,
+          payload,
+        }),
+      });
+    } catch {
+      // Keep silent to avoid user-facing disruption.
+    }
   }
 
   /**

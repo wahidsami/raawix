@@ -60,6 +60,10 @@ export const config = {
     // Can be disabled to reduce output size once semantic coverage is sufficient.
     writeA11ySnapshot: process.env.WRITE_A11Y_SNAPSHOT !== 'false',
   },
+  feedback: {
+    enabled: process.env.WIDGET_FEEDBACK_ENABLED !== 'false',
+    dir: process.env.WIDGET_FEEDBACK_DIR || '_feedback',
+  },
   raawi: {
     enabled: process.env.RAAWI_AGENT_ENABLED !== 'false', // Default enabled to preserve current deployments unless explicitly disabled
     execution: {

@@ -745,9 +745,9 @@ Workflow:
 
 ### Ongoing Phase — Learning and Metrics
 
-- [ ] Track failed actions and user corrections
-  - [ ] instrument widget and agent runtime with failure logs
-  - [ ] persist feedback signals
+- [x] Track failed actions and user corrections
+  - [x] instrument widget and agent runtime with failure logs (semantic intent/failure markers in widget + existing agent execution artifacts)
+  - [x] persist feedback signals (`POST /api/widget/feedback` stores JSONL events under `output/_feedback/widget-feedback.jsonl`)
   - Acceptance Criteria:
     - failures are logged and can be queried
   - Effort: 2 days
