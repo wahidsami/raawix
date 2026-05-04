@@ -324,6 +324,7 @@ class AccessibilityWidget {
   private lastSpokenValue: string = ''; // For double confirmation
   private e2eMode: boolean = false; // D: E2E test mode
   private e2eSpokenLog: string[] = []; // D: Log of spoken text in E2E mode
+  private e2eIntentLog: Array<{ ts: string; event: string; payload?: Record<string, unknown> }> = []; // D: Intent trace log
 
   constructor() {
     // Check feature flag - default false, enable via window.VOICE_ENABLED = true
@@ -5589,6 +5590,11 @@ class AccessibilityWidget {
   private processVoiceCommand(command: string): void {
     const normalized = command.toLowerCase().trim();
     console.log('[RaawiX Widget] Processing command:', normalized);
+    this.logVoiceIntent('voice.command.received', {
+      command,
+      normalized,
+      semanticMode: this.semanticMode,
+    });
 
     const t = this.getTranslations();
 
@@ -5878,6 +5884,7 @@ class AccessibilityWidget {
     }
 
     // Unknown command
+    this.logVoiceIntent('voice.command.unrecognized', { normalized });
     this.speak('Command not recognized. Say "list commands" for help.');
   }
 
@@ -5895,10 +5902,17 @@ class AccessibilityWidget {
 
       const idx = this.findBestActionIndexByPhrase(phrase);
       if (idx < 0) {
+        this.logVoiceIntent('voice.semantic_action.no_match', { phrase, mode: 'activate' });
         this.speak(`No semantic action matched "${phrase}".`);
         return true;
       }
 
+      this.logVoiceIntent('voice.semantic_action.match', {
+        phrase,
+        mode: 'activate',
+        actionIndex: idx,
+        actionLabel: this.availableActions[idx]?.label || '',
+      });
       this.currentActionIndex = idx;
       this.highlightCurrentAction();
       this.activateCurrentAction();
@@ -5912,10 +5926,17 @@ class AccessibilityWidget {
 
       const idx = this.findBestActionIndexByPhrase(phrase);
       if (idx < 0) {
+        this.logVoiceIntent('voice.semantic_action.no_match', { phrase, mode: 'focus' });
         this.speak(`No semantic action matched "${phrase}".`);
         return true;
       }
 
+      this.logVoiceIntent('voice.semantic_action.match', {
+        phrase,
+        mode: 'focus',
+        actionIndex: idx,
+        actionLabel: this.availableActions[idx]?.label || '',
+      });
       this.currentActionIndex = idx;
       this.highlightCurrentAction();
       this.readCurrentAction();
@@ -6029,7 +6050,21 @@ class AccessibilityWidget {
       clearSpokenLog: (): void => {
         this.e2eSpokenLog = [];
       },
+      getIntentLog: (): Array<{ ts: string; event: string; payload?: Record<string, unknown> }> => {
+        return [...this.e2eIntentLog];
+      },
+      clearIntentLog: (): void => {
+        this.e2eIntentLog = [];
+      },
     };
+  }
+
+  private logVoiceIntent(event: string, payload?: Record<string, unknown>): void {
+    const record = { ts: new Date().toISOString(), event, payload };
+    console.log('[RaawiX Widget Intent]', record);
+    if (this.e2eMode) {
+      this.e2eIntentLog.push(record);
+    }
   }
 
   /**
