@@ -22,6 +22,7 @@ RUN --mount=type=cache,id=pnpm-raawix-scanner,target=/pnpm-store \
     pnpm config set store-dir /pnpm-store \
     && pnpm install --frozen-lockfile
 RUN pnpm --filter @raawi-x/scanner db:generate
+RUN pnpm --filter @raawi-x/semantic-engine build
 RUN pnpm --filter @raawi-x/agent-runtime type-check
 RUN pnpm --filter @raawi-x/agent-runtime build
 RUN pnpm --filter @raawi-x/scanner... build
