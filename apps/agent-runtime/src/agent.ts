@@ -1,8 +1,8 @@
 import type { SemanticPageModel } from '@raawi-x/semantic-engine';
-import type { AgentExecutionOptions, ExecutionResult, ExecutionPlan } from './types';
-import { IntentParser } from './intents';
-import { ActionPlanner } from './planner';
-import { ActionExecutor } from './executor';
+import type { AgentExecutionOptions, ExecutionResult, ExecutionPlan } from './types.js';
+import { IntentParser } from './intents.js';
+import { ActionPlanner } from './planner.js';
+import { ActionExecutor } from './executor.js';
 
 /**
  * Raawi X Agent

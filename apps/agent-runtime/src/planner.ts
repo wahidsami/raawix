@@ -1,5 +1,5 @@
 import type { SemanticPageModel, SemanticAction, SemanticBlock } from '@raawi-x/semantic-engine';
-import type { ExecutionPlan, PlannedAction, Intent, AgentGoal } from './types';
+import type { ExecutionPlan, PlannedAction, Intent, AgentGoal } from './types.js';
 
 /**
  * Action Planner

@@ -1,4 +1,4 @@
-import type { ExecutionPlan, PlannedAction, ExecutionResult, ActionBindings } from './types';
+import type { ExecutionPlan, PlannedAction, ExecutionResult, ActionBindings } from './types.js';
 
 class BrowserActionBindings implements ActionBindings {
   private ensureDom(): void {

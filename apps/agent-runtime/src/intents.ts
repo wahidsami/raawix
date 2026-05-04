@@ -1,4 +1,4 @@
-import type { Intent, AgentGoal, AgentTask } from './types';
+import type { Intent, AgentGoal, AgentTask } from './types.js';
 
 /**
  * Intent Parser

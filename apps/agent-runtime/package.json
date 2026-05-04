@@ -2,6 +2,7 @@
   "name": "@raawi-x/agent-runtime",
   "version": "0.1.0",
   "description": "Raawi X Agent Execution Engine - Goal-based task planning and execution",
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
