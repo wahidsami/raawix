@@ -717,7 +717,7 @@ Workflow:
   - [x] return `SemanticPageModel` and metadata (`semantic`, `actions`, `confidence`, `sourceMix`)
   - Acceptance Criteria:
     - [x] endpoint returns valid semantic response for URL
-    - [ ] widget semantic mode uses this endpoint
+    - [x] widget semantic mode uses this endpoint (with legacy fallback to `/api/widget/semantic`)
   - Effort: 2 days
 
 - [ ] Keep `/issues` and `/translate`

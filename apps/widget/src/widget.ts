@@ -4035,19 +4035,27 @@ class AccessibilityWidget {
         this.cachedSemanticModel = this.cachedPagePackage?.semanticModel || null;
         console.log('[RaawiX Widget] Page package fetched from API');
 
-        // Try explicit semantic endpoint when semantic mode is enabled and the package does not include a model.
-        if (this.semanticMode && !this.cachedSemanticModel) {
-          try {
-            const semanticUrl = `${this.apiUrl}/api/widget/semantic?url=${encodeURIComponent(window.location.href)}&scanId=${encodeURIComponent(this.scanId)}`;
-            const semanticResponse = await fetch(semanticUrl);
-            if (semanticResponse.ok) {
-              this.cachedSemanticModel = await semanticResponse.json();
-              console.log('[RaawiX Widget] Fetched semantic model via semantic endpoint');
+          // Try semantic-first endpoint when semantic mode is enabled and the package does not include a model.
+          if (this.semanticMode && !this.cachedSemanticModel) {
+            try {
+              const semanticUrl = `${this.apiUrl}/api/semantic-page?url=${encodeURIComponent(window.location.href)}&scanId=${encodeURIComponent(this.scanId)}`;
+              const semanticResponse = await fetch(semanticUrl);
+              if (semanticResponse.ok) {
+                const semanticPayload = await semanticResponse.json();
+                this.cachedSemanticModel = this.extractSemanticModel(semanticPayload);
+                console.log('[RaawiX Widget] Fetched semantic model via /api/semantic-page');
+              } else {
+                const legacySemanticUrl = `${this.apiUrl}/api/widget/semantic?url=${encodeURIComponent(window.location.href)}&scanId=${encodeURIComponent(this.scanId)}`;
+                const legacyResponse = await fetch(legacySemanticUrl);
+                if (legacyResponse.ok) {
+                  this.cachedSemanticModel = await legacyResponse.json();
+                  console.log('[RaawiX Widget] Fetched semantic model via legacy /api/widget/semantic');
+                }
+              }
+            } catch (semanticError) {
+              console.warn('[RaawiX Widget] Failed to fetch semantic model from semantic endpoint', semanticError);
             }
-          } catch (semanticError) {
-            console.warn('[RaawiX Widget] Failed to fetch semantic model from semantic endpoint', semanticError);
           }
-        }
 
         // Extract guidance and issues from package for backward compatibility
         if (this.cachedPagePackage?.guidance) {
@@ -5507,15 +5515,34 @@ class AccessibilityWidget {
     }
 
     try {
-      const semanticUrl = `${this.apiUrl}/api/widget/semantic?url=${encodeURIComponent(window.location.href)}&scanId=${encodeURIComponent(this.scanId)}`;
+      const semanticUrl = `${this.apiUrl}/api/semantic-page?url=${encodeURIComponent(window.location.href)}&scanId=${encodeURIComponent(this.scanId)}`;
       const response = await fetch(semanticUrl);
       if (response.ok) {
-        this.cachedSemanticModel = await response.json();
-        console.log('[RaawiX Widget] Loaded semantic model on demand');
+        const semanticPayload = await response.json();
+        this.cachedSemanticModel = this.extractSemanticModel(semanticPayload);
+        console.log('[RaawiX Widget] Loaded semantic model on demand from /api/semantic-page');
+        return;
+      }
+
+      // Backward-compatible fallback.
+      const legacySemanticUrl = `${this.apiUrl}/api/widget/semantic?url=${encodeURIComponent(window.location.href)}&scanId=${encodeURIComponent(this.scanId)}`;
+      const legacyResponse = await fetch(legacySemanticUrl);
+      if (legacyResponse.ok) {
+        this.cachedSemanticModel = await legacyResponse.json();
+        console.log('[RaawiX Widget] Loaded semantic model on demand from legacy /api/widget/semantic');
       }
     } catch (e) {
       console.warn('[RaawiX Widget] Failed to load semantic model on demand:', e);
     }
+  }
+
+  private extractSemanticModel(payload: unknown): Record<string, unknown> | null {
+    if (!payload || typeof payload !== 'object') return null;
+    const p = payload as Record<string, unknown>;
+    if (p.semantic && typeof p.semantic === 'object') {
+      return p.semantic as Record<string, unknown>;
+    }
+    return p;
   }
 
   /**
