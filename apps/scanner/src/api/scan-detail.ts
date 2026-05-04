@@ -38,6 +38,7 @@ import {
   loadManualCheckpointHistory,
 } from '../utils/manual-checkpoint-history.js';
 import { loadAuthScanContext } from '../utils/auth-scan-context.js';
+import { loadRaawiExecutionPageSummaries } from '../utils/raawi-execution-summary.js';
 
 const router: Router = Router();
 
@@ -383,6 +384,48 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
       authContext = null;
     }
 
+    const raawiExecutionTrace = await loadRaawiExecutionPageSummaries({
+      outputDir: config.outputDir,
+      scanId,
+      pages: scan.pages.map((page: any) => ({
+        pageNumber: page.pageNumber,
+        pageUrl: page.url,
+      })),
+    });
+
+    const raawiExecutionTraceByPage = new Map(
+      raawiExecutionTrace.map((summary) => [summary.pageNumber, summary])
+    );
+
+    for (const page of pagesDetail as any[]) {
+      const execution = raawiExecutionTraceByPage.get(page.pageNumber);
+      if (execution) {
+        page.raawiExecution = execution;
+      }
+    }
+
+    const raawiExecutionSummary = raawiExecutionTrace.reduce(
+      (acc, row) => {
+        acc.pagesWithPlan += row.hasPlan ? 1 : 0;
+        acc.pagesWithExecution += row.hasExecution ? 1 : 0;
+        acc.successPages += row.success === true ? 1 : 0;
+        acc.failedPages += row.success === false ? 1 : 0;
+        acc.dryRunPages += row.dryRun ? 1 : 0;
+        acc.totalSteps += row.totalSteps;
+        acc.completedSteps += row.completedSteps;
+        return acc;
+      },
+      {
+        pagesWithPlan: 0,
+        pagesWithExecution: 0,
+        successPages: 0,
+        failedPages: 0,
+        dryRunPages: 0,
+        totalSteps: 0,
+        completedSteps: 0,
+      }
+    );
+
     // Build response
     const response = {
       scanId: scan.scanId,
@@ -408,6 +451,10 @@ router.get('/:scanId/detail', requireAuth, async (req: Request, res: Response) =
         pagesWithArtifact: pagesWithAgentArtifact,
         trace: analysisAgentTraceSummaries,
         summary: analysisAgentTraceSummary,
+      },
+      raawiExecution: {
+        pages: raawiExecutionTrace,
+        summary: raawiExecutionSummary,
       },
       auditorFindings: {
         count: allAuditorFindings.length,

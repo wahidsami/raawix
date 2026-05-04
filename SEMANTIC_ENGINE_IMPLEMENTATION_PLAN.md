@@ -23,9 +23,12 @@ Key risks to manage:
 - complexity of fusing vision, DOM, assistive map, and AI hints
 
 ## Current implementation status
+Last updated: 2026-05-04
+
 - Phase 0: mostly complete. `packages/semantic-engine` was added, shared schema defined, package exports wired, and workspace references resolved.
-- Phase 1: initial implementation is in place. Basic `buildSemanticModel()` exists, scanner writes `semantic.json`, `semanticPath` is persisted, and widget API integration with `/api/widget/semantic` plus page-package enrichment is implemented.
-- Phase 2: **complete**. Full semantic runtime support implemented including: semantic reading queues, semantic action collection and execution, widget mode selection (assist/semantic) with storage, virtual cursor navigation with Alt+arrow shortcuts, and safe DOM action execution. Widget can now operate in dual-mode with keyboard-driven semantic block navigation.
+- Phase 1: complete for current sprint scope. Semantic output is generated and persisted end-to-end; `semanticPath` DB backfill and create-path persistence were completed; initial `fusion/` + `confidence.ts` scaffolding added.
+- Phase 2: complete for current sprint scope. Dual widget mode, semantic runtime, virtual cursor, and action execution layer are live. Cursor activation was aligned to use semantic action execution path first.
+- Phase 3: in progress. `apps/agent-runtime` is created and integrated. Pluggable execution bindings and scanner-side Playwright bindings are implemented, with initial login vertical-slice plan/execution artifacts written under `raawi-agent/`.
 
 ## New Core Contract
 
@@ -168,7 +171,7 @@ Status: [x] implemented basic semantic builder skeleton with page structure and 
 
 Implement fusion logic in `packages/semantic-engine/fusion/`.
 
-Status: [ ] pending implementation.
+Status: [~] baseline scaffolding implemented in `packages/semantic-engine/src/fusion/index.ts`; advanced reconciliation rules remain pending.
 
 Priority order:
 1. Assistive Map — intent and action source
@@ -186,7 +189,7 @@ Essential behavior:
 
 Implement `packages/semantic-engine/confidence.ts`.
 
-Status: [ ] pending implementation.
+Status: [~] baseline `sourceMix` + confidence mapping implemented in `packages/semantic-engine/src/confidence.ts`; per-block/action weighted scoring remains pending.
 
 For each block and action:
 - assign `confidence` from weighted mix of DOM, vision, ai/assistive map
@@ -296,6 +299,8 @@ Key files:
 - `intents.ts`
 - `types.ts`
 
+Status: [x] package created and deployed in branch, with core files implemented.
+
 ### Task 2: Core API
 
 Define an API similar to:
@@ -307,6 +312,8 @@ agent.execute({
 });
 ```
 
+Status: [x] implemented via `RaawiAgent.execute()` / `getPlan()`.
+
 ### Task 3: Intent parsing
 
 Implement `intents.ts` to map natural goals into action plans:
@@ -315,6 +322,8 @@ Implement `intents.ts` to map natural goals into action plans:
 - `search`
 - `navigate to contact`
 - `fill form`
+
+Status: [x] implemented in `apps/agent-runtime/src/intents.ts`.
 
 ### Task 4: Action planning
 
@@ -332,6 +341,8 @@ Example plan:
 ]
 ```
 
+Status: [x] implemented baseline planner in `apps/agent-runtime/src/planner.ts`.
+
 ### Task 5: Execution engine
 
 Implement a runtime that can execute the plan with page bindings.
@@ -343,6 +354,8 @@ Options:
 Since the user specifically wants a moat, build both:
 - widget agent runtime for assistive actions in the browser
 - scanner agent runtime for execution during scan or replay
+
+Status: [~] execution engine implemented with pluggable bindings; browser bindings and scanner Playwright bindings are added. Remaining: broaden goals beyond login slice, add stronger trace/report integration and tests.
 
 ## Phase 4 — Multimodal Interaction Layer
 
@@ -593,37 +606,37 @@ Workflow:
 
 | Sprint | Task | Status |
 |---|---|---|
-| 1 | Semantic Core & Scanner Integration | ⬜️ Pending |
-| 2 | Widget Semantic Runtime & Dual Mode | ⬜️ Pending |
-| 3 | Agent Runtime and Intent Planning | ⬜️ Pending |
+| 1 | Semantic Core & Scanner Integration | ✅ Complete |
+| 2 | Widget Semantic Runtime & Dual Mode | ✅ Complete |
+| 3 | Agent Runtime and Intent Planning | 🟨 In Progress |
 | 4 | Multimodal Input and API Redesign | ⬜️ Pending |
 | 5 | Cleanup and Evaluation | ⬜️ Pending |
 | Ongoing | Learning and Metrics | ⬜️ Pending |
 
 ### Sprint 1 — Semantic Core & Scanner Integration
 
-- [ ] Create `packages/semantic-engine/`
-  - [ ] add package folder and package manifest if needed
-  - [ ] define `SemanticPageModel` and block/action/relationship schemas
-  - [ ] export shared types for scanner, widget, agent
+- [x] Create `packages/semantic-engine/`
+  - [x] add package folder and package manifest if needed
+  - [x] define `SemanticPageModel` and block/action/relationship schemas
+  - [x] export shared types for scanner, widget, agent
   - Acceptance Criteria:
     - package compiles and type-checks
     - `SemanticPageModel` types are imported successfully from `apps/scanner`
   - Effort: 2 days
 
-- [ ] Implement `buildSemanticModel()` skeleton
-  - [ ] add `packages/semantic-engine/builder.ts`
-  - [ ] define input shape and output `SemanticPageModel`
-  - [ ] wire basic normalization of DOM, vision, assistive map, a11y
+- [x] Implement `buildSemanticModel()` skeleton
+  - [x] add `packages/semantic-engine/builder.ts`
+  - [x] define input shape and output `SemanticPageModel`
+  - [x] wire basic normalization of DOM, vision, assistive map, a11y
   - Acceptance Criteria:
     - `buildSemanticModel()` returns valid `SemanticPageModel` for sample page input
     - tests cover basic block creation
   - Effort: 3 days
 
-- [ ] Add `semantic.json` write path in scanner
-  - [ ] integrate builder into capture flow after assistive map generation
-  - [ ] write `semantic.json` into `output/<scanId>/pages/<pageNumber>/`
-  - [ ] persist `semanticPath` on `Page` and in `page.json`
+- [x] Add `semantic.json` write path in scanner
+  - [x] integrate builder into capture flow after assistive map generation
+  - [x] write `semantic.json` into `output/<scanId>/pages/<pageNumber>/`
+  - [x] persist `semanticPath` on `Page` and in `page.json`
   - Acceptance Criteria:
     - completed scan output contains `semantic.json`
     - `Page` records and `page.json` include `semanticPath`
@@ -631,56 +644,63 @@ Workflow:
 
 ### Sprint 2 — Widget Semantic Runtime and Dual Mode
 
-- [ ] Create widget semantic runtime skeleton
-  - [ ] add `apps/widget/src/semantic-runtime.ts`
-  - [ ] implement semantic model loader from API
-  - [ ] render simple semantic block list in widget UI
+- [x] Create widget semantic runtime skeleton
+  - [x] add `apps/widget/src/semantic-runtime.ts`
+  - [x] implement semantic model loader from API
+  - [x] render simple semantic block list in widget UI
   - Acceptance Criteria:
     - widget can fetch and display semantic blocks from `/api/semantic-page`
     - no DOM-driven semantic mode changes yet
   - Effort: 3 days
 
-- [ ] Add dual widget mode support
-  - [ ] add mode selection to widget settings
-  - [ ] preserve `assist` as default
-  - [ ] add `semantic` experimental mode behind flag
+- [x] Add dual widget mode support
+  - [x] add mode selection to widget settings
+  - [x] preserve `assist` as default
+  - [x] add `semantic` experimental mode behind flag
   - Acceptance Criteria:
     - widget can switch between `assist` and `semantic`
     - semantic mode activates without breaking existing behavior
   - Effort: 1 day
 
-- [ ] Implement action execution layer stub
-  - [ ] create `apps/widget/src/action-execution.ts`
-  - [ ] map simple action IDs to DOM selectors
-  - [ ] execute click/fill for a prototype action
+- [x] Implement action execution layer stub
+  - [x] create `apps/widget/src/action-execution.ts`
+  - [x] map simple action IDs to DOM selectors
+  - [x] execute click/fill for a prototype action
   - Acceptance Criteria:
     - widget can execute a sample semantic action on a live page
   - Effort: 2 days
 
 ### Sprint 3 — Agent Runtime and Intent Planning
 
-- [ ] Create `apps/agent-runtime/`
-  - [ ] scaffold package and core API
-  - [ ] define `agent.execute({goal, model})`
+- [x] Create `apps/agent-runtime/`
+  - [x] scaffold package and core API
+  - [x] define `agent.execute({goal, model})`
   - Acceptance Criteria:
     - package builds
     - agent can receive a semantic model and return a plan
   - Effort: 2 days
 
-- [ ] Implement intent parsing and planning
-  - [ ] add intent definitions for login, search, checkout
-  - [ ] build planner mapping goals to plan steps
+- [x] Implement intent parsing and planning
+  - [x] add intent definitions for login, search, checkout
+  - [x] build planner mapping goals to plan steps
   - Acceptance Criteria:
     - goal `login` returns a sequence of semantic actions
     - planner is test-covered
   - Effort: 3 days
 
-- [ ] Build execution engine adapter
-  - [ ] implement plan executor using DOM bindings or Playwright-style calls
-  - [ ] connect executor to widget action layer and scanner runtime
+- [~] Build execution engine adapter
+  - [x] implement plan executor using DOM bindings or Playwright-style calls
+  - [~] connect executor to widget action layer and scanner runtime
   - Acceptance Criteria:
     - agent can execute a login plan against a test page
   - Effort: 4 days
+
+### Immediate Next (Phase 3)
+
+- [x] Add scan-detail/report surfacing for `raawi-agent/plan.json` and `raawi-agent/execution.json` (scan-detail API now includes `raawiExecution.pages` + summary and page-level `raawiExecution` details)
+- [ ] Add automated test for login vertical slice (plan + execute + artifact assertions)
+- [ ] Expand execution coverage beyond login (search, navigate, fill-form)
+- [ ] Add robust field/action resolution heuristics from assistive map and semantic relationships
 
 ### Sprint 4 — Multimodal Input and API Redesign
 
