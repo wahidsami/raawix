@@ -139,8 +139,8 @@ Create `packages/semantic-engine/`:
 1. [x] Add `packages/semantic-engine/` package to the workspace.
 2. [x] Define the `SemanticPageModel` schema and all related block/action/relationship types.
 3. [x] Add package exports and type re-exports for `apps/scanner`, `apps/widget`, and `apps/agent-runtime`.
-4. [ ] Add package build/checkout hooks to root `package.json` if needed.
-5. [ ] Add a small smoke test or type-check script for `packages/semantic-engine`.
+4. [x] Add package build/checkout hooks to root `package.json` if needed.
+5. [x] Add a small smoke test or type-check script for `packages/semantic-engine`.
 
 ## Phase 1 — Build the Semantic Engine
 

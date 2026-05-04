@@ -14,6 +14,8 @@
     "lint:full": "pnpm -r lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "type-check": "pnpm -r type-check",
+    "semantic-engine:type-check": "pnpm --filter @raawi-x/semantic-engine type-check",
+    "semantic-engine:smoke": "pnpm --filter @raawi-x/semantic-engine build && pnpm --filter @raawi-x/semantic-engine smoke",
     "infra:up": "docker compose -f infra/docker-compose.yml up -d",
     "infra:down": "docker compose -f infra/docker-compose.yml down",
     "infra:reset": "docker compose -f infra/docker-compose.yml down -v && docker compose -f infra/docker-compose.yml up -d",
