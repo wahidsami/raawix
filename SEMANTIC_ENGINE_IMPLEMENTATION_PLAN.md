@@ -705,7 +705,7 @@ Workflow:
 ### Sprint 4 — Multimodal Input and API Redesign
 
 - [ ] Redesign widget inputs for semantics
-  - [ ] add keyboard and voice intent event mapping
+  - [~] add keyboard and voice intent event mapping (semantic-mode voice intents now support action-label targeting: `activate/click/go to <action label>`; action navigation disambiguated to avoid generic `next` collisions)
   - [ ] support semantic cursor navigation
   - Acceptance Criteria:
     - widget can navigate semantic blocks with keyboard

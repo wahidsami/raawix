@@ -5751,6 +5751,12 @@ class AccessibilityWidget {
       return;
     }
 
+    // Semantic-mode action intents by label, e.g.:
+    // "activate login", "click submit", "go to checkout", "focus search"
+    if (this.handleSemanticActionIntent(normalized)) {
+      return;
+    }
+
     if (normalized.includes('read issues') || normalized.includes('list issues')) {
       this.readIssues();
       return;
@@ -5850,12 +5856,12 @@ class AccessibilityWidget {
     }
 
     // Action navigation
-    if (normalized.includes('next action') || normalized.includes('next')) {
+    if (normalized.includes('next action') || normalized.includes('next semantic action')) {
       this.navigateToNextAction();
       return;
     }
 
-    if (normalized.includes('previous action') || normalized.includes('previous') || normalized.includes('back')) {
+    if (normalized.includes('previous action') || normalized.includes('previous semantic action')) {
       this.navigateToPreviousAction();
       return;
     }
@@ -5873,6 +5879,88 @@ class AccessibilityWidget {
 
     // Unknown command
     this.speak('Command not recognized. Say "list commands" for help.');
+  }
+
+  private handleSemanticActionIntent(normalized: string): boolean {
+    if (!this.semanticMode) return false;
+    if (!this.cachedSemanticModel) return false;
+
+    const activatePrefixes = ['activate ', 'click ', 'select ', 'run action '];
+    const focusPrefixes = ['go to ', 'focus ', 'highlight '];
+
+    for (const prefix of activatePrefixes) {
+      if (!normalized.startsWith(prefix)) continue;
+      const phrase = normalized.slice(prefix.length).trim();
+      if (!phrase || phrase === 'action') return false;
+
+      const idx = this.findBestActionIndexByPhrase(phrase);
+      if (idx < 0) {
+        this.speak(`No semantic action matched "${phrase}".`);
+        return true;
+      }
+
+      this.currentActionIndex = idx;
+      this.highlightCurrentAction();
+      this.activateCurrentAction();
+      return true;
+    }
+
+    for (const prefix of focusPrefixes) {
+      if (!normalized.startsWith(prefix)) continue;
+      const phrase = normalized.slice(prefix.length).trim();
+      if (!phrase || phrase === 'action' || phrase === 'section') return false;
+
+      const idx = this.findBestActionIndexByPhrase(phrase);
+      if (idx < 0) {
+        this.speak(`No semantic action matched "${phrase}".`);
+        return true;
+      }
+
+      this.currentActionIndex = idx;
+      this.highlightCurrentAction();
+      this.readCurrentAction();
+      return true;
+    }
+
+    return false;
+  }
+
+  private findBestActionIndexByPhrase(phrase: string): number {
+    this.collectActions();
+    if (this.availableActions.length === 0) return -1;
+
+    const q = phrase.toLowerCase().trim();
+    if (!q) return -1;
+
+    const scoreLabel = (label: string): number => {
+      const l = label.toLowerCase();
+      if (l === q) return 100;
+      if (l.startsWith(q)) return 80;
+      if (l.includes(q)) return 60;
+
+      const qTokens = q.split(/\s+/).filter(Boolean);
+      const lTokens = l.split(/\s+/).filter(Boolean);
+      let tokenScore = 0;
+      for (const t of qTokens) {
+        if (lTokens.includes(t)) tokenScore += 12;
+        else if (l.includes(t)) tokenScore += 6;
+      }
+      return tokenScore;
+    };
+
+    let bestIdx = -1;
+    let bestScore = 0;
+    this.availableActions.forEach((action, idx) => {
+      const labelScore = scoreLabel(action.label || '');
+      const descScore = action.description ? Math.floor(scoreLabel(action.description) / 3) : 0;
+      const score = labelScore + descScore;
+      if (score > bestScore) {
+        bestScore = score;
+        bestIdx = idx;
+      }
+    });
+
+    return bestScore >= 20 ? bestIdx : -1;
   }
 
   /**
