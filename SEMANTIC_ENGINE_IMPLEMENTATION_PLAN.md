@@ -720,9 +720,9 @@ Workflow:
     - [x] widget semantic mode uses this endpoint (with legacy fallback to `/api/widget/semantic`)
   - Effort: 2 days
 
-- [ ] Keep `/issues` and `/translate`
-  - [ ] ensure compatibility with existing widget flows
-  - [ ] document endpoint behavior for semantic mode
+- [x] Keep `/issues` and `/translate`
+  - [x] ensure compatibility with existing widget flows
+  - [x] document endpoint behavior for semantic mode (`/api/widget/issues` remains active with locale param; `/api/widget/translate` remains optional with graceful fallback to source text on 501/error; semantic-mode compatibility markers logged)
   - Acceptance Criteria:
     - widget still fetches issues and translation successfully
   - Effort: 1 day

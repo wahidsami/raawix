@@ -4331,14 +4331,24 @@ class AccessibilityWidget {
     if (this.cachedIssues) return this.cachedIssues;
 
     try {
-      const url = `${this.apiUrl}/api/widget/issues?url=${encodeURIComponent(window.location.href)}&scanId=${this.scanId || 'latest'}`;
+      const lang = this.context.locale === 'ar' ? 'ar' : 'en';
+      const url = `${this.apiUrl}/api/widget/issues?url=${encodeURIComponent(window.location.href)}&scanId=${encodeURIComponent(this.scanId || 'latest')}&lang=${lang}`;
       const response = await fetch(url);
       if (response.ok) {
         this.cachedIssues = await response.json();
+        if (this.semanticMode) {
+          this.logVoiceIntent('widget.compat.issues.ok', { endpoint: '/api/widget/issues', lang });
+        }
         return this.cachedIssues;
+      }
+      if (this.semanticMode) {
+        this.logVoiceIntent('widget.compat.issues.non_ok', { endpoint: '/api/widget/issues', status: response.status, lang });
       }
     } catch (error) {
       console.warn('[RaawiX Widget] Failed to fetch issues:', error);
+      if (this.semanticMode) {
+        this.logVoiceIntent('widget.compat.issues.error', { endpoint: '/api/widget/issues' });
+      }
     }
     return null;
   }
@@ -4843,15 +4853,27 @@ class AccessibilityWidget {
       if (!response.ok) {
         if (response.status === 501) {
           // Translation disabled - fallback to original
+          if (this.semanticMode) {
+            this.logVoiceIntent('widget.compat.translate.disabled', { endpoint: '/api/widget/translate', status: 501 });
+          }
           return text;
+        }
+        if (this.semanticMode) {
+          this.logVoiceIntent('widget.compat.translate.non_ok', { endpoint: '/api/widget/translate', status: response.status });
         }
         throw new Error(`Translation failed: ${response.status}`);
       }
 
       const data = await response.json();
+      if (this.semanticMode) {
+        this.logVoiceIntent('widget.compat.translate.ok', { endpoint: '/api/widget/translate', targetLang });
+      }
       return data.translatedText || text;
     } catch (error) {
       console.warn('[RaawiX Widget] Translation failed, using original text:', error);
+      if (this.semanticMode) {
+        this.logVoiceIntent('widget.compat.translate.error', { endpoint: '/api/widget/translate', targetLang });
+      }
       return text; // Fallback to original on error
     }
   }
