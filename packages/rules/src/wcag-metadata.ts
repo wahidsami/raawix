@@ -142,4 +142,3 @@ export function getRuleMeta(wcagId: string | null | undefined, ruleId?: string):
     category: isHeuristic || isReview ? 'Heuristic' : 'Unknown',
   };
 }
-

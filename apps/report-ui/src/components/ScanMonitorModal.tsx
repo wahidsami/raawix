@@ -181,6 +181,23 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
   // Phase management: 'discovery' | 'selection' | 'scanning'
   const [phase, setPhase] = useState<'discovery' | 'selection' | 'scanning'>('discovery');
   const [isScanning, setIsScanning] = useState(false); // Changed default to false
+  const [liveStatus, setLiveStatus] = useState<string>('Scan initialized');
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && onClose) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (phase === 'discovery') setLiveStatus(t('scanMonitor.discovering') || 'Discovering Pages...');
+    if (phase === 'selection') setLiveStatus(t('scanMonitor.selectPages') || 'Select Pages to Scan');
+    if (phase === 'scanning') setLiveStatus(isScanning ? (t('scanMonitor.title') || 'Scanning in progress') : 'Scan finished');
+  }, [phase, isScanning, t]);
   const [tree, setTree] = useState<Map<string, TreeNode>>(() => new globalThis.Map<string, TreeNode>());
 
   // Use refs to ensure event handlers always have latest state values (fix stale closures)
@@ -2438,16 +2455,22 @@ export default function ScanMonitorModal({ scanId, seedUrl, scanMode = 'domain',
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm">
+      <div className="sr-only" aria-live="polite" role="status">
+        {liveStatus}
+      </div>
       <div
         className={`bg-card text-card-foreground rounded-lg border border-border shadow-md w-[95vw] max-w-[1200px] h-[90vh] flex flex-col ${isRTL ? 'text-right' : 'text-left'
           }`}
         dir={isRTL ? 'rtl' : 'ltr'}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="scan-monitor-title"
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-3">
             {(isScanning || phase === 'discovery') && <Loader2 className="w-5 h-5 text-primary animate-spin" />}
-            <h2 className="text-xl font-semibold text-foreground">
+            <h2 id="scan-monitor-title" className="text-xl font-semibold text-foreground">
               {phase === 'discovery' && (t('scanMonitor.discovering') || 'Discovering Pages...')}
               {phase === 'selection' && (t('scanMonitor.selectPages') || 'Select Pages to Scan')}
               {phase === 'scanning' && (t('scanMonitor.title') || 'Scanning in progress')}

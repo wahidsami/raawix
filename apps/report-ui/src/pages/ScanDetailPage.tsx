@@ -23,6 +23,9 @@ import {
 import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
 import { useClientPagination } from '../hooks/useClientPagination';
 import TablePagination from '../components/TablePagination';
+import ErrorBoundary from '../components/ErrorBoundary';
+
+import { getWCAGRuleTitle } from '@raawi-x/rules';
 
 // Component for loading and displaying vision finding images with auth
 function VisionFindingImage({
@@ -422,6 +425,7 @@ export default function ScanDetailPage() {
   };
   const [scanDetail, setScanDetail] = useState<ScanDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPage, setSelectedPage] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -532,8 +536,10 @@ export default function ScanDetailPage() {
       wcagId: finding.wcagId || 'Unknown',
       level: finding.level || 'N/A',
       status: finding.status,
-      confidence: finding.confidence,
-      message: finding.message || '—',
+      message: finding.message,
+      evidence: finding.evidence,
+      screenshotPath: finding.screenshotPath,
+      rule: (finding as any).rule,
     }))
   );
 
@@ -729,109 +735,72 @@ export default function ScanDetailPage() {
         <div className="flex gap-2">
           <DropdownMenu
             trigger={
-              <div
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 cursor-pointer"
-                role="button"
-                tabIndex={0}
+              <button
+                className={`flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md ${isExporting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-primary/90 cursor-pointer'}`}
+                disabled={isExporting}
               >
-                <Download className="w-4 h-4" />
+                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 {t('common.actions') || 'Export'}
                 <ChevronDown className="w-4 h-4" />
-              </div>
+              </button>
             }
             align="right"
           >
             <DropdownMenuItem
+              disabled={isExporting}
               onClick={async () => {
-                if (!scanId) return;
+                if (!scanId || isExporting) return;
                 try {
-                  const blob = await apiClient.exportPDF(scanId, 'en');
+                  setIsExporting(true);
+                  const locale = i18n.language === 'ar' ? 'ar' : 'en';
+                  const blob = await apiClient.exportPDF(scanId, locale);
                   const url = window.URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = `raawi - x - report - ${scanId} -en.pdf`;
+                  a.download = `raawi - x - report - ${scanId} -${locale}.pdf`;
                   document.body.appendChild(a);
                   a.click();
                   document.body.removeChild(a);
                   window.URL.revokeObjectURL(url);
                 } catch (err) {
                   setError(err instanceof Error ? err.message : 'Failed to export PDF');
+                } finally {
+                  setIsExporting(false);
                 }
               }}
             >
               <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4" />
-                <span>{t('common.exportPDFEnglish') || 'Export PDF (English)'}</span>
-              </div>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={async () => {
-                if (!scanId) return;
-                try {
-                  const blob = await apiClient.exportPDF(scanId, 'ar');
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `raawi - x - report - ${scanId} -ar.pdf`;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  window.URL.revokeObjectURL(url);
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : 'Failed to export PDF');
-                }
-              }}
-            >
-              <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4" />
-                <span>{t('common.exportPDFArabic') || 'Export PDF (Arabic)'}</span>
+                <FileText className="w-4 h-4" />
+                <span>{t('common.exportPDF') || 'Download PDF Report'}</span>
               </div>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
+              disabled={isExporting}
               onClick={async () => {
-                if (!scanId) return;
+                if (!scanId || isExporting) return;
                 try {
-                  const blob = await apiClient.exportExcel(scanId, 'en');
+                  setIsExporting(true);
+                  const locale = i18n.language === 'ar' ? 'ar' : 'en';
+                  const blob = await apiClient.exportExcel(scanId, locale);
                   const url = window.URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = `accessibility - audit - ${scanId.slice(-8)} -${new Date().toISOString().split('T')[0]} -EN.xlsx`;
+                  a.download = `accessibility - audit - ${scanId.slice(-8)} -${new Date().toISOString().split('T')[0]} -${locale.toUpperCase()}.xlsx`;
                   document.body.appendChild(a);
                   a.click();
                   document.body.removeChild(a);
                   window.URL.revokeObjectURL(url);
                 } catch (err) {
                   setError(err instanceof Error ? err.message : 'Failed to export Excel');
+                } finally {
+                  setIsExporting(false);
                 }
               }}
             >
               <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4" />
-                <span>{t('common.exportExcelEnglish') || 'Export Excel (English)'}</span>
-              </div>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={async () => {
-                if (!scanId) return;
-                try {
-                  const blob = await apiClient.exportExcel(scanId, 'ar');
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `accessibility - audit - ${scanId.slice(-8)} -${new Date().toISOString().split('T')[0]} -AR.xlsx`;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  window.URL.revokeObjectURL(url);
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : 'Failed to export Excel');
-                }
-              }}
-            >
-              <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4" />
-                <span>{t('common.exportExcelArabic') || 'Export Excel (Arabic)'}</span>
+                <FileText className="w-4 h-4" />
+                <span>{t('common.exportExcel') || 'Download Excel Report'}</span>
               </div>
             </DropdownMenuItem>
           </DropdownMenu>
@@ -863,59 +832,81 @@ export default function ScanDetailPage() {
               {authContext?.message || 'No authentication coverage metadata was saved for this scan.'}
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="rounded border border-border bg-background p-4">
-              <div className="text-sm text-muted-foreground">Pages scanned</div>
-              <div className="text-2xl font-bold mt-1">{scanDetail.summary.totalPages}</div>
+          <div className="space-y-6 mb-4">
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Scan Execution</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="rounded border border-border bg-background p-4">
+                  <div className="text-sm text-muted-foreground">Pages scanned</div>
+                  <div className="text-2xl font-bold mt-1">{scanDetail.summary.totalPages}</div>
+                </div>
+                <div className="rounded border border-border bg-background p-4">
+                  <div className="text-sm text-muted-foreground">Pages with Raawi trace</div>
+                  <div className="text-2xl font-bold mt-1">{raawiPagesWithTrace}</div>
+                </div>
+              </div>
             </div>
-            <div className="rounded border border-border bg-background p-4">
-              <div className="text-sm text-muted-foreground">Pages with Raawi trace</div>
-              <div className="text-2xl font-bold mt-1">{raawiPagesWithTrace}</div>
-            </div>
-            <div className="rounded border border-border bg-background p-4">
-              <div className="text-sm text-muted-foreground">Raawi findings</div>
-              <div className="text-2xl font-bold mt-1">{raawiIssueCount}</div>
-            </div>
-            <div className="rounded border border-border bg-background p-4">
-              <div className="text-sm text-muted-foreground">Pass</div>
-              <div className="text-2xl font-bold mt-1">{analysisAgentSummary?.passPages ?? 0}</div>
-            </div>
-            <div className="rounded border border-border bg-background p-4">
-              <div className="text-sm text-muted-foreground">Not pass</div>
-              <div className="text-2xl font-bold mt-1">{analysisAgentSummary?.failPages ?? 0}</div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Accessibility Outcomes</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="rounded border border-border bg-background p-4">
+                  <div className="text-sm text-muted-foreground">Raawi findings</div>
+                  <div className="text-2xl font-bold mt-1">{raawiIssueCount}</div>
+                </div>
+                <div className="rounded border border-border bg-background p-4">
+                  <div className="text-sm text-muted-foreground">Pass</div>
+                  <div className="text-2xl font-bold mt-1">{analysisAgentSummary?.passPages ?? 0}</div>
+                </div>
+                <div className="rounded border border-border bg-background p-4">
+                  <div className="text-sm text-muted-foreground">Not pass</div>
+                  <div className="text-2xl font-bold mt-1">{analysisAgentSummary?.failPages ?? 0}</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       ) : (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="bg-card border border-border rounded-lg p-4">
-              <div className="text-sm text-muted-foreground">{t('scans.totalPages')}</div>
-              <div className="text-2xl font-bold mt-1">{scanDetail.summary.totalPages}</div>
-            </div>
-            <div className="bg-card border border-border rounded-lg p-4">
-              <div className="text-sm text-muted-foreground">{t('scans.totalFindings') || 'Total Findings'}</div>
-              <div className="text-2xl font-bold mt-1">{scanDetail.summary.totalFindings}</div>
-            </div>
-            <div className="bg-card border border-border rounded-lg p-4">
-              <div className="text-sm text-muted-foreground">{t('scans.wcagAScore') || 'WCAG A Score'}</div>
-              <div className="text-2xl font-bold mt-1">
-                {scanDetail.summary.scores.scoreA != null ? scanDetail.summary.scores.scoreA.toFixed(1) : 'N/A'}%
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Scan Execution</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="bg-card border border-border rounded-lg p-4">
+                  <div className="text-sm text-muted-foreground">{t('scans.totalPages')}</div>
+                  <div className="text-2xl font-bold mt-1">{scanDetail.summary.totalPages}</div>
+                </div>
               </div>
             </div>
-            <div className="bg-card border border-border rounded-lg p-4">
-              <div className="text-sm text-muted-foreground">{t('scans.wcagAAScore') || 'WCAG AA Score'}</div>
-              <div className="text-2xl font-bold mt-1">
-                {scanDetail.summary.scores.scoreAA != null ? scanDetail.summary.scores.scoreAA.toFixed(1) : 'N/A'}%
+
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Accessibility Outcomes</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-card border border-border rounded-lg p-4">
+                  <div className="text-sm text-muted-foreground">{t('scans.totalFindings') || 'Total Findings'}</div>
+                  <div className="text-2xl font-bold mt-1">{scanDetail.summary.totalFindings}</div>
+                </div>
+                <div className="bg-card border border-border rounded-lg p-4">
+                  <div className="text-sm text-muted-foreground">{t('scans.wcagAScore') || 'WCAG A Score'}</div>
+                  <div className="text-2xl font-bold mt-1">
+                    {scanDetail.summary.scores.scoreA != null ? scanDetail.summary.scores.scoreA.toFixed(1) : 'N/A'}%
+                  </div>
+                </div>
+                <div className="bg-card border border-border rounded-lg p-4">
+                  <div className="text-sm text-muted-foreground">{t('scans.wcagAAScore') || 'WCAG AA Score'}</div>
+                  <div className="text-2xl font-bold mt-1">
+                    {scanDetail.summary.scores.scoreAA != null ? scanDetail.summary.scores.scoreAA.toFixed(1) : 'N/A'}%
+                  </div>
+                </div>
+                <div className="bg-card border border-border rounded-lg p-4">
+                  <div className="text-sm text-muted-foreground flex items-center gap-1">
+                    <Bot className="w-3.5 h-3.5" />
+                    {t('scans.analysisAgentFindings') || 'Analysis AI agent'}
+                  </div>
+                  <div className="text-2xl font-bold mt-1">{raawiIssueCount}</div>
+                </div>
               </div>
-            </div>
-            <div className="bg-card border border-border rounded-lg p-4 sm:col-span-2 lg:col-span-1">
-              <div className="text-sm text-muted-foreground flex items-center gap-1">
-                <Bot className="w-3.5 h-3.5" />
-                {t('scans.analysisAgentFindings') || 'Analysis AI agent'}
-              </div>
-              <div className="text-2xl font-bold mt-1">{raawiIssueCount}</div>
             </div>
           </div>
 
@@ -1134,7 +1125,14 @@ export default function ScanDetailPage() {
                   {allLayer1Findings.map((finding) => (
                     <tr key={finding.key} className="hover:bg-muted/40 align-top">
                       <td className="px-4 py-2 whitespace-nowrap">{finding.pageNumber}</td>
-                      <td className="px-4 py-2 font-medium">{finding.wcagId}</td>
+                      <td className="px-4 py-2 font-medium">
+                        <div>{finding.rule?.name || finding.wcagId}</div>
+                        {(!finding.rule?.name && finding.wcagId) && (
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {getWCAGRuleTitle(finding.wcagId, i18n.language) || ''}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-2 whitespace-nowrap">{finding.level}</td>
                       <td className="px-4 py-2 whitespace-nowrap">
                         <div className="flex items-center gap-2">
@@ -1298,7 +1296,8 @@ export default function ScanDetailPage() {
                 'Keyboard simulation and optional AI enrichment. Complements WCAG rule results above.')}
           </p>
           {analysisAgentTrace.length > 0 && (
-            <div className="overflow-x-auto p-4 pt-2">
+            <ErrorBoundary fallback={<div className="p-4 text-destructive border border-destructive/20 rounded bg-destructive/10">Trace Data Unavailable/Corrupted</div>}>
+              <div className="overflow-x-auto p-4 pt-2">
               <div className="mb-3 text-sm font-semibold">
                 {isRaawiAgentReport ? 'Raawi per-page trace' : 'Per-page AI trace'}
               </div>
@@ -1438,6 +1437,7 @@ export default function ScanDetailPage() {
                 </tbody>
               </table>
             </div>
+            </ErrorBoundary>
           )}
           {analysisAgentFindings.length > 0 ? (
             <div className="overflow-x-auto p-4 pt-0">
@@ -1556,7 +1556,14 @@ export default function ScanDetailPage() {
                       {allLayer1Findings.map((finding) => (
                         <tr key={finding.key} className="hover:bg-muted/40 align-top">
                           <td className="px-4 py-2 whitespace-nowrap">{finding.pageNumber}</td>
-                          <td className="px-4 py-2 font-medium">{finding.wcagId}</td>
+                          <td className="px-4 py-2 font-medium">
+                            <div>{finding.rule?.name || finding.wcagId}</div>
+                            {(!finding.rule?.name && finding.wcagId) && (
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                {getWCAGRuleTitle(finding.wcagId, i18n.language) || ''}
+                              </div>
+                            )}
+                          </td>
                           <td className="px-4 py-2 whitespace-nowrap">{finding.status}</td>
                           <td className="px-4 py-2 text-muted-foreground break-words">{finding.message}</td>
                         </tr>
@@ -1687,6 +1694,7 @@ export default function ScanDetailPage() {
             <button
               onClick={() => setSelectedPage(null)}
               className="text-muted-foreground hover:text-foreground"
+              aria-label={t('common.close')}
             >
               ✕
             </button>
@@ -1699,6 +1707,7 @@ export default function ScanDetailPage() {
                   Raawi agent page result
                 </h3>
                 {selectedPageData.layerAgent?.trace ? (
+                  <ErrorBoundary fallback={<div className="p-4 text-destructive border border-destructive/20 rounded bg-destructive/10">Trace Data Unavailable/Corrupted</div>}>
                   <div className="space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getAnalysisAgentStatusClass(selectedPageData.layerAgent.trace.status)}`}>
@@ -1750,11 +1759,12 @@ export default function ScanDetailPage() {
                     {(selectedPageData.layerAgent?.findings ?? []).length === 0 ? (
                       <p className="text-sm text-muted-foreground">Raawi did not record interaction findings for this page.</p>
                     ) : (
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-muted-foreground mt-4">
                         {(selectedPageData.layerAgent?.findings ?? []).length} Raawi finding(s) recorded below in the interaction findings section.
                       </p>
                     )}
                   </div>
+                </ErrorBoundary>
                 ) : (
                   <p className="text-sm text-muted-foreground">No Raawi interaction trace was recorded for this page.</p>
                 )}
@@ -1772,7 +1782,7 @@ export default function ScanDetailPage() {
                       {finding.status === 'pass' && <CheckCircle className="w-4 h-4 text-green-600" />}
                       {finding.status === 'fail' && <XCircle className="w-4 h-4 text-destructive" />}
                       {finding.status === 'needs_review' && <AlertCircle className="w-4 h-4 text-yellow-600" />}
-                      <span className="font-medium">{finding.wcagId || 'Unknown'}</span>
+                      <span className="font-medium">{finding.rule?.name || finding.wcagId || 'Unknown'}</span>
                       <span className="text-xs text-muted-foreground">({finding.level})</span>
                     </div>
                     {finding.message && (
@@ -1849,34 +1859,36 @@ export default function ScanDetailPage() {
               </h3>
               <div className="space-y-3">
                 {selectedPageData.layerAgent?.trace ? (
-                  <div className="rounded border border-border bg-muted/30 p-3">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getAnalysisAgentStatusClass(selectedPageData.layerAgent.trace.status)}`}>
-                        {selectedPageData.layerAgent.trace.statusLabel || getAnalysisAgentStatusLabel(selectedPageData.layerAgent.trace.status)}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {selectedPageData.layerAgent.trace.traceSummary}
-                      </span>
+                  <ErrorBoundary fallback={<div className="p-4 text-destructive border border-destructive/20 rounded bg-destructive/10">Trace Data Unavailable/Corrupted</div>}>
+                    <div className="rounded border border-border bg-muted/30 p-3">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getAnalysisAgentStatusClass(selectedPageData.layerAgent.trace.status)}`}>
+                          {selectedPageData.layerAgent.trace.statusLabel || getAnalysisAgentStatusLabel(selectedPageData.layerAgent.trace.status)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {selectedPageData.layerAgent.trace.traceSummary}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                        <div className="rounded border border-border bg-background p-2">
+                          <div className="text-xs text-muted-foreground">Steps</div>
+                          <div className="font-semibold">{selectedPageData.layerAgent.trace.stepCount}</div>
+                        </div>
+                        <div className="rounded border border-border bg-background p-2">
+                          <div className="text-xs text-muted-foreground">Probes attempted</div>
+                          <div className="font-semibold">{selectedPageData.layerAgent.trace.probeAttemptCount}</div>
+                        </div>
+                        <div className="rounded border border-border bg-background p-2">
+                          <div className="text-xs text-muted-foreground">Probes passed</div>
+                          <div className="font-semibold">{selectedPageData.layerAgent.trace.probeSuccessCount}</div>
+                        </div>
+                        <div className="rounded border border-border bg-background p-2">
+                          <div className="text-xs text-muted-foreground">Issues</div>
+                          <div className="font-semibold">{selectedPageData.layerAgent.trace.issueCount}</div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-                      <div className="rounded border border-border bg-background p-2">
-                        <div className="text-xs text-muted-foreground">Steps</div>
-                        <div className="font-semibold">{selectedPageData.layerAgent.trace.stepCount}</div>
-                      </div>
-                      <div className="rounded border border-border bg-background p-2">
-                        <div className="text-xs text-muted-foreground">Probes attempted</div>
-                        <div className="font-semibold">{selectedPageData.layerAgent.trace.probeAttemptCount}</div>
-                      </div>
-                      <div className="rounded border border-border bg-background p-2">
-                        <div className="text-xs text-muted-foreground">Probes passed</div>
-                        <div className="font-semibold">{selectedPageData.layerAgent.trace.probeSuccessCount}</div>
-                      </div>
-                      <div className="rounded border border-border bg-background p-2">
-                        <div className="text-xs text-muted-foreground">Issues</div>
-                        <div className="font-semibold">{selectedPageData.layerAgent.trace.issueCount}</div>
-                      </div>
-                    </div>
-                  </div>
+                  </ErrorBoundary>
                 ) : (
                   <p className="text-sm text-muted-foreground">No agent trace recorded for this page.</p>
                 )}

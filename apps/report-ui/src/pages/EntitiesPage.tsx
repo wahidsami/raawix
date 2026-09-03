@@ -13,6 +13,10 @@ import {
   Upload,
   ImageIcon,
   CheckCircle2,
+  Search,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { useClientPagination } from '../hooks/useClientPagination';
 import TablePagination from '../components/TablePagination';
@@ -67,6 +71,19 @@ export default function EntitiesPage() {
     fetchEntities();
   }, []);
 
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showCreateModal) {
+        setShowCreateModal(false);
+        setEditingEntity(null);
+        setLogoFile(null);
+        setLogoPreview(null);
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [showCreateModal]);
+
   const entityStats = useMemo(() => {
     let totalProperties = 0;
     let totalScans = 0;
@@ -84,6 +101,71 @@ export default function EntitiesPage() {
     };
   }, [entities]);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [sortField, setSortField] = useState<string>('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const filteredAndSortedEntities = useMemo(() => {
+    let result = [...entities];
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (e) =>
+          e.nameEn.toLowerCase().includes(q) ||
+          (e.nameAr && e.nameAr.toLowerCase().includes(q))
+      );
+    }
+
+    if (statusFilter) {
+      result = result.filter((e) => e.status === statusFilter);
+    }
+
+    if (typeFilter) {
+      result = result.filter((e) => e.type === typeFilter);
+    }
+
+    if (sortField) {
+      result.sort((a, b) => {
+        let aVal: any = a[sortField as keyof Entity];
+        let bVal: any = b[sortField as keyof Entity];
+
+        if (sortField === 'propertiesCount') {
+          aVal = a._count.properties;
+          bVal = b._count.properties;
+        } else if (sortField === 'scansCount') {
+          aVal = a._count.scans;
+          bVal = b._count.scans;
+        } else if (sortField === 'nameEn') {
+          aVal = a.nameEn.toLowerCase();
+          bVal = b.nameEn.toLowerCase();
+        }
+
+        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [entities, searchQuery, statusFilter, typeFilter, sortField, sortDirection]);
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 ml-1 inline opacity-50" />;
+    return sortDirection === 'asc' ? <ArrowUp className="w-3 h-3 ml-1 inline" /> : <ArrowDown className="w-3 h-3 ml-1 inline" />;
+  };
+
   const {
     page: entityPage,
     setPage: setEntityPage,
@@ -92,7 +174,7 @@ export default function EntitiesPage() {
     totalPages: entityTotalPages,
     total: entityListTotal,
     pageItems: pagedEntities,
-  } = useClientPagination(entities, entities);
+  } = useClientPagination(filteredAndSortedEntities, `${searchQuery}-${statusFilter}-${typeFilter}-${sortField}-${sortDirection}`);
 
   const fetchEntities = async () => {
     try {
@@ -352,7 +434,7 @@ export default function EntitiesPage() {
         </div>
       )}
 
-      {entities.length === 0 ? (
+      {entities.length === 0 && (
         <div className="bg-card border border-border rounded-lg p-12 text-center">
           <Building2 className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
           <h2 className="text-xl font-semibold mb-2">
@@ -368,16 +450,88 @@ export default function EntitiesPage() {
             {t('entities.addEntity')}
           </button>
         </div>
-      ) : (
+      )}
+      {entities.length > 0 && (
+        <div className="flex flex-col sm:flex-row gap-4 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder={t('common.search') || 'Search entities...'}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-input rounded-md bg-background"
+              aria-label={t('common.search') || 'Search entities'}
+            />
+          </div>
+          <div className="flex gap-2">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 border border-input rounded-md bg-background"
+              aria-label={t('entities.statusFilter') || 'Filter by status'}
+            >
+              <option value="">{t('common.allStatuses') || 'All Statuses'}</option>
+              <option value="active">{t('entities.statusActive') || 'Active'}</option>
+              <option value="onboarding">{t('entities.statusOnboarding') || 'Onboarding'}</option>
+              <option value="paused">{t('entities.statusPaused') || 'Paused'}</option>
+            </select>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="px-3 py-2 border border-input rounded-md bg-background"
+              aria-label={t('entities.typeFilter') || 'Filter by type'}
+            >
+              <option value="">{t('common.allTypes') || 'All Types'}</option>
+              <option value="government">{t('entities.typeGovernment') || 'Government'}</option>
+              <option value="private">{t('entities.typePrivate') || 'Private'}</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {entities.length > 0 && filteredAndSortedEntities.length === 0 && (
+        <div className="bg-card border border-border rounded-lg p-12 text-center">
+          <Search className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+          <h2 className="text-xl font-semibold mb-2">
+            {t('common.noResults') || `No results found for "${searchQuery}"`}
+          </h2>
+          <p className="text-muted-foreground">
+            {t('common.tryAdjustingFilters') || 'Try adjusting your search or filters.'}
+          </p>
+        </div>
+      )}
+
+      {entities.length > 0 && filteredAndSortedEntities.length > 0 && (
         <div className="bg-card border border-border rounded-lg overflow-hidden">
           <table className="w-full">
             <thead className="bg-muted">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-medium">{t('entities.nameEn')}</th>
-                <th className="px-6 py-3 text-left text-sm font-medium">{t('entities.type')}</th>
-                <th className="px-6 py-3 text-left text-sm font-medium">{t('entities.status')}</th>
-                <th className="px-6 py-3 text-left text-sm font-medium">{t('entities.totalProperties')}</th>
-                <th className="px-6 py-3 text-left text-sm font-medium">{t('entities.totalScans')}</th>
+                <th className="px-6 py-3 text-left text-sm font-medium">
+                  <button onClick={() => handleSort('nameEn')} className="flex items-center gap-1 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary rounded">
+                    {t('entities.nameEn')} <SortIcon field="nameEn" />
+                  </button>
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-medium">
+                  <button onClick={() => handleSort('type')} className="flex items-center gap-1 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary rounded">
+                    {t('entities.type')} <SortIcon field="type" />
+                  </button>
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-medium">
+                  <button onClick={() => handleSort('status')} className="flex items-center gap-1 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary rounded">
+                    {t('entities.status')} <SortIcon field="status" />
+                  </button>
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-medium">
+                  <button onClick={() => handleSort('propertiesCount')} className="flex items-center gap-1 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary rounded">
+                    {t('entities.totalProperties')} <SortIcon field="propertiesCount" />
+                  </button>
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-medium">
+                  <button onClick={() => handleSort('scansCount')} className="flex items-center gap-1 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary rounded">
+                    {t('entities.totalScans')} <SortIcon field="scansCount" />
+                  </button>
+                </th>
                 <th className="px-6 py-3 text-left text-sm font-medium">{t('common.actions')}</th>
               </tr>
             </thead>
@@ -429,12 +583,14 @@ export default function EntitiesPage() {
                       <button
                         onClick={() => handleEdit(entity)}
                         className="text-muted-foreground hover:text-foreground"
+                        aria-label={t('common.edit')}
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(entity.id)}
                         className="text-destructive hover:text-destructive/80"
+                        aria-label={t('common.delete')}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -458,8 +614,13 @@ export default function EntitiesPage() {
       {/* Create/Edit Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/55 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">
+          <div 
+            className="bg-card border border-border rounded-lg p-4 sm:p-6 w-full max-w-[95%] sm:max-w-md max-h-[90vh] overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="entity-modal-title"
+          >
+            <h2 id="entity-modal-title" className="text-xl font-bold mb-4">
               {editingEntity ? t('entities.editEntity') : t('entities.addEntity')}
             </h2>
             <form onSubmit={handleCreate} className="space-y-4">
@@ -467,6 +628,7 @@ export default function EntitiesPage() {
                 <label className="block text-sm font-medium mb-1">{t('entities.nameEn')} *</label>
                 <input
                   type="text"
+                  autoFocus
                   value={formData.nameEn}
                   onChange={(e) => setFormData({ ...formData, nameEn: e.target.value })}
                   required

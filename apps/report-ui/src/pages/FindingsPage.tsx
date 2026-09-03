@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/api';
 import { Search, ExternalLink, AlertTriangle, X, FileText } from 'lucide-react';
 import GlobalEntityScopeBanner from '../components/GlobalEntityScopeBanner';
-import { getWCAGRuleTitle, getWCAGRuleDescription } from '../utils/wcag-rules';
+import { getWCAGRuleTitle, getWCAGRuleDescription } from '@raawi-x/rules';
 import { useClientPagination } from '../hooks/useClientPagination';
 import TablePagination from '../components/TablePagination';
 
@@ -19,13 +19,19 @@ interface Finding {
   site?: string;
   scanId?: string;
   pageUrl?: string;
+  screenshotPath?: string;
   howToVerify?: string;
   evidence?: any[];
+  rule?: {
+    name?: string;
+    description?: string;
+  };
 }
 
 export default function FindingsPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const currentLanguage = i18n.language === 'ar' ? 'ar' : 'en';
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +42,7 @@ export default function FindingsPage() {
   >([]);
   const [filters, setFilters] = useState({
     site: '',
-    scan: '',
+    scan: searchParams.get('scanId') || '',
     wcagId: '',
     status: '',
     confidence: '',
@@ -115,6 +121,17 @@ export default function FindingsPage() {
             f.ruleId.toLowerCase().includes(searchLower)
         );
       }
+      // UI-006: Severity-first sorting (Critical/A -> High/AA -> Medium/AAA -> Low/other)
+      const getSeverityScore = (level?: string) => {
+        if (!level) return 99;
+        const upper = level.toUpperCase();
+        if (upper === 'A') return 1;
+        if (upper === 'AA') return 2;
+        if (upper === 'AAA') return 3;
+        return 99;
+      };
+
+      filteredFindings.sort((a, b) => getSeverityScore(a.level) - getSeverityScore(b.level));
 
       setFindings(filteredFindings);
       setError(null);
@@ -276,10 +293,16 @@ export default function FindingsPage() {
                     >
                       <td className="px-6 py-4">
                         <div>
-                          <div className="font-medium">{finding.wcagId || finding.ruleId}</div>
+                          <div className="font-medium">
+                            {finding.rule?.name || finding.wcagId || finding.ruleId}
+                          </div>
                           {(() => {
                             const ruleTitle = getWCAGRuleTitle(finding.wcagId, currentLanguage);
-                            if (ruleTitle) {
+                            if (finding.rule?.description) {
+                              return (
+                                <div className="text-xs text-muted-foreground mt-1">{finding.rule.description}</div>
+                              );
+                            } else if (ruleTitle && finding.rule?.name !== ruleTitle) {
                               return (
                                 <div className="text-xs text-muted-foreground mt-1">{ruleTitle}</div>
                               );
@@ -342,6 +365,7 @@ export default function FindingsPage() {
               <button
                 onClick={() => setSelectedFinding(null)}
                 className="text-muted-foreground hover:text-foreground"
+                aria-label={t('common.close')}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -394,61 +418,70 @@ export default function FindingsPage() {
               </div>
             )}
 
-            <div className="space-y-4">
+            <dl className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-muted-foreground">{t('findings.wcagId')}</label>
-                <div className="mt-1">
-                  <code className="text-sm bg-muted px-2 py-1 rounded">{selectedFinding.wcagId || selectedFinding.ruleId}</code>
+                <dt className="text-sm font-medium text-muted-foreground">{t('findings.wcagId')}</dt>
+                <dd className="mt-1">
+                  <code className="text-sm bg-muted px-2 py-1 rounded">
+                    {selectedFinding.rule?.name || selectedFinding.wcagId || selectedFinding.ruleId}
+                  </code>
                   {(() => {
                     const ruleTitle = getWCAGRuleTitle(selectedFinding.wcagId, currentLanguage);
                     const ruleDescription = getWCAGRuleDescription(selectedFinding.wcagId, currentLanguage);
-                    if (ruleTitle) {
+                    if (selectedFinding.rule?.name || ruleTitle) {
                       return (
                         <>
-                          <div className="mt-1 font-medium">{ruleTitle}</div>
-                          {ruleDescription && (
-                            <div className="text-sm text-muted-foreground mt-1">{ruleDescription}</div>
+                          {selectedFinding.rule?.name && selectedFinding.rule.name !== ruleTitle && (
+                             <h3 className="mt-1 font-medium text-base">{ruleTitle}</h3>
+                          )}
+                          {!selectedFinding.rule?.name && ruleTitle && (
+                             <h3 className="mt-1 font-medium text-base">{ruleTitle}</h3>
+                          )}
+                          {(selectedFinding.rule?.description || ruleDescription) && (
+                            <div className="text-sm text-muted-foreground mt-1">
+                              {selectedFinding.rule?.description || ruleDescription}
+                            </div>
                           )}
                         </>
                       );
                     }
                     return null;
                   })()}
-                </div>
+                </dd>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-muted-foreground">{t('findings.status')}</label>
-                <div className="mt-1">
+                <dt className="text-sm font-medium text-muted-foreground">{t('findings.status')}</dt>
+                <dd className="mt-1">
                   <span className={`px-2 py-1 rounded text-sm ${getStatusColor(selectedFinding.status)}`}>
                     {selectedFinding.status === 'fail' ? t('findings.statusFail') :
                       selectedFinding.status === 'pass' ? t('findings.statusPass') :
                         selectedFinding.status === 'needs_review' ? t('findings.statusNeedsReview') :
                           selectedFinding.status}
                   </span>
-                </div>
+                </dd>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-muted-foreground">{t('findings.confidence')}</label>
-                <div className="mt-1">
+                <dt className="text-sm font-medium text-muted-foreground">{t('findings.confidence')}</dt>
+                <dd className="mt-1">
                   <span className={`text-sm ${getConfidenceColor(selectedFinding.confidence)}`}>
                     {t(`findings.${selectedFinding.confidence}` as any)}
                   </span>
-                </div>
+                </dd>
               </div>
 
               {selectedFinding.message && (
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">{t('findings.message')}</label>
-                  <div className="mt-1">{selectedFinding.message}</div>
+                  <dt className="text-sm font-medium text-muted-foreground">{t('findings.message')}</dt>
+                  <dd className="mt-1">{selectedFinding.message}</dd>
                 </div>
               )}
 
               {selectedFinding.pageUrl && (
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">{t('findings.pageUrl')}</label>
-                  <div className="mt-1">
+                  <dt className="text-sm font-medium text-muted-foreground">{t('findings.pageUrl')}</dt>
+                  <dd className="mt-1">
                     <a
                       href={selectedFinding.pageUrl}
                       target="_blank"
@@ -458,14 +491,31 @@ export default function FindingsPage() {
                       {selectedFinding.pageUrl}
                       <ExternalLink className="w-3 h-3" />
                     </a>
-                  </div>
+                  </dd>
                 </div>
               )}
 
               {selectedFinding.howToVerify && (
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">{t('findings.howToVerify')}</label>
-                  <div className="mt-1 text-sm">{selectedFinding.howToVerify}</div>
+                  <dt className="text-sm font-medium text-muted-foreground">{t('findings.howToVerify')}</dt>
+                  <dd className="mt-1 text-sm">{selectedFinding.howToVerify}</dd>
+                </div>
+              )}
+
+              {selectedFinding.screenshotPath && (
+                <div>
+                  <dt className="text-sm font-medium text-muted-foreground">{t('findings.evidence')} (Screenshot)</dt>
+                  <dd className="mt-1">
+                    <a
+                      href={selectedFinding.screenshotPath.startsWith('http') ? selectedFinding.screenshotPath : `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/media/${selectedFinding.screenshotPath.replace(/\\/g, '/').split('/').pop()}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline flex items-center gap-1 text-sm"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      View Screenshot Evidence
+                    </a>
+                  </dd>
                 </div>
               )}
 
@@ -494,7 +544,7 @@ export default function FindingsPage() {
                   </div>
                 </div>
               )}
-            </div>
+            </dl>
           </div>
         )}
       </div>

@@ -63,6 +63,14 @@ export default function ScansPage() {
     if (showStartScanModal) {
       fetchEntitiesForScan();
     }
+
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showStartScanModal) {
+        setShowStartScanModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
   }, [showStartScanModal, scanFormData.entityId]);
 
   const fetchScans = async () => {
@@ -300,12 +308,18 @@ export default function ScansPage() {
                       <span className="text-muted-foreground">-</span>
                     )}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 flex items-center gap-4">
                     <button
                       onClick={() => navigate(`/scans/${scan.scanId}`)}
                       className="text-primary hover:underline text-sm"
                     >
                       {t('common.view')}
+                    </button>
+                    <button
+                      onClick={() => navigate(`/findings?scanId=${scan.scanId}`)}
+                      className="text-primary hover:underline text-sm whitespace-nowrap"
+                    >
+                      {t('findings.title')}
                     </button>
                   </td>
                 </tr>
@@ -333,8 +347,13 @@ export default function ScansPage() {
       {/* Start Scan Modal */}
       {showStartScanModal && (
         <div className="fixed inset-0 bg-black/55 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">{t('scan.startScan')}</h2>
+          <div 
+            className="bg-card border border-border rounded-lg p-6 w-full max-w-md"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="start-scan-modal-title"
+          >
+            <h2 id="start-scan-modal-title" className="text-xl font-bold mb-4">{t('scan.startScan')}</h2>
             <form onSubmit={handleStartScan} className="space-y-4">
               {availableEntities.length === 0 ? (
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-4 mb-4">
@@ -359,8 +378,9 @@ export default function ScansPage() {
                     <label className="block text-sm font-medium mb-1">
                       {t('entities.title')} ({t('common.optional')})
                     </label>
-                    <select
-                      value={scanFormData.entityId}
+                      <select
+                        autoFocus
+                        value={scanFormData.entityId}
                       onChange={(e) => {
                         setScanFormData({
                           ...scanFormData,

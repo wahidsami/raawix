@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
 import { apiClient } from '../lib/api';
 import { Building2, Globe, ScanSearch, AlertTriangle, BarChart3, Users, Plus, ArrowLeft, FileText, Map, Download, X, ExternalLink, Search, Trash2, Pencil, Loader2, ShieldCheck, ShieldAlert, ShieldOff, KeyRound } from 'lucide-react';
-import { getWCAGRuleTitle, getWCAGRuleDescription, getRuleMeta } from '../utils/wcag-rules';
+import { getWCAGRuleTitle, getWCAGRuleDescription, getRuleMeta } from '@raawi-x/rules';
 import ScanMonitorModal from '../components/ScanMonitorModal';
 
 const ENTITY_TAB_IDS = [
@@ -136,6 +136,7 @@ export default function EntityDetailPage() {
   const [entity, setEntity] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exportingScanId, setExportingScanId] = useState<string | null>(null);
   const [complianceScores, setComplianceScores] = useState<any>(null);
   const [entityScans, setEntityScans] = useState<any[]>([]);
   const [entityFindings, setEntityFindings] = useState<any[]>([]);
@@ -2378,46 +2379,30 @@ export default function EntityDetailPage() {
                     </div>
                     <div className="flex gap-2">
                       <button
+                        disabled={exportingScanId === scan.scanId}
                         onClick={async () => {
                           try {
-                            const blob = await apiClient.exportPDF(scan.scanId, 'en');
+                            setExportingScanId(scan.scanId);
+                            const locale = i18n.language === 'ar' ? 'ar' : 'en';
+                            const blob = await apiClient.exportPDF(scan.scanId, locale);
                             const url = window.URL.createObjectURL(blob);
                             const a = document.createElement('a');
                             a.href = url;
-                            a.download = `raawi-x-report-${scan.scanId}-en.pdf`;
+                            a.download = `raawi-x-report-${scan.scanId}-${locale}.pdf`;
                             document.body.appendChild(a);
                             a.click();
                             document.body.removeChild(a);
                             window.URL.revokeObjectURL(url);
                           } catch (err) {
                             setError(err instanceof Error ? err.message : 'Failed to export PDF');
+                          } finally {
+                            setExportingScanId(null);
                           }
                         }}
-                        className="flex items-center gap-2 px-3 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                        className={`flex items-center gap-2 px-3 py-1 text-sm bg-primary text-primary-foreground rounded ${exportingScanId === scan.scanId ? 'opacity-50 cursor-not-allowed' : 'hover:bg-primary/90'}`}
                       >
-                        <Download className="w-4 h-4" />
-                        {t('common.exportPDF') || 'Export PDF (EN)'}
-                      </button>
-                      <button
-                        onClick={async () => {
-                          try {
-                            const blob = await apiClient.exportPDF(scan.scanId, 'ar');
-                            const url = window.URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = `raawi-x-report-${scan.scanId}-ar.pdf`;
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            window.URL.revokeObjectURL(url);
-                          } catch (err) {
-                            setError(err instanceof Error ? err.message : 'Failed to export PDF');
-                          }
-                        }}
-                        className="flex items-center gap-2 px-3 py-1 text-sm border border-input rounded hover:bg-muted"
-                      >
-                        <Download className="w-4 h-4" />
-                        {t('common.exportPDF') || 'Export PDF (AR)'}
+                        {exportingScanId === scan.scanId ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                        {t('common.exportPDF') || 'Export PDF'}
                       </button>
                     </div>
                   </div>

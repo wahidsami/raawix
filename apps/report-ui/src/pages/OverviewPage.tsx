@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
 import { apiClient } from '../lib/api';
@@ -14,7 +15,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { Globe, ScanSearch, FileText, AlertTriangle, Eye, Clock } from 'lucide-react';
+import { Globe, ScanSearch, FileText, AlertTriangle, Eye, Clock, PlusCircle, Building2, LayoutDashboard } from 'lucide-react';
 
 export default function OverviewPage() {
   const { t } = useTranslation();
@@ -34,6 +35,7 @@ export default function OverviewPage() {
   const [failuresByLevel, setFailuresByLevel] = useState<Array<{ level: string; failures: number }>>([]);
   const [topFailingRules, setTopFailingRules] = useState<Array<{ rule: string; failures: number }>>([]);
   const [topAffectedSites, setTopAffectedSites] = useState<Array<{ domain: string; issues: number }>>([]);
+  const [domainToLogoMap, setDomainToLogoMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchOverview();
@@ -42,7 +44,21 @@ export default function OverviewPage() {
   const fetchOverview = async () => {
     try {
       setLoading(true);
-      const data = await apiClient.getOverview();
+      const [data, entitiesResponse] = await Promise.all([
+        apiClient.getOverview(),
+        apiClient.getEntities().catch(() => ({ entities: [] }))
+      ]);
+
+      const logoMap: Record<string, string> = {};
+      entitiesResponse.entities.forEach(entity => {
+        const logoPath = (entity as any).logoPath;
+        if (logoPath && entity.properties) {
+          entity.properties.forEach(prop => {
+            logoMap[prop.domain] = logoPath;
+          });
+        }
+      });
+      setDomainToLogoMap(logoMap);
 
       // Update KPIs
       setKpis([
@@ -87,6 +103,45 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-6">
+      {/* Quick Actions */}
+      <div className="bg-card border border-border rounded-lg p-6">
+        <h2 className="text-lg font-semibold mb-4">{t('overview.quickActions') || 'Quick Actions'}</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Link
+            to="/entities"
+            className="flex flex-col items-center justify-center p-4 border border-input rounded-md hover:bg-muted/50 transition-colors gap-2 text-center"
+            aria-label={t('overview.newScan') || 'New Scan (Select Entity)'}
+          >
+            <ScanSearch className="w-6 h-6 text-emerald-500" />
+            <span className="text-sm font-medium">{t('overview.newScan') || 'New Scan'}</span>
+          </Link>
+          <Link
+            to="/findings?level=critical"
+            className="flex flex-col items-center justify-center p-4 border border-input rounded-md hover:bg-muted/50 transition-colors gap-2 text-center"
+            aria-label={t('overview.criticalIssues') || 'Critical Issues'}
+          >
+            <AlertTriangle className="w-6 h-6 text-destructive" />
+            <span className="text-sm font-medium">{t('overview.criticalIssues') || 'Critical Issues'}</span>
+          </Link>
+          <Link
+            to="/scans"
+            className="flex flex-col items-center justify-center p-4 border border-input rounded-md hover:bg-muted/50 transition-colors gap-2 text-center"
+            aria-label={t('overview.reports') || 'View Reports'}
+          >
+            <FileText className="w-6 h-6 text-violet-500" />
+            <span className="text-sm font-medium">{t('overview.reports') || 'Reports'}</span>
+          </Link>
+          <Link
+            to="/entities"
+            className="flex flex-col items-center justify-center p-4 border border-input rounded-md hover:bg-muted/50 transition-colors gap-2 text-center"
+            aria-label={t('overview.manageEntities') || 'Manage Entities'}
+          >
+            <Building2 className="w-6 h-6 text-sky-500" />
+            <span className="text-sm font-medium">{t('overview.manageEntities') || 'Manage Entities'}</span>
+          </Link>
+        </div>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((kpi) => {
@@ -219,14 +274,33 @@ export default function OverviewPage() {
             {topAffectedSites.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">{t('overview.chartNoSites')}</p>
             ) : (
-              topAffectedSites.map((site, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-md">
-                  <span className="font-medium break-all pr-2">{site.domain}</span>
-                  <span className="text-sm text-muted-foreground shrink-0">
-                    {site.issues} {t('overview.chartIssues').toLowerCase()}
-                  </span>
-                </div>
-              ))
+              topAffectedSites.map((site, index) => {
+                const logoPath = domainToLogoMap[site.domain];
+                return (
+                  <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-md">
+                    <div className="flex items-center gap-3 overflow-hidden pr-2">
+                      <div className="w-8 h-8 shrink-0 bg-background border border-border rounded-md flex items-center justify-center overflow-hidden">
+                        {logoPath ? (
+                          <img 
+                            src={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/${logoPath}`}
+                            alt="" 
+                            className="w-full h-full object-contain"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                              e.currentTarget.parentElement?.querySelector('svg')?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : null}
+                        <Globe className={`w-4 h-4 text-muted-foreground ${logoPath ? 'hidden' : ''}`} />
+                      </div>
+                      <span className="font-medium truncate">{site.domain}</span>
+                    </div>
+                    <span className="text-sm text-muted-foreground shrink-0">
+                      {site.issues} {t('overview.chartIssues').toLowerCase()}
+                    </span>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>

@@ -18,6 +18,7 @@ import {
   type RaawiTraceRow,
   type SupportingTechnicalEvidenceRow,
 } from '../utils/raawi-export-data.js';
+import { getWCAGRuleTitle, getWCAGRuleDescription } from '@raawi-x/rules';
 
 /**
  * Excel Report Generator
@@ -450,9 +451,15 @@ export class ExcelReportGenerator {
         4,
       );
     } else {
-      const rows = evidenceRows.map((row) =>
-        sheet.addRow([row.pageNumber, row.wcagId, row.status, row.message]),
-      );
+      const rows = evidenceRows.map((row) => {
+        const title = getWCAGRuleTitle(row.wcagId, locale);
+        const desc = getWCAGRuleDescription(row.wcagId, locale);
+        
+        const displayTitle = title ? `${title}\nWCAG ${row.wcagId}` : row.wcagId;
+        const displayMessage = desc ? `${desc}\n\n${row.message}` : row.message;
+
+        return sheet.addRow([row.pageNumber, displayTitle, row.status, displayMessage]);
+      });
       this.styleDataRows(rows);
     }
 
@@ -666,7 +673,7 @@ export class ExcelReportGenerator {
 
     // Headers
     const headerRow = sheet.addRow([
-      t.wcagId,
+      locale === 'ar' ? 'القاعدة' : 'Rule',
       t.level,
       t.status,
       t.severity,
@@ -693,12 +700,17 @@ export class ExcelReportGenerator {
 
       // Transform finding data to match expected format
       const severity = this.mapSeverity(finding);
-      const description = (finding as any).message || 'N/A';
+      const title = getWCAGRuleTitle(finding.wcagId, locale);
+      const desc = getWCAGRuleDescription(finding.wcagId, locale);
+
+      const displayTitle = title ? `${title}\nWCAG ${finding.wcagId}` : (finding.wcagId || 'N/A');
+      const baseMessage = (finding as any).message || 'N/A';
+      const description = desc ? `${desc}\n\n${baseMessage}` : baseMessage;
       const selector = this.extractSelector(finding);
       const recommendation = (finding as any).howToVerify || 'N/A';
 
       const row = sheet.addRow([
-        finding.wcagId || 'N/A',
+        displayTitle,
         finding.level || 'N/A',
         this.translateStatus(finding.status, locale),
         this.translateSeverity(severity, locale),

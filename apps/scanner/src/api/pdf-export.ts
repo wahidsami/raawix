@@ -30,6 +30,7 @@ import type { ManualCheckpointHistoryEntry } from '@raawi-x/core';
 import { loadManualCheckpointHistory } from '../utils/manual-checkpoint-history.js';
 import { loadAuthScanContext } from '../utils/auth-scan-context.js';
 import { buildRaawiExportData } from '../utils/raawi-export-data.js';
+import { getWCAGRuleTitle, getWCAGRuleDescription } from '@raawi-x/rules';
 
 const router: Router = Router();
 
@@ -278,12 +279,18 @@ router.post('/export', requireAuth, async (req: Request, res: Response) => {
         ? (f.status === 'fail' ? 'فشل' : f.status === 'needs_review' ? 'يحتاج مراجعة' : 'نجح')
         : (f.status === 'fail' ? 'Fail' : f.status === 'needs_review' ? 'Needs Review' : 'Pass');
 
+      const localizedTitle = getWCAGRuleTitle(f.wcagId, locale);
+      const localizedDescription = getWCAGRuleDescription(f.wcagId, locale);
+
+      const displayTitle = localizedTitle ? `<strong>${escapeHtml(localizedTitle)}</strong><br><span style="font-size: smaller; color: #666;">WCAG ${escapeHtml(f.wcagId)}</span>` : escapeHtml(f.wcagId);
+      const displayDescription = localizedDescription ? `${escapeHtml(localizedDescription)}<br><br><span style="font-size: smaller; color: #666;"><em>${escapeHtml(f.message.substring(0, 100))}${f.message.length > 100 ? '...' : ''}</em></span>` : `${escapeHtml(f.message.substring(0, 100))}${f.message.length > 100 ? '...' : ''}`;
+
       return `
         <tr>
-          <td>${f.wcagId}</td>
+          <td>${displayTitle}</td>
           <td><span class="level-badge">${f.level}</span></td>
           <td><span class="badge ${statusClass}">${statusText}</span></td>
-          <td>${f.message.substring(0, 100)}${f.message.length > 100 ? '...' : ''}</td>
+          <td>${displayDescription}</td>
           <td style="font-size: 9px; word-break: break-all;">${f.pageUrl.substring(0, 50)}${f.pageUrl.length > 50 ? '...' : ''}</td>
         </tr>
       `;
