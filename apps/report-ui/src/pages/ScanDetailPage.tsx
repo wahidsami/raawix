@@ -17,7 +17,6 @@ import {
   Maximize2,
   Loader2,
   ChevronDown,
-  Globe,
   Bot,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
@@ -413,7 +412,7 @@ export default function ScanDetailPage() {
   const { scanId } = useParams<{ scanId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const fromEntityId = (location.state as { fromEntityId?: string } | null)?.fromEntityId;
 
   const goBackFromScan = () => {
@@ -1129,7 +1128,7 @@ export default function ScanDetailPage() {
                         <div>{finding.rule?.name || finding.wcagId}</div>
                         {(!finding.rule?.name && finding.wcagId) && (
                           <div className="text-xs text-muted-foreground mt-0.5">
-                            {getWCAGRuleTitle(finding.wcagId, i18n.language) || ''}
+                            {getWCAGRuleTitle(finding.wcagId, i18n.language === 'ar' ? 'ar' : 'en') || ''}
                           </div>
                         )}
                       </td>
@@ -1560,7 +1559,7 @@ export default function ScanDetailPage() {
                             <div>{finding.rule?.name || finding.wcagId}</div>
                             {(!finding.rule?.name && finding.wcagId) && (
                               <div className="text-xs text-muted-foreground mt-0.5">
-                                {getWCAGRuleTitle(finding.wcagId, i18n.language) || ''}
+                                {getWCAGRuleTitle(finding.wcagId, i18n.language === 'ar' ? 'ar' : 'en') || ''}
                               </div>
                             )}
                           </td>

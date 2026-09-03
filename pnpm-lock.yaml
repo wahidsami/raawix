@@ -63,6 +63,9 @@ importers:
       '@raawi-x/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@raawi-x/rules':
+        specifier: workspace:*
+        version: link:../../packages/rules
       clsx:
         specifier: ^2.0.0
         version: 2.1.1

@@ -15,7 +15,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { Globe, ScanSearch, FileText, AlertTriangle, Eye, Clock, PlusCircle, Building2, LayoutDashboard } from 'lucide-react';
+import { Globe, ScanSearch, FileText, AlertTriangle, Eye, Clock, Building2 } from 'lucide-react';
 
 export default function OverviewPage() {
   const { t } = useTranslation();

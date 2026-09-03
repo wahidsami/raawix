@@ -68,11 +68,13 @@ interface DropdownMenuItemProps {
   children: React.ReactNode;
   onClick?: () => void;
   className?: string;
+  disabled?: boolean;
 }
 
-export function DropdownMenuItem({ children, onClick, className = '' }: DropdownMenuItemProps) {
+export function DropdownMenuItem({ children, onClick, className = '', disabled }: DropdownMenuItemProps) {
   return (
     <button
+      disabled={disabled}
       onClick={() => {
         onClick?.();
       // Close dropdown after click
