@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
 import { apiClient } from '../lib/api';
 import { Building2, Globe, ScanSearch, AlertTriangle, BarChart3, Users, Plus, ArrowLeft, FileText, Map, Download, X, ExternalLink, Search, Trash2, Pencil, Loader2, ShieldCheck, ShieldAlert, ShieldOff, KeyRound } from 'lucide-react';
-import { getWCAGRuleTitle, getWCAGRuleDescription, getRuleMeta } from '@raawi-x/rules';
+import { getWCAGRuleTitle, getWCAGRuleDescription, getRuleMeta } from '@raawi-x/core';
 import ScanMonitorModal from '../components/ScanMonitorModal';
 
 const ENTITY_TAB_IDS = [

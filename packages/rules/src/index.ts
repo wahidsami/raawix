@@ -25,15 +25,6 @@ export {
   wcag1410Rule,
 } from './wcag-rules.js';
 
-export {
-  type WCAGRule,
-  wcagRulesMap,
-  getWCAGRule,
-  getWCAGRuleTitle,
-  getWCAGRuleDescription,
-  formatWCAGId,
-  getRuleMeta
-} from './wcag-metadata.js';
 
 // Legacy rule engine for backward compatibility
 export class LegacyRuleEngine {

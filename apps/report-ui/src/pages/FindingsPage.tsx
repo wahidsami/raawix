@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/api';
 import { Search, ExternalLink, AlertTriangle, X, FileText } from 'lucide-react';
 import GlobalEntityScopeBanner from '../components/GlobalEntityScopeBanner';
-import { getWCAGRuleTitle, getWCAGRuleDescription } from '@raawi-x/rules';
+import { getWCAGRuleTitle, getWCAGRuleDescription } from '@raawi-x/core';
 import { useClientPagination } from '../hooks/useClientPagination';
 import TablePagination from '../components/TablePagination';
 

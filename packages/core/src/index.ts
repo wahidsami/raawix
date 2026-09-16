@@ -350,3 +350,5 @@ export interface Journey {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export * from './wcag-metadata.js';

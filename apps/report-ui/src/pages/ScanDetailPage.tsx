@@ -24,7 +24,7 @@ import { useClientPagination } from '../hooks/useClientPagination';
 import TablePagination from '../components/TablePagination';
 import ErrorBoundary from '../components/ErrorBoundary';
 
-import { getWCAGRuleTitle } from '@raawi-x/rules';
+import { getWCAGRuleTitle } from '@raawi-x/core';
 
 // Component for loading and displaying vision finding images with auth
 function VisionFindingImage({
