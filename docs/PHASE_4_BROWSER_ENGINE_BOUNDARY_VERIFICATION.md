@@ -48,3 +48,24 @@ The purely semantic WCAG metadata is isolated. No schema, API, or logic regressi
 - [x] `pnpm --filter @raawi-x/report-ui... build` succeeds.
 - [x] No Node-only modules are bundled into the Report UI.
 - [x] The deployed frontend structural crash is resolved locally.
+
+## Coolify Deployment Failure & Scanner Remediation (Commit 9b62101)
+### Coolify Failure
+During the deployment of commit 9b62101, the `report-ui` built successfully, but the `scanner` build failed. The error message indicated that `@raawi-x/rules` no longer exported `getWCAGRuleTitle` and `getWCAGRuleDescription`.
+
+### Missed Scanner Consumers
+The boundary separation relocated `wcag-metadata.ts` to `@raawi-x/core`. While `report-ui` was updated, the following backend scanner services still expected these metadata exports from `@raawi-x/rules`:
+- `apps/scanner/src/api/pdf-export.ts`
+- `apps/scanner/src/services/excel-report-generator.ts`
+
+### Exact Remediation
+1. Updated `apps/scanner/src/services/excel-report-generator.ts` to import `getWCAGRuleTitle` and `getWCAGRuleDescription` from `@raawi-x/core`.
+2. Updated `apps/scanner/src/api/pdf-export.ts` to import `getWCAGRuleTitle` and `getWCAGRuleDescription` from `@raawi-x/core`.
+3. Verified via global search that NO other file imports WCAG metadata functions from `@raawi-x/rules`. The scanner correctly continues to import `RuleEngine` and `allWcagRules` from `@raawi-x/rules`.
+
+### Clean Build Results
+After the remediation, the following builds were verified to succeed sequentially and completely:
+- `pnpm --filter @raawi-x/core build` (Success)
+- `pnpm --filter @raawi-x/rules build` (Success)
+- `pnpm --filter @raawi-x/scanner build` (Success)
+- `pnpm --filter @raawi-x/report-ui... build` (Success, 0 Node-core externalization warnings)

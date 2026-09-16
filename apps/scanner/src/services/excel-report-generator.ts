@@ -18,7 +18,7 @@ import {
   type RaawiTraceRow,
   type SupportingTechnicalEvidenceRow,
 } from '../utils/raawi-export-data.js';
-import { getWCAGRuleTitle, getWCAGRuleDescription } from '@raawi-x/rules';
+import { getWCAGRuleTitle, getWCAGRuleDescription } from '@raawi-x/core';
 
 /**
  * Excel Report Generator

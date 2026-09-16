@@ -30,7 +30,7 @@ import type { ManualCheckpointHistoryEntry } from '@raawi-x/core';
 import { loadManualCheckpointHistory } from '../utils/manual-checkpoint-history.js';
 import { loadAuthScanContext } from '../utils/auth-scan-context.js';
 import { buildRaawiExportData } from '../utils/raawi-export-data.js';
-import { getWCAGRuleTitle, getWCAGRuleDescription } from '@raawi-x/rules';
+import { getWCAGRuleTitle, getWCAGRuleDescription } from '@raawi-x/core';
 
 const router: Router = Router();
 
