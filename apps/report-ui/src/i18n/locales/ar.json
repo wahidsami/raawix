@@ -36,7 +36,17 @@
     "paginationPrev": "الصفحة السابقة",
     "paginationNext": "الصفحة التالية",
     "themeSwitchToLight": "التبديل إلى الوضع الفاتح",
-    "themeSwitchToDark": "التبديل إلى الوضع الداكن"
+    "themeSwitchToDark": "التبديل إلى الوضع الداكن",
+    "details": "التفاصيل",
+    "allStatuses": "جميع الحالات",
+    "allTypes": "جميع الأنواع"
+  },
+  "overview": {
+    "quickActions": "إجراءات سريعة",
+    "newScan": "فحص جديد",
+    "criticalIssues": "قضايا حرجة",
+    "reports": "التقارير",
+    "manageEntities": "إدارة الكيانات"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -159,6 +169,8 @@
     "running": "قيد التشغيل",
     "completed": "مكتمل",
     "failed": "فشل",
+    "canceled": "ملغى",
+    "discovering": "جاري الاستكشاف",
     "partial": "جزئي",
     "partialReportBanner":
       "لم يكتمل هذا المسح. الأرقام أدناه تعكس فقط الصفحات والنتائج المحفوظة حتى لحظة الإيقاف أو الفشل.",

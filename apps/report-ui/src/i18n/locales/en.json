@@ -36,7 +36,17 @@
     "paginationPrev": "Previous page",
     "paginationNext": "Next page",
     "themeSwitchToLight": "Switch to light mode",
-    "themeSwitchToDark": "Switch to dark mode"
+    "themeSwitchToDark": "Switch to dark mode",
+    "details": "Details",
+    "allStatuses": "All Statuses",
+    "allTypes": "All Types"
+  },
+  "overview": {
+    "quickActions": "Quick Actions",
+    "newScan": "New Scan",
+    "criticalIssues": "Critical Issues",
+    "reports": "Reports",
+    "manageEntities": "Manage Entities"
   },
   "auth": {
     "login": "Login",
@@ -159,6 +169,8 @@
     "running": "Running",
     "completed": "Completed",
     "failed": "Failed",
+    "canceled": "Canceled",
+    "discovering": "Discovering",
     "partial": "Partial",
     "partialReportBanner":
       "This scan did not run to completion. Figures below reflect only pages and results saved up to the stop or failure.",
