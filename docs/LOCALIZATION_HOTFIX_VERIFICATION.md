@@ -25,7 +25,7 @@ A live browser acceptance test was conducted on production (`https://rxreport.un
 
 **Root Cause for Production Failure:**
 During the local hotfix implementation (commit `0d2be88`), the missing keys were added by injecting a brand new `"overview": { ... }` block at the top of both `en.json` and `ar.json`. However, an existing `"overview"` namespace block already existed further down in the files, which contained translations for the KPI boxes like `"totalSites"`. 
-Because JSON does not support duplicate root keys, `JSON.parse` quietly overwrote the first `"overview"` block with the second one during runtime dictionary hydration. The new keys were silently discarded.
+Because JSON does not support duplicate root keys, `JSON.parse` quietly overwrote the first `"overview"` block (Quick Actions) with the second one (KPIs) during runtime dictionary hydration. The new keys were silently discarded.
 
 ## 3. Localization Hotfix 2: Dictionary Merge & Arabic Title Correction
 To resolve the duplicate JSON key issue and correct an awkward Arabic translation (`النتائج التفاصيل`):
@@ -36,18 +36,45 @@ To resolve the duplicate JSON key issue and correct an awkward Arabic translatio
    * **EN:** `"Findings Details"`
    * **AR:** `"تفاصيل النتائج"`
 
-### Files Changed (Hotfix 2)
-* `apps/report-ui/src/i18n/locales/en.json`
-* `apps/report-ui/src/i18n/locales/ar.json`
-* `apps/report-ui/src/pages/FindingsPage.tsx`
-* `apps/report-ui/src/pages/EntityDetailPage.tsx`
-* `docs/LOCALIZATION_HOTFIX_VERIFICATION.md`
+## 4. Post-Deployment Acceptance Test 2 (Production Verification of f60898e)
+A live browser acceptance test was conducted on production (`https://rxreport.unifinitylab.com/login`) to verify the dictionary merge and the Findings title. The UI was tested in both English and Arabic.
 
-## 4. Tests and Regression Validation (Local)
-* **Duplicate-Key Validation:** Performed manually by inspecting the JSON files and confirming only one `"overview"` root key exists in each dictionary. (The project lacks automated testing tools to assert JSON structure uniqueness).
-* **Production Build:** Executed `pnpm --filter report-ui build`. Passed successfully. `vite build` completed in ~4.11s, confirming that the JSON modifications were syntactically valid and the application compiles correctly.
+### Test A: English Results
+* **Dashboard Quick Actions:** ✅ **PASS**. Rendered as human-readable English (`Quick Actions`, `New Scan`, `Critical Issues`, `Reports`, `Manage Entities`).
+* **Findings Drawer Title:** ✅ **PASS**. Rendered precisely as `Findings Details` (using the new `findings.detailsTitle` key). No concatenation artifacts appeared.
+* **Entities Filters:** ✅ **PASS**. Rendered `All Statuses`, `All Types`.
+* **Scans Status Badges:** ✅ **PASS**. Rendered `Canceled`, `Discovering`.
+* **Dashboard KPIs (Existing):** ❌ **FAIL (Rendering Defect)**. The KPI labels rendered in **Arabic** (e.g. `إجمالي المواقع` instead of `Total Sites`) on the English interface, though the rest of the page was successfully translated to English. See the cache/asset checks below for root cause.
 
-## 5. Deployment Gate & Remaining Requirements
-No production changes, commits, or deployments were triggered manually. The live environment remains as deployed by `0d2be88`.
-* **Action Required:** This Hotfix 2 commit must be pushed and deployed via Coolify.
-* **Remaining Verification:** A subsequent live browser acceptance test on production must be executed to confirm that the `overview.*` Dashboard tiles and the Findings Drawer title render correctly.
+### Test B: Arabic Results
+* **Dashboard Quick Actions:** ✅ **PASS**. Rendered correctly as `إجراءات سريعة`, `فحص جديد`, `قضايا حرجة`, `التقارير`, `إدارة الكيانات`.
+* **Dashboard KPIs (Existing):** ✅ **PASS**. Existing labels like `إجمالي المواقع` and `إجمالي المسوحات` were fully intact. The merge did not break them.
+* **Findings Drawer Title:** ✅ **PASS**. Rendered correctly as `تفاصيل النتائج`.
+* **Entities Filters:** ✅ **PASS**. Rendered `جميع الحالات`, `جميع الأنواع`.
+* **Scans Status Badges:** ✅ **PASS**. Rendered `ملغى`, `جاري الاستكشاف`.
+* **RTL & Layout:** ✅ **PASS**. Alignment and RTL layouts were flawless across all screens with no clipping or concatenation issues.
+
+### Cache, Asset, and Defect Checks
+The Arabic KPI labels appearing on the English dashboard originate from a **component rendering lifecycle defect**, not a deployed bundle or locale resource issue.
+
+* **Analysis:** The Quick Actions labels updated correctly because they are translated directly inside the JSX component's render function (e.g., `<p>{t('overview.quickActions')}</p>`). Conversely, the dashboard KPI labels are translated once inside the `fetchOverview` async function, and the translated string is stored in a local React state array (`setKpis([...])`). 
+* **Root Cause:** The `useEffect` hook that triggers `fetchOverview` has an empty dependency array `[]`. When the browser session retains an Arabic preference from a prior visit, the initial component mount translates the KPI labels to Arabic. Clicking "EN" changes the `i18next` language and re-renders the component, but it *does not* re-trigger `fetchOverview` to update the stateful KPI labels. 
+* **Conclusion:** The dictionaries in commit `f60898e` are 100% correct. The UI properly hydrates them. A future fix to `OverviewPage.tsx` will be required to handle language-change side effects for stateful translations.
+
+## 5. Deployment Gate & Final Status
+No production code changes, database updates, or deployments were triggered following this discovery. The environment remains on `f60898e`. The localization hotfix itself is formally completed and successful.
+
+## 6. Localization Hotfix 3: Dashboard KPI Language Switching
+Following the acceptance test of `f60898e`, a targeted fix was applied to resolve the component lifecycle defect in `OverviewPage.tsx`.
+
+* **Root Cause:** The `useEffect` hook with an empty dependency array called `fetchOverview`, which fetched the data and immediately resolved the translation using `t('overview.totalSites')`. The resulting string was stored in the local `kpis` state. Since the state held the resolved string and the fetch was never re-triggered on language change, the UI was trapped displaying whatever language was active during the initial component mount.
+* **Implementation Approach:** The `kpis` state was refactored to store the translation keys (e.g., `label: 'overview.totalSites'`) instead of the resolved translated strings. The `t()` translation function is now invoked directly during the JSX rendering phase (`<p>{t(kpi.label as any)}</p>`). This ensures that the component instantly re-renders the correct labels whenever `i18next` triggers a language change, completely eliminating the stale state issue without triggering any additional API requests.
+* **Files Changed:**
+  * `apps/report-ui/src/pages/OverviewPage.tsx`
+  * `docs/LOCALIZATION_HOTFIX_VERIFICATION.md`
+* **Verification & Testing:**
+  * The code was statically validated via TypeScript type checking.
+  * `pnpm --filter report-ui build` passed successfully in ~3.95s, ensuring the production bundle compiles correctly.
+  * Live browser verification is pending the next deployment. The local environment's limitation with Docker prevented spinning up a complete integration test environment.
+* **Remaining Limitations:**
+  * This report covers the core UI and navigation elements. Broader finding-content and PDF/Excel report localization still require their own extensive acceptance checks.

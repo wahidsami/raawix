@@ -23,13 +23,13 @@ export default function OverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [kpis, setKpis] = useState([
-    { label: t('overview.totalSites'), value: '0', icon: Globe, color: 'text-sky-400' },
-    { label: t('overview.totalScans'), value: '0', icon: ScanSearch, color: 'text-emerald-400' },
-    { label: t('overview.pagesScanned'), value: '0', icon: FileText, color: 'text-violet-400' },
-    { label: t('overview.wcagAFailures'), value: '0', icon: AlertTriangle, color: 'text-red-400' },
-    { label: t('overview.wcagAAFailures'), value: '0', icon: AlertTriangle, color: 'text-orange-400' },
-    { label: t('overview.needsReview'), value: '0', icon: Clock, color: 'text-amber-300' },
-    { label: t('overview.visionFindings'), value: '0', icon: Eye, color: 'text-indigo-400' },
+    { label: 'overview.totalSites', value: '0', icon: Globe, color: 'text-sky-400' },
+    { label: 'overview.totalScans', value: '0', icon: ScanSearch, color: 'text-emerald-400' },
+    { label: 'overview.pagesScanned', value: '0', icon: FileText, color: 'text-violet-400' },
+    { label: 'overview.wcagAFailures', value: '0', icon: AlertTriangle, color: 'text-red-400' },
+    { label: 'overview.wcagAAFailures', value: '0', icon: AlertTriangle, color: 'text-orange-400' },
+    { label: 'overview.needsReview', value: '0', icon: Clock, color: 'text-amber-300' },
+    { label: 'overview.visionFindings', value: '0', icon: Eye, color: 'text-indigo-400' },
   ]);
   const [scansOverTime, setScansOverTime] = useState<Array<{ date: string; count: number }>>([]);
   const [failuresByLevel, setFailuresByLevel] = useState<Array<{ level: string; failures: number }>>([]);
@@ -62,13 +62,13 @@ export default function OverviewPage() {
 
       // Update KPIs
       setKpis([
-        { label: t('overview.totalSites'), value: data.kpis.totalSites.toLocaleString(), icon: Globe, color: 'text-sky-400' },
-        { label: t('overview.totalScans'), value: data.kpis.totalScans.toLocaleString(), icon: ScanSearch, color: 'text-emerald-400' },
-        { label: t('overview.pagesScanned'), value: data.kpis.pagesScanned.toLocaleString(), icon: FileText, color: 'text-violet-400' },
-        { label: t('overview.wcagAFailures'), value: data.kpis.wcagAFailures.toLocaleString(), icon: AlertTriangle, color: 'text-red-400' },
-        { label: t('overview.wcagAAFailures'), value: data.kpis.wcagAAFailures.toLocaleString(), icon: AlertTriangle, color: 'text-orange-400' },
-        { label: t('overview.needsReview'), value: data.kpis.needsReview.toLocaleString(), icon: Clock, color: 'text-amber-300' },
-        { label: t('overview.visionFindings'), value: data.kpis.visionFindings.toLocaleString(), icon: Eye, color: 'text-indigo-400' },
+        { label: 'overview.totalSites', value: data.kpis.totalSites.toLocaleString(), icon: Globe, color: 'text-sky-400' },
+        { label: 'overview.totalScans', value: data.kpis.totalScans.toLocaleString(), icon: ScanSearch, color: 'text-emerald-400' },
+        { label: 'overview.pagesScanned', value: data.kpis.pagesScanned.toLocaleString(), icon: FileText, color: 'text-violet-400' },
+        { label: 'overview.wcagAFailures', value: data.kpis.wcagAFailures.toLocaleString(), icon: AlertTriangle, color: 'text-red-400' },
+        { label: 'overview.wcagAAFailures', value: data.kpis.wcagAAFailures.toLocaleString(), icon: AlertTriangle, color: 'text-orange-400' },
+        { label: 'overview.needsReview', value: data.kpis.needsReview.toLocaleString(), icon: Clock, color: 'text-amber-300' },
+        { label: 'overview.visionFindings', value: data.kpis.visionFindings.toLocaleString(), icon: Eye, color: 'text-indigo-400' },
       ]);
 
       // Update charts
@@ -150,7 +150,7 @@ export default function OverviewPage() {
             <div key={kpi.label} className="bg-card border border-border rounded-lg p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground mb-1">{kpi.label}</p>
+                  <p className="text-sm text-muted-foreground mb-1">{t(kpi.label as any)}</p>
                   <p className="text-2xl font-bold">{kpi.value}</p>
                 </div>
                 <Icon className={`w-8 h-8 ${kpi.color}`} />
