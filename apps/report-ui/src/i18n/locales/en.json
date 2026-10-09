@@ -41,13 +41,7 @@
     "allStatuses": "All Statuses",
     "allTypes": "All Types"
   },
-  "overview": {
-    "quickActions": "Quick Actions",
-    "newScan": "New Scan",
-    "criticalIssues": "Critical Issues",
-    "reports": "Reports",
-    "manageEntities": "Manage Entities"
-  },
+
   "auth": {
     "login": "Login",
     "logout": "Logout",
@@ -119,6 +113,11 @@
     "dismiss": "Dismiss"
   },
   "overview": {
+    "quickActions": "Quick Actions",
+    "newScan": "New Scan",
+    "criticalIssues": "Critical Issues",
+    "reports": "Reports",
+    "manageEntities": "Manage Entities",
     "title": "Overview",
     "totalSites": "Total Sites",
     "totalScans": "Total Scans",
@@ -216,6 +215,7 @@
     "analysisAgentNotIncludedDashboard": "The analysis AI agent was not part of this scan (disabled in scan options or server settings)."
   },
   "findings": {
+    "detailsTitle": "Findings Details",
     "title": "Findings",
     "site": "Site",
     "scan": "Scan",

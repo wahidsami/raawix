@@ -41,13 +41,7 @@
     "allStatuses": "جميع الحالات",
     "allTypes": "جميع الأنواع"
   },
-  "overview": {
-    "quickActions": "إجراءات سريعة",
-    "newScan": "فحص جديد",
-    "criticalIssues": "قضايا حرجة",
-    "reports": "التقارير",
-    "manageEntities": "إدارة الكيانات"
-  },
+
   "auth": {
     "login": "تسجيل الدخول",
     "logout": "تسجيل الخروج",
@@ -119,6 +113,11 @@
     "welcome": "مرحباً"
   },
   "overview": {
+    "quickActions": "إجراءات سريعة",
+    "newScan": "فحص جديد",
+    "criticalIssues": "قضايا حرجة",
+    "reports": "التقارير",
+    "manageEntities": "إدارة الكيانات",
     "title": "نظرة عامة",
     "totalSites": "إجمالي المواقع",
     "totalScans": "إجمالي المسوحات",
@@ -216,6 +215,7 @@
     "analysisAgentNotIncludedDashboard": "لم يُدرَج وكيل التحليل في هذا المسح (معطّل في خيارات المسح أو إعدادات الخادم)."
   },
   "findings": {
+    "detailsTitle": "تفاصيل النتائج",
     "title": "النتائج",
     "site": "الموقع",
     "scan": "المسح",

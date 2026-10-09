@@ -361,7 +361,7 @@ export default function FindingsPage() {
         {selectedFinding && (
           <div className="lg:col-span-2 bg-card border border-border rounded-lg p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">{t('findings.title')} {t('common.details')}</h2>
+              <h2 className="text-xl font-bold">{t('findings.detailsTitle')}</h2>
               <button
                 onClick={() => setSelectedFinding(null)}
                 className="text-muted-foreground hover:text-foreground"
