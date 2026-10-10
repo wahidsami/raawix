@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('./db/scan-repository.js');
+vi.mock('./queue/scan-queue.js');
+
 import { JobQueue } from './job-queue.js';
 import type { ScanRequest } from '@raawi-x/core';
 import { config } from './config.js';
+import { scanRepository } from './db/scan-repository.js';
+import { submitScanJob } from './queue/scan-queue.js';
 
 describe('JobQueue', () => {
   let jobQueue: JobQueue;
@@ -85,5 +91,5 @@ describe('JobQueue', () => {
       expect(job?.scanRun?.summary?.totalPages).toBe(0);
     });
   });
-});
 
+});

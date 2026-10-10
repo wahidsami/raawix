@@ -21,7 +21,8 @@ import { getHostname } from './crawler/url-utils.js';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { mkdir, rm, readFile, writeFile } from 'node:fs/promises';
-import { resolveScanPipeline, defaultScanPipeline } from './scan-pipeline.js';
+import { defaultScanPipeline, resolveScanPipeline } from './scan-pipeline.js';
+import { scanQueueApi } from './queue/scan-queue.js';
 import {
   appendManualCheckpointHistory,
   clearManualCheckpoint,
@@ -374,24 +375,6 @@ export class JobQueue {
       }
     }
 
-    // Submit to BullMQ
-    const { submitScanJob } = await import('./queue/scan-queue.js');
-    await submitScanJob(scanId, normalizedRequest);
-
-    // Also add to legacy memory queue for now so status endpoints don't crash
-    // if they read from it before DB logic is fully moved
-    const job: Job = {
-      id: scanId,
-      request: normalizedRequest,
-      status: 'queued',
-      ttl: Date.now() + config.quotas.maxRuntimeMs + 5 * 60 * 1000,
-    };
-    this.queue.push(job);
-
-    // Create scan record in database (always create, entityId/propertyId optional)
-    const entityId = (request as any).entityId;
-    const propertyId = (request as any).propertyId;
-
     // Extract hostname from seedUrl
     let hostname: string;
     try {
@@ -400,6 +383,11 @@ export class JobQueue {
       throw new Error(`Invalid seed URL: ${seedUrl}. ${error instanceof Error ? error.message : 'Failed to extract hostname'}`);
     }
 
+    const entityId = (request as any).entityId;
+    const propertyId = (request as any).propertyId;
+
+    // Create scan record in database BEFORE submitting to BullMQ.
+    // This guarantees the record exists when the worker picks it up and updates status to 'running'.
     await scanRepository.createScan(
       scanId,
       seedUrl,
@@ -410,6 +398,26 @@ export class JobQueue {
       propertyId,
       normalizedRequest.auditMode
     );
+
+    // Submit to BullMQ
+    try {
+      await scanQueueApi.submitScanJob(scanId, normalizedRequest);
+    } catch (error) {
+      // If queue submission fails, leave a clean terminal state
+      logger.error('Failed to submit job to queue', { scanId, error: error instanceof Error ? error.message : 'Unknown' });
+      await scanRepository.updateScanStatus(scanId, 'failed');
+      throw new Error(`Failed to queue scan job: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    // Also add to legacy memory queue for now so status endpoints don't crash
+    // if they read from it before DB logic is fully moved
+    const job: Job = {
+      id: scanId,
+      request: normalizedRequest,
+      status: 'queued',
+      ttl: Date.now() + config.quotas.maxRuntimeMs + 5 * 60 * 1000,
+    };
+    this.queue.push(job);
 
     // Log scan created
     logger.info('Scan job created', { scanId, seedUrl, maxPages: normalizedRequest.maxPages, maxDepth: normalizedRequest.maxDepth, auditMode: normalizedRequest.auditMode, entityId, propertyId });
@@ -503,8 +511,7 @@ export class JobQueue {
     const logger = new StructuredLogger(scanId);
 
     // Create job with existing scanId in BullMQ
-    const { submitScanJob } = await import('./queue/scan-queue.js');
-    await submitScanJob(scanId, normalizedRequest, true);
+    await scanQueueApi.submitScanJob(scanId, normalizedRequest, true);
 
     const job: Job = {
       id: scanId,
@@ -532,8 +539,7 @@ export class JobQueue {
     // Mark as canceled in BullMQ manager
     const { markJobAsCanceled } = await import('./queue/cancel-manager.js');
     await markJobAsCanceled(scanId);
-    const { cancelScanJob: bullCancel } = await import('./queue/scan-queue.js');
-    await bullCancel(scanId);
+    await scanQueueApi.cancelScanJob(scanId);
 
     // Mark as canceled regardless of whether job exists in queue
     // (Job might not exist if it's still in discovery phase)
