@@ -1,0 +1,1 @@
+{"version":3,"file":"playwright-action-bindings.d.ts","sourceRoot":"","sources":["playwright-action-bindings.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,IAAI,EAAE,MAAM,YAAY,CAAC;AACvC,OAAO,KAAK,EAAE,cAAc,EAAE,MAAM,wBAAwB,CAAC;AAM7D,wBAAgB,8BAA8B,CAAC,IAAI,EAAE,IAAI,GAAG,cAAc,CAoGzE"}

@@ -20,6 +20,7 @@ import {
   Bot,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
+import { getLocalizedIssueTitle } from '../utils/localization-helpers';
 import { useClientPagination } from '../hooks/useClientPagination';
 import TablePagination from '../components/TablePagination';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -127,6 +128,7 @@ type AuditorFinding = {
   selector?: string;
   recommendation?: string;
   howToVerify?: string;
+  kind?: string;
 };
 
 type AnalysisTracePageProfile = {
@@ -626,12 +628,7 @@ export default function ScanDetailPage() {
     return 'bg-muted text-muted-foreground ring-1 ring-border';
   };
   const getAuditorResultLabel = (result: string) => {
-    if (result === 'working') return t('common.working') || 'Working';
-    if (result === 'not_working') return t('common.notWorking') || 'Not working';
-    if (result === 'needs_review') return t('common.needsReview') || 'Needs review';
-    if (result === 'not_applicable') return t('common.notApplicable') || 'Not applicable';
-    if (result === 'manual_checkpoint') return t('scanMonitor.manualCheckpoint') || 'Manual checkpoint';
-    return result;
+    return t(`taxonomy.status.${result}`, result);
   };
   const getAuditorResultClass = (result: string) => {
     if (result === 'working') return 'bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-500/20';
@@ -1222,7 +1219,7 @@ export default function ScanDetailPage() {
           <div className="p-4 border-b border-border flex items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold">
-                {isRaawiAgentReport ? 'Raawi auditor findings' : 'Auditor-style findings'}
+                {isRaawiAgentReport ? t('findings.raawiAuditorFindings') : t('findings.auditorStyleFindings')}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Unified table using the report categories and subcategories. It combines DOM/WCAG, vision, and Raawi findings into the manual-audit format.
@@ -1255,7 +1252,7 @@ export default function ScanDetailPage() {
                       <div className="text-xs text-muted-foreground">{finding.sourceLabel}</div>
                     </td>
                     <td className="px-4 py-3 min-w-[260px]">
-                      <div className="font-medium">{finding.issueTitle}</div>
+                      <div className="font-medium">{getLocalizedIssueTitle(finding, t, i18n.language)}</div>
                       <div className="mt-1 text-xs text-muted-foreground">{finding.issueCode}</div>
                       {finding.wcagIds.length > 0 && (
                         <div className="mt-1 text-xs text-muted-foreground">WCAG: {finding.wcagIds.join(', ')}</div>
@@ -1266,8 +1263,8 @@ export default function ScanDetailPage() {
                         {getAuditorResultLabel(finding.result)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 capitalize whitespace-nowrap">{finding.severity}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">{finding.category}</td>
+                    <td className="px-4 py-3 capitalize whitespace-nowrap">{t(`taxonomy.severities.${finding.severity}`, finding.severity)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{t(`taxonomy.categories.${finding.category}`, finding.category)}</td>
                     <td className="px-4 py-3 min-w-[180px]">{finding.subcategory}</td>
                     <td className="px-4 py-3 max-w-[220px]">
                       <span className="break-all text-xs text-primary">{finding.pageUrl}</span>

@@ -39,9 +39,12 @@
     "themeSwitchToDark": "التبديل إلى الوضع الداكن",
     "details": "التفاصيل",
     "allStatuses": "جميع الحالات",
-    "allTypes": "جميع الأنواع"
+    "allTypes": "جميع الأنواع",
+    "notWorking": "لا يعمل",
+    "needsReview": "يحتاج مراجعة",
+    "working": "يعمل",
+    "notApplicable": "لا ينطبق"
   },
-
   "auth": {
     "login": "تسجيل الدخول",
     "logout": "تسجيل الخروج",
@@ -167,12 +170,11 @@
     "pending": "قيد الانتظار",
     "running": "قيد التشغيل",
     "completed": "مكتمل",
-    "failed": "فشل",
+    "failed": "فشلت",
     "canceled": "ملغى",
     "discovering": "جاري الاستكشاف",
     "partial": "جزئي",
-    "partialReportBanner":
-      "لم يكتمل هذا المسح. الأرقام أدناه تعكس فقط الصفحات والنتائج المحفوظة حتى لحظة الإيقاف أو الفشل.",
+    "partialReportBanner": "لم يكتمل هذا المسح. الأرقام أدناه تعكس فقط الصفحات والنتائج المحفوظة حتى لحظة الإيقاف أو الفشل.",
     "noScans": "لم يتم العثور على مسوحات",
     "scanDetails": "تفاصيل المسح",
     "pageList": "قائمة الصفحات",
@@ -186,7 +188,6 @@
     "rulesPassed": "قواعد نجحت",
     "rulesNeedReview": "قواعد تحتاج مراجعة",
     "passed": "نجحت",
-    "failed": "فشلت",
     "noApplicableChecks": "لم يتم العثور على فحوصات قابلة للتطبيق للنطاق المحدد.",
     "basedOnLatestScan": "بناءً على آخر مسح لكل خاصية",
     "pipelineInspector": "مفتش المسح",
@@ -212,7 +213,12 @@
     "analysisAgentSourceAgent": "محاكاة لوحة المفاتيح",
     "analysisAgentRanNoFindingsDashboard": "شغّل وكيل التحليل لهذا المسح. لم تُسجَّل مشكلات من محاكاة لوحة المفاتيح أو الإثراء الاختياري.",
     "analysisAgentPagesWithTrace": "{{count}} صفحة تتضمن أثر تفاعل لوحة مفاتيح محفوظ.",
-    "analysisAgentNotIncludedDashboard": "لم يُدرَج وكيل التحليل في هذا المسح (معطّل في خيارات المسح أو إعدادات الخادم)."
+    "analysisAgentNotIncludedDashboard": "لم يُدرَج وكيل التحليل في هذا المسح (معطّل في خيارات المسح أو إعدادات الخادم).",
+    "totalPages": "إجمالي الصفحات",
+    "totalFindings": "إجمالي النتائج",
+    "wcagAScore": "نقاط WCAG A",
+    "wcagAAScore": "نقاط WCAG AA",
+    "allFindings": "جميع النتائج"
   },
   "findings": {
     "detailsTitle": "تفاصيل النتائج",
@@ -256,7 +262,9 @@
     "filterByScan": "تصفية حسب المسح",
     "viewScreenshotEvidence": "عرض دليل لقطة الشاشة",
     "wcagIdPlaceholder": "معرف WCAG (مثل 1.1.1)",
-    "screenshotCrop": "اقتطاع من لقطة الشاشة للعنصر المكتشف"
+    "screenshotCrop": "اقتطاع من لقطة الشاشة للعنصر المكتشف",
+    "auditorStyleFindings": "نتائج أسلوب المدقق",
+    "raawiAuditorFindings": "نتائج مدقق راوي"
   },
   "settings": {
     "title": "الإعدادات",
@@ -440,7 +448,6 @@
     "raawiAssessmentOverview": "نظرة عامة على تقييم راوي",
     "authenticationCoverage": "تغطية المصادقة",
     "scanExecution": "تنفيذ المسح",
-    "pagesScanned": "الصفحات الممسوحة",
     "pagesWithRaawiTrace": "صفحات بتتبع راوي",
     "accessibilityOutcomes": "نتائج إمكانية الوصول",
     "raawiFindings": "نتائج راوي",
@@ -471,7 +478,8 @@
     "understanding": "الفهم",
     "journeys": "الرحلات",
     "steps": "الخطوات",
-    "probes": "الاختبارات"
+    "probes": "الاختبارات",
+    "unauthenticated": "غير مصادق عليه"
   },
   "entities": {
     "title": "الكيانات",
@@ -559,6 +567,47 @@
     "confidence": "الثقة",
     "viewLivePage": "فتح الصفحة",
     "viewOpensLivePage": "يفتح رابط الصفحة الحي في تبويب جديد. يظهر JSON الخريطة الكامل في تقرير المسح لتلك الصفحة."
+  },
+  "taxonomy": {
+    "categories": {
+      "Images": "الصور",
+      "Multimedia": "الوسائط المتعددة",
+      "Structure & Semantics": "الهيكل والدلالات",
+      "Color & Contrast": "اللون والتباين",
+      "Touch & Mobile": "اللمس والجوال",
+      "Keyboard & Navigation": "لوحة المفاتيح والتنقل",
+      "Timing & Interaction": "التوقيت والتفاعل",
+      "Content": "المحتوى",
+      "Forms & Inputs": "النماذج والمدخلات",
+      "Authentication & Security": "المصادقة والأمان",
+      "Assistive Technology": "التكنولوجيا المساعدة"
+    },
+    "severities": {
+      "critical": "حرج",
+      "high": "عالي",
+      "medium": "متوسط",
+      "low": "منخفض",
+      "info": "معلومة"
+    },
+    "status": {
+      "working": "يعمل",
+      "not_working": "لا يعمل",
+      "needs_review": "يحتاج مراجعة",
+      "not_applicable": "لا ينطبق",
+      "manual_checkpoint": "نقطة تحقق يدوية"
+    }
+  },
+  "agentFindings": {
+    "missing_page_structure": "هيكل الصفحة غير واضح: لم يتم التقاط عنوان رئيسي.",
+    "missing_skip_link": "تتطلب الصفحة التنقل عبر العديد من العناصر التفاعلية ولكنها لا توفر رابط تخطي.",
+    "inaccessible_action": "تعذر التفاعل مع العنصر باستخدام لوحة المفاتيح.",
+    "keyboard_trap": "علق التركيز في العنصر، ولا يمكن الخروج باستخدام لوحة المفاتيح.",
+    "confusing_focus_order": "ترتيب التركيز غير منطقي أو يقفز بشكل غير متوقع.",
+    "missing_focus_indicator": "لا يوجد مؤشر تركيز مرئي عند التركيز على العنصر.",
+    "unclear_error_recovery": "رسائل الخطأ غير واضحة أو لا تشرح كيفية الإصلاح.",
+    "missing_form_instructions": "النموذج يفتقر إلى التعليمات أو التسميات التوضيحية للمدخلات.",
+    "ambiguous_control": "الغرض من هذا العنصر التفاعلي غير واضح للمستخدم.",
+    "poor_label_quality": "التسمية الحالية لا تصف بشكل كاف غرض عنصر التحكم.",
+    "clickable_unlabeled": "عنصر قابل للنقر لا يحتوي على تسمية مرئية أو بديل نصي."
   }
 }
-

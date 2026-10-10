@@ -5,6 +5,7 @@ import { apiClient } from '../lib/api';
 import { Search, ExternalLink, AlertTriangle, X, FileText } from 'lucide-react';
 import GlobalEntityScopeBanner from '../components/GlobalEntityScopeBanner';
 import { getWCAGRuleTitle, getWCAGRuleDescription } from '@raawi-x/core';
+import { getLocalizedIssueTitle } from '../utils/localization-helpers';
 import { useClientPagination } from '../hooks/useClientPagination';
 import TablePagination from '../components/TablePagination';
 
@@ -308,17 +309,13 @@ export default function FindingsPage() {
                       <td className="px-6 py-4">
                         <div>
                           <div className="font-medium">
-                            {finding.rule?.name || finding.wcagId || finding.ruleId}
+                            {getLocalizedIssueTitle(finding, t, currentLanguage)}
                           </div>
                           {(() => {
-                            const ruleTitle = getWCAGRuleTitle(finding.wcagId, currentLanguage);
-                            if (finding.rule?.description) {
+                            const ruleDescription = getWCAGRuleDescription(finding.wcagId, currentLanguage);
+                            if (finding.rule?.description || ruleDescription) {
                               return (
-                                <div className="text-xs text-muted-foreground mt-1">{finding.rule.description}</div>
-                              );
-                            } else if (ruleTitle && finding.rule?.name !== ruleTitle) {
-                              return (
-                                <div className="text-xs text-muted-foreground mt-1">{ruleTitle}</div>
+                                <div className="text-xs text-muted-foreground mt-1">{finding.rule?.description || ruleDescription}</div>
                               );
                             }
                             return null;
@@ -437,26 +434,15 @@ export default function FindingsPage() {
                 <dt className="text-sm font-medium text-muted-foreground">{t('findings.wcagId')}</dt>
                 <dd className="mt-1">
                   <code className="text-sm bg-muted px-2 py-1 rounded">
-                    {selectedFinding.rule?.name || selectedFinding.wcagId || selectedFinding.ruleId}
+                    {getLocalizedIssueTitle(selectedFinding, t, currentLanguage)}
                   </code>
                   {(() => {
-                    const ruleTitle = getWCAGRuleTitle(selectedFinding.wcagId, currentLanguage);
                     const ruleDescription = getWCAGRuleDescription(selectedFinding.wcagId, currentLanguage);
-                    if (selectedFinding.rule?.name || ruleTitle) {
+                    if (selectedFinding.rule?.description || ruleDescription) {
                       return (
-                        <>
-                          {selectedFinding.rule?.name && selectedFinding.rule.name !== ruleTitle && (
-                             <h3 className="mt-1 font-medium text-base">{ruleTitle}</h3>
-                          )}
-                          {!selectedFinding.rule?.name && ruleTitle && (
-                             <h3 className="mt-1 font-medium text-base">{ruleTitle}</h3>
-                          )}
-                          {(selectedFinding.rule?.description || ruleDescription) && (
-                            <div className="text-sm text-muted-foreground mt-1">
-                              {selectedFinding.rule?.description || ruleDescription}
-                            </div>
-                          )}
-                        </>
+                        <div className="text-sm text-muted-foreground mt-1">
+                          {selectedFinding.rule?.description || ruleDescription}
+                        </div>
                       );
                     }
                     return null;

@@ -1,0 +1,449 @@
+/**
+ * Action Planner
+ *
+ * Takes an intent and semantic model, produces an execution plan.
+ * Plans the optimal sequence of actions to achieve a goal.
+ */
+export class ActionPlanner {
+    static FIELD_ALIASES = {
+        username: ['username', 'user', 'email', 'login', 'identifier'],
+        password: ['password', 'pass', 'pwd'],
+        mfa: ['mfa', 'otp', 'verification', 'code', 'token'],
+        search: ['search', 'query', 'keyword', 'q'],
+        name: ['name', 'full name', 'fullname'],
+        email: ['email', 'e-mail', 'mail'],
+        message: ['message', 'comment', 'details', 'description'],
+    };
+    static normalizeModelConfidence(value) {
+        if (typeof value === 'number') {
+            return Math.max(0, Math.min(1, value));
+        }
+        if (value === 'high')
+            return 0.9;
+        if (value === 'medium')
+            return 0.65;
+        if (value === 'low')
+            return 0.4;
+        return 0.5;
+    }
+    static getModelPageUrl(model) {
+        return model.metadata?.url || model.pageUrl || '';
+    }
+    /**
+     * Plan execution steps for a given intent and semantic model
+     */
+    static plan(intent, model, goalId) {
+        const steps = [];
+        let priority = 0;
+        // Route to specific planner based on intent type
+        switch (intent.type) {
+            case 'login':
+                return this.planLogin(intent, model, goalId, steps, priority);
+            case 'checkout':
+                return this.planCheckout(intent, model, goalId, steps, priority);
+            case 'search':
+                return this.planSearch(intent, model, goalId, steps, priority);
+            case 'navigate':
+                return this.planNavigate(intent, model, goalId, steps, priority);
+            case 'fill-form':
+                return this.planFillForm(intent, model, goalId, steps, priority);
+            default:
+                return this.planCustom(intent, model, goalId, steps, priority);
+        }
+    }
+    static planLogin(intent, model, goalId, steps, priority) {
+        const username = intent.parameters.username;
+        const password = intent.parameters.password;
+        if (username) {
+            const usernameTarget = this.resolveFieldTarget(model, 'username');
+            steps.push({
+                type: 'fill',
+                label: 'Enter username',
+                target: usernameTarget,
+                value: username,
+                priority: priority++,
+            });
+        }
+        if (password) {
+            const passwordTarget = this.resolveFieldTarget(model, 'password');
+            steps.push({
+                type: 'fill',
+                label: 'Enter password',
+                target: passwordTarget,
+                value: password,
+                priority: priority++,
+            });
+        }
+        // Find and click submit button
+        const submitAction = this.findActionByType(model, 'submit');
+        if (submitAction) {
+            steps.push({
+                type: 'click',
+                label: 'Submit login',
+                target: {
+                    actionId: submitAction.id,
+                    selector: submitAction.selector,
+                },
+                priority: priority++,
+            });
+        }
+        // Check for MFA token if needed
+        const mfaToken = intent.parameters.mfaToken;
+        if (mfaToken) {
+            steps.push({
+                type: 'fill',
+                label: 'Enter MFA code',
+                target: this.resolveFieldTarget(model, 'mfa'),
+                value: mfaToken,
+                priority: priority++,
+            });
+            const mfaSubmit = this.findActionByLabel(model, ['verify', 'confirm', 'submit']);
+            if (mfaSubmit) {
+                steps.push({
+                    type: 'click',
+                    label: 'Confirm MFA',
+                    target: {
+                        actionId: mfaSubmit.id,
+                        selector: mfaSubmit.selector,
+                    },
+                    priority: priority++,
+                });
+            }
+        }
+        return {
+            goalId,
+            goal: 'login',
+            steps,
+            confidence: this.calculatePlanConfidence(model, steps),
+            estimatedDuration: steps.length * 500, // ~500ms per step
+            metadata: {
+                generatedAt: new Date().toISOString(),
+                pageUrl: this.getModelPageUrl(model),
+                modelVersion: '1.0',
+            },
+        };
+    }
+    static planCheckout(intent, model, goalId, steps, priority) {
+        const params = intent.parameters;
+        // Step 1: Shipping address (if not already filled)
+        const shippingForm = this.findFormByLabel(model, ['shipping', 'address']);
+        if (shippingForm && params.shippingAddress) {
+            steps.push({
+                type: 'fill',
+                label: 'Fill shipping address',
+                target: { fieldKey: 'shipping-address' },
+                value: String(JSON.stringify(params.shippingAddress)),
+                priority: priority++,
+            });
+        }
+        // Step 2: Billing address (if different)
+        if (params.billingAddress) {
+            const billingForm = this.findFormByLabel(model, ['billing']);
+            if (billingForm) {
+                steps.push({
+                    type: 'fill',
+                    label: 'Fill billing address',
+                    target: { fieldKey: 'billing-address' },
+                    value: String(JSON.stringify(params.billingAddress)),
+                    priority: priority++,
+                });
+            }
+        }
+        // Step 3: Payment (card token or similar)
+        if (params.cardToken) {
+            steps.push({
+                type: 'fill',
+                label: 'Enter payment information',
+                target: { fieldKey: 'payment' },
+                value: String(params.cardToken),
+                priority: priority++,
+            });
+        }
+        // Step 4: Apply coupon if provided
+        if (params.applyCoupon) {
+            const couponField = this.findActionByLabel(model, ['coupon', 'promo', 'code']);
+            if (couponField) {
+                steps.push({
+                    type: 'fill',
+                    label: 'Apply coupon code',
+                    target: { actionId: couponField.id, selector: couponField.selector },
+                    value: String(params.applyCoupon),
+                    priority: priority++,
+                });
+            }
+        }
+        // Step 5: Submit order
+        const submitAction = this.findActionByLabel(model, ['submit', 'checkout', 'place order', 'pay']);
+        if (submitAction) {
+            steps.push({
+                type: 'click',
+                label: 'Place order',
+                target: { actionId: submitAction.id, selector: submitAction.selector },
+                priority: priority++,
+            });
+        }
+        return {
+            goalId,
+            goal: 'checkout',
+            steps,
+            confidence: this.calculatePlanConfidence(model, steps),
+            estimatedDuration: steps.length * 1000,
+            metadata: {
+                generatedAt: new Date().toISOString(),
+                pageUrl: this.getModelPageUrl(model),
+                modelVersion: '1.0',
+            },
+        };
+    }
+    static planSearch(intent, model, goalId, steps, priority) {
+        const query = String(intent.parameters.query || '');
+        // Find search input
+        const searchField = this.findFormByLabel(model, ['search']);
+        if (searchField || query) {
+            steps.push({
+                type: 'fill',
+                label: 'Enter search query',
+                target: this.resolveFieldTarget(model, 'search'),
+                value: query,
+                priority: priority++,
+            });
+            // Find and click search button
+            const searchAction = this.findActionByLabel(model, ['search', 'find']);
+            if (searchAction) {
+                steps.push({
+                    type: 'click',
+                    label: 'Execute search',
+                    target: { actionId: searchAction.id, selector: searchAction.selector },
+                    priority: priority++,
+                });
+            }
+        }
+        // Apply filters if any
+        const filters = intent.parameters.filters;
+        if (filters && Object.keys(filters).length > 0) {
+            steps.push({
+                type: 'custom',
+                label: 'Apply search filters',
+                target: { fieldKey: 'filters' },
+                value: String(JSON.stringify(filters)),
+                priority: priority++,
+            });
+        }
+        return {
+            goalId,
+            goal: 'search',
+            steps,
+            confidence: this.calculatePlanConfidence(model, steps),
+            estimatedDuration: steps.length * 800,
+            metadata: {
+                generatedAt: new Date().toISOString(),
+                pageUrl: this.getModelPageUrl(model),
+                modelVersion: '1.0',
+            },
+        };
+    }
+    static planNavigate(intent, model, goalId, steps, priority) {
+        const target = intent.parameters.target;
+        const menuPath = intent.parameters.menuPath;
+        // Navigate via menu path if available
+        if (menuPath && menuPath.length > 0) {
+            menuPath.forEach((item) => {
+                const action = this.findActionByLabel(model, [item]);
+                if (action) {
+                    steps.push({
+                        type: 'click',
+                        label: `Navigate to ${item}`,
+                        target: { actionId: action.id, selector: action.selector },
+                        priority: priority++,
+                    });
+                }
+            });
+        }
+        else {
+            // Find target by label or description
+            const targetAction = this.findActionByLabel(model, [target]);
+            if (targetAction) {
+                steps.push({
+                    type: 'click',
+                    label: `Navigate to ${target}`,
+                    target: { actionId: targetAction.id, selector: targetAction.selector },
+                    priority: priority++,
+                });
+            }
+        }
+        return {
+            goalId,
+            goal: 'navigate',
+            steps,
+            confidence: steps.length > 0 ? 0.85 : 0.3,
+            estimatedDuration: steps.length * 600,
+            metadata: {
+                generatedAt: new Date().toISOString(),
+                pageUrl: this.getModelPageUrl(model),
+                modelVersion: '1.0',
+            },
+        };
+    }
+    static planFillForm(intent, model, goalId, steps, priority) {
+        const fields = intent.parameters.fields;
+        const submitAfter = intent.parameters.submitAfter !== false;
+        if (fields && Object.keys(fields).length > 0) {
+            Object.entries(fields).forEach(([fieldKey, value]) => {
+                steps.push({
+                    type: 'fill',
+                    label: `Fill ${fieldKey}`,
+                    target: this.resolveFieldTarget(model, fieldKey),
+                    value: String(value),
+                    priority: priority++,
+                });
+            });
+        }
+        // Submit if requested
+        if (submitAfter) {
+            const submitAction = this.findActionByLabel(model, ['submit', 'send', 'confirm']);
+            if (submitAction) {
+                steps.push({
+                    type: 'click',
+                    label: 'Submit form',
+                    target: { actionId: submitAction.id, selector: submitAction.selector },
+                    priority: priority++,
+                });
+            }
+        }
+        return {
+            goalId,
+            goal: 'fill-form',
+            steps,
+            confidence: this.calculatePlanConfidence(model, steps),
+            estimatedDuration: steps.length * 600,
+            metadata: {
+                generatedAt: new Date().toISOString(),
+                pageUrl: this.getModelPageUrl(model),
+                modelVersion: '1.0',
+            },
+        };
+    }
+    static planCustom(intent, model, goalId, steps, _priority) {
+        return {
+            goalId,
+            goal: 'custom',
+            steps,
+            confidence: (intent.confidence || 0.5) * 0.7, // Custom plans are less confident
+            estimatedDuration: 5000,
+            metadata: {
+                generatedAt: new Date().toISOString(),
+                pageUrl: this.getModelPageUrl(model),
+                modelVersion: '1.0',
+            },
+        };
+    }
+    // Helper methods
+    static findActionByType(model, type) {
+        if (!model.actions || !Array.isArray(model.actions)) {
+            return null;
+        }
+        return model.actions.find((a) => a.type === type) || null;
+    }
+    static findActionByLabel(model, labels) {
+        if (!model.actions || !Array.isArray(model.actions)) {
+            return null;
+        }
+        const lowerLabels = labels.map((l) => l.toLowerCase().trim()).filter(Boolean);
+        const actions = model.actions;
+        const scored = actions
+            .map((a) => {
+            const label = (a.label || '').toLowerCase();
+            const selector = (a.selector || '').toLowerCase();
+            const meta = JSON.stringify(a.metadata || {}).toLowerCase();
+            let score = 0;
+            for (const candidate of lowerLabels) {
+                if (!candidate)
+                    continue;
+                if (label === candidate)
+                    score += 5;
+                if (label.includes(candidate))
+                    score += 3;
+                if (selector.includes(candidate))
+                    score += 2;
+                if (meta.includes(candidate))
+                    score += 1;
+            }
+            return { action: a, score };
+        })
+            .filter((item) => item.score > 0)
+            .sort((a, b) => b.score - a.score);
+        if (scored.length > 0)
+            return scored[0].action;
+        // Fallback: submit-like actions for submit-related labels.
+        if (lowerLabels.some((x) => ['submit', 'send', 'confirm', 'continue', 'verify'].includes(x))) {
+            return actions.find((a) => a.type === 'submit' || a.type === 'click') || null;
+        }
+        return null;
+    }
+    static findFormByLabel(model, labels) {
+        if (!model.structure || !Array.isArray(model.structure)) {
+            return null;
+        }
+        const lowerLabels = labels.map((l) => l.toLowerCase());
+        return model.structure.find((block) => {
+            if (block.type !== 'form')
+                return false;
+            const blockLabel = (block.label || '').toLowerCase();
+            return lowerLabels.some((label) => blockLabel.includes(label) || label.includes(blockLabel));
+        }) || null;
+    }
+    static calculatePlanConfidence(model, steps) {
+        if (steps.length === 0)
+            return 0.3;
+        const modelConfidence = this.normalizeModelConfidence(model.confidence);
+        const stepCoverage = Math.min(steps.length / 5, 1); // Higher confidence for more steps planned
+        return Math.min(modelConfidence * (0.7 + stepCoverage * 0.3), 1);
+    }
+    static resolveFieldTarget(model, fieldKey) {
+        const normalizedKey = fieldKey.toLowerCase().trim();
+        const aliases = this.FIELD_ALIASES[normalizedKey] || [normalizedKey];
+        const blocks = (model.structure || []);
+        const formBlocks = blocks.filter((b) => b.type === 'form');
+        const scoreText = (value) => {
+            const text = value.toLowerCase();
+            let score = 0;
+            for (const alias of aliases) {
+                if (text === alias)
+                    score += 5;
+                if (text.includes(alias))
+                    score += 3;
+            }
+            return score;
+        };
+        let bestSelector;
+        let bestScore = 0;
+        for (const form of formBlocks) {
+            const fields = Array.isArray(form.fields) ? form.fields : [];
+            for (const field of fields) {
+                const label = typeof field.label === 'string' ? field.label : '';
+                const name = typeof field.name === 'string' ? field.name : '';
+                const placeholder = typeof field.placeholder === 'string' ? field.placeholder : '';
+                const id = typeof field.id === 'string' ? field.id : '';
+                const selector = typeof field.selector === 'string' ? field.selector : '';
+                const candidateScore = scoreText(label) * 3 +
+                    scoreText(name) * 2 +
+                    scoreText(placeholder) * 2 +
+                    scoreText(id) +
+                    scoreText(selector);
+                if (candidateScore > bestScore) {
+                    bestScore = candidateScore;
+                    bestSelector = selector || undefined;
+                }
+            }
+        }
+        if (!bestSelector && Array.isArray(model.relationships)) {
+            const relationships = model.relationships;
+            const relatedField = relationships.find((r) => r.type === 'labelled_by' && aliases.some((a) => (r.sourceId || '').toLowerCase().includes(a)));
+            if (relatedField?.targetId) {
+                bestSelector = `#${relatedField.targetId}`;
+            }
+        }
+        return bestSelector ? { fieldKey, selector: bestSelector } : { fieldKey };
+    }
+}
+//# sourceMappingURL=planner.js.map

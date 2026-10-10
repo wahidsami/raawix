@@ -39,9 +39,12 @@
     "themeSwitchToDark": "Switch to dark mode",
     "details": "Details",
     "allStatuses": "All Statuses",
-    "allTypes": "All Types"
+    "allTypes": "All Types",
+    "notWorking": "Not working",
+    "needsReview": "Needs review",
+    "working": "Working",
+    "notApplicable": "Not applicable"
   },
-
   "auth": {
     "login": "Login",
     "logout": "Logout",
@@ -167,12 +170,11 @@
     "pending": "Pending",
     "running": "Running",
     "completed": "Completed",
-    "failed": "Failed",
+    "failed": "failed",
     "canceled": "Canceled",
     "discovering": "Discovering",
     "partial": "Partial",
-    "partialReportBanner":
-      "This scan did not run to completion. Figures below reflect only pages and results saved up to the stop or failure.",
+    "partialReportBanner": "This scan did not run to completion. Figures below reflect only pages and results saved up to the stop or failure.",
     "noScans": "No scans found",
     "scanDetails": "Scan Details",
     "pageList": "Page List",
@@ -186,7 +188,6 @@
     "rulesPassed": "rules passed",
     "rulesNeedReview": "rules need review",
     "passed": "passed",
-    "failed": "failed",
     "noApplicableChecks": "No applicable checks found for the selected scope.",
     "basedOnLatestScan": "Based on latest scan per property",
     "pipelineInspector": "Pipeline Inspector",
@@ -212,7 +213,12 @@
     "analysisAgentSourceAgent": "Keyboard simulation",
     "analysisAgentRanNoFindingsDashboard": "The analysis AI agent ran for this scan. No issues were recorded from keyboard simulation or optional AI enrichment.",
     "analysisAgentPagesWithTrace": "{{count}} page(s) include a saved keyboard interaction trace.",
-    "analysisAgentNotIncludedDashboard": "The analysis AI agent was not part of this scan (disabled in scan options or server settings)."
+    "analysisAgentNotIncludedDashboard": "The analysis AI agent was not part of this scan (disabled in scan options or server settings).",
+    "totalPages": "Total Pages",
+    "totalFindings": "Total Findings",
+    "wcagAScore": "WCAG A Score",
+    "wcagAAScore": "WCAG AA Score",
+    "allFindings": "All Findings"
   },
   "findings": {
     "detailsTitle": "Findings Details",
@@ -256,7 +262,9 @@
     "filterByScan": "Filter by scan",
     "viewScreenshotEvidence": "View Screenshot Evidence",
     "wcagIdPlaceholder": "WCAG ID (e.g., 1.1.1)",
-    "screenshotCrop": "Screenshot crop of detected element"
+    "screenshotCrop": "Screenshot crop of detected element",
+    "auditorStyleFindings": "Auditor-style findings",
+    "raawiAuditorFindings": "Raawi auditor findings"
   },
   "settings": {
     "title": "Settings",
@@ -326,7 +334,7 @@
     "pagePreviewTitlePending": "Getting page title…",
     "activityLabel": "Activity",
     "pagesDiscovered": "Pages Discovered",
-    "pagesScanned": "Pages Scanned",
+    "pagesScanned": "Pages scanned",
     "fails": "Failures",
     "needsReview": "Needs Review",
     "recentEvents": "Recent Events",
@@ -440,7 +448,6 @@
     "raawiAssessmentOverview": "Raawi assessment overview",
     "authenticationCoverage": "Authentication coverage",
     "scanExecution": "Scan Execution",
-    "pagesScanned": "Pages scanned",
     "pagesWithRaawiTrace": "Pages with Raawi trace",
     "accessibilityOutcomes": "Accessibility Outcomes",
     "raawiFindings": "Raawi findings",
@@ -471,7 +478,8 @@
     "understanding": "Understanding",
     "journeys": "Journeys",
     "steps": "Steps",
-    "probes": "Probes"
+    "probes": "Probes",
+    "unauthenticated": "Unauthenticated"
   },
   "entities": {
     "title": "Entities",
@@ -559,6 +567,47 @@
     "confidence": "Confidence",
     "viewLivePage": "Open page",
     "viewOpensLivePage": "Opens the live page URL in a new tab. Full assistive map JSON appears on the scan report for that page."
+  },
+  "taxonomy": {
+    "categories": {
+      "Images": "Images",
+      "Multimedia": "Multimedia",
+      "Structure & Semantics": "Structure & Semantics",
+      "Color & Contrast": "Color & Contrast",
+      "Touch & Mobile": "Touch & Mobile",
+      "Keyboard & Navigation": "Keyboard & Navigation",
+      "Timing & Interaction": "Timing & Interaction",
+      "Content": "Content",
+      "Forms & Inputs": "Forms & Inputs",
+      "Authentication & Security": "Authentication & Security",
+      "Assistive Technology": "Assistive Technology"
+    },
+    "severities": {
+      "critical": "Critical",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low",
+      "info": "Info"
+    },
+    "status": {
+      "working": "Working",
+      "not_working": "Not working",
+      "needs_review": "Needs review",
+      "not_applicable": "Not applicable",
+      "manual_checkpoint": "Manual checkpoint"
+    }
+  },
+  "agentFindings": {
+    "missing_page_structure": "Page structure is unclear: no primary heading was captured for the page.",
+    "missing_skip_link": "The page requires navigating past many interactive elements but does not provide a skip link.",
+    "inaccessible_action": "Could not interact with the element using the keyboard.",
+    "keyboard_trap": "Focus became trapped in the element and could not escape using the keyboard.",
+    "confusing_focus_order": "Focus order is illogical or jumps unpredictably.",
+    "missing_focus_indicator": "No visible focus indicator detected when the element is focused.",
+    "unclear_error_recovery": "Error messages are unclear or do not explain how to recover.",
+    "missing_form_instructions": "The form lacks instructions or accessible labels for its inputs.",
+    "ambiguous_control": "The purpose of this interactive control is ambiguous to the user.",
+    "poor_label_quality": "The current label does not adequately describe the purpose of the control.",
+    "clickable_unlabeled": "A clickable element has no visible label or text alternative."
   }
 }
-

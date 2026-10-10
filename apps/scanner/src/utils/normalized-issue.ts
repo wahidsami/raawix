@@ -21,8 +21,8 @@ export interface NormalizedIssue {
   wcagIds: string[];
   evidence: string;
   selector?: string;
-  recommendation?: string;
   howToVerify?: string;
+  kind?: string;
 }
 
 export interface NormalizableRuleFinding {
@@ -344,6 +344,7 @@ export function normalizeRuleFinding(
     selector: extractSelector(evidenceSource),
     recommendation: finding.howToVerify ?? undefined,
     howToVerify: finding.howToVerify ?? undefined,
+    kind: finding.ruleId,
   };
 }
 
@@ -374,6 +375,7 @@ export function normalizeAgentFinding(
     selector: extractSelector(evidenceSource),
     recommendation: finding.howToVerify ?? undefined,
     howToVerify: finding.howToVerify ?? undefined,
+    kind: finding.kind || undefined,
   };
 }
 
@@ -402,6 +404,7 @@ export function normalizeVisionFinding(
     evidence: stringifyEvidence(evidenceSource || finding.detectedText),
     selector: finding.correlatedSelector || extractSelector(evidenceSource),
     recommendation: undefined,
+    kind: finding.kind || undefined,
   };
 }
 
