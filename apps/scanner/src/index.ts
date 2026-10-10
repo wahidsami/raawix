@@ -20,6 +20,7 @@ import dashboardRouter from './api/dashboard.js';
 import entitiesRouter from './api/entities.js';
 import complianceRouter from './api/compliance.js';
 import scanDetailRouter, { setJobQueueGetter } from './api/scan-detail.js';
+import { legacyApiSwitch } from './middleware/legacy-api.js';
 import pdfExportRouter from './api/pdf-export.js';
 import excelExportRouter from './api/excel-export.js';
 import scanEventsRouter from './api/scan-events.js';
@@ -276,9 +277,8 @@ app.post('/api/scans/start', requireAuth, validateScanRequest, async (req, res) 
     });
   }
 });
-
 // External scan endpoint (requires API key)
-app.post('/api/scan', apiKeyAuth, validateScanRequest, async (req, res) => {
+app.post('/api/scan', legacyApiSwitch, apiKeyAuth, validateScanRequest, async (req, res) => {
   try {
     const scanId = await jobQueue.addJob(req.body);
     const isDryRun = (req.body as any).dryRun || false;
@@ -412,7 +412,7 @@ app.post('/api/scans/:scanId/discover', requireAuth, async (req, res) => {
 // POST /api/scans/:scanId/cancel is handled by scan-detail router (updates DB + job queue).
 
 // Legacy cancel endpoint (for API key auth)
-app.post('/api/scan/:id/cancel', apiKeyAuth, async (req, res) => {
+app.post('/api/scan/:id/cancel', legacyApiSwitch, apiKeyAuth, async (req, res) => {
   const scanId = req.params.id;
 
   // Sanitize scanId
@@ -439,7 +439,7 @@ app.post('/api/scan/:id/cancel', apiKeyAuth, async (req, res) => {
   }
 });
 
-app.get('/api/scan/:id', apiKeyAuth, async (req, res) => {
+app.get('/api/scan/:id', legacyApiSwitch, apiKeyAuth, async (req, res) => {
   const scanId = req.params.id;
 
   // Sanitize scanId to prevent path traversal
