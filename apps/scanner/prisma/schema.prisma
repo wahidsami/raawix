@@ -135,6 +135,7 @@ model Scan {
   status     String   // queued, running, completed, failed, canceled
   startedAt  DateTime
   completedAt DateTime?
+  canceledAt DateTime?
   maxPages   Int
   maxDepth   Int
   hostname   String

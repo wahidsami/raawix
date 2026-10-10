@@ -121,8 +121,10 @@ export class JobQueue {
     let manualCheckpoint: ManualCheckpoint | null = null;
     let pageCounter = startingPageNumber - 1;
 
+    const { isJobCanceled } = await import('./queue/cancel-manager.js');
     for (const url of urls) {
-      if (this.canceled.has(scanId)) {
+      if (this.canceled.has(scanId) || await isJobCanceled(scanId)) {
+        this.canceled.add(scanId);
         logger.info('Job canceled during sequential scan', { scanId });
         break;
       }
@@ -372,14 +374,18 @@ export class JobQueue {
       }
     }
 
+    // Submit to BullMQ
+    const { submitScanJob } = await import('./queue/scan-queue.js');
+    await submitScanJob(scanId, normalizedRequest);
+
+    // Also add to legacy memory queue for now so status endpoints don't crash
+    // if they read from it before DB logic is fully moved
     const job: Job = {
       id: scanId,
       request: normalizedRequest,
       status: 'queued',
-      // Set TTL: job expires after maxRuntimeMs + 5 minutes buffer
       ttl: Date.now() + config.quotas.maxRuntimeMs + 5 * 60 * 1000,
     };
-
     this.queue.push(job);
 
     // Create scan record in database (always create, entityId/propertyId optional)
@@ -444,7 +450,8 @@ export class JobQueue {
       return scanId;
     }
 
-    this.processQueue();
+    // Do not call processQueue() automatically
+    // this.processQueue();
 
     return scanId;
   }
@@ -495,7 +502,10 @@ export class JobQueue {
 
     const logger = new StructuredLogger(scanId);
 
-    // Create job with existing scanId
+    // Create job with existing scanId in BullMQ
+    const { submitScanJob } = await import('./queue/scan-queue.js');
+    await submitScanJob(scanId, normalizedRequest, true);
+
     const job: Job = {
       id: scanId,
       request: normalizedRequest,
@@ -508,7 +518,8 @@ export class JobQueue {
     logger.info('Job added for existing scan', { scanId, selectedUrls: normalizedRequest.selectedUrls?.length || 0, auditMode: normalizedRequest.auditMode });
 
     // Process queue to start the job
-    this.processQueue();
+    // Process queue is now handled by BullMQ worker
+    // this.processQueue();
   }
 
   /**
@@ -517,6 +528,12 @@ export class JobQueue {
   async cancelJob(scanId: string): Promise<boolean> {
     const job = this.getJob(scanId);
     const logger = new StructuredLogger(scanId);
+
+    // Mark as canceled in BullMQ manager
+    const { markJobAsCanceled } = await import('./queue/cancel-manager.js');
+    await markJobAsCanceled(scanId);
+    const { cancelScanJob: bullCancel } = await import('./queue/scan-queue.js');
+    await bullCancel(scanId);
 
     // Mark as canceled regardless of whether job exists in queue
     // (Job might not exist if it's still in discovery phase)
@@ -1023,8 +1040,10 @@ export class JobQueue {
     const scanId = job.id;
     const seedUrl = job.request.seedUrl || job.request.url || 'unknown';
 
+    const { isJobCanceled } = await import('./queue/cancel-manager.js');
     // Check if job was canceled
-    if (this.canceled.has(scanId)) {
+    if (this.canceled.has(scanId) || await isJobCanceled(scanId)) {
+      this.canceled.add(scanId);
       logger.info('Job canceled before execution', { scanId });
       this.transitionState(job, 'canceled', logger);
       job.canceledAt = new Date().toISOString();
@@ -1121,7 +1140,8 @@ export class JobQueue {
 
     try {
       // Check if canceled during setup
-      if (this.canceled.has(scanId)) {
+      if (this.canceled.has(scanId) || await isJobCanceled(scanId)) {
+        this.canceled.add(scanId);
         logger.info('Job canceled during setup', { scanId });
         this.transitionState(job, 'canceled', logger);
         job.canceledAt = new Date().toISOString();
@@ -1370,7 +1390,8 @@ export class JobQueue {
       }
 
       // Check if canceled during crawl
-      if (this.canceled.has(scanId)) {
+      if (this.canceled.has(scanId) || await isJobCanceled(scanId)) {
+        this.canceled.add(scanId);
         logger.info('Job canceled during crawl', { scanId });
         this.transitionState(job, 'canceled', logger);
         job.canceledAt = new Date().toISOString();
@@ -1409,7 +1430,8 @@ export class JobQueue {
       );
 
       // Check if canceled before saving
-      if (this.canceled.has(scanId)) {
+      if (this.canceled.has(scanId) || await isJobCanceled(scanId)) {
+        this.canceled.add(scanId);
         logger.info('Job canceled before saving results - persisting partial results', { scanId });
         this.transitionState(job, 'canceled', logger);
         job.canceledAt = new Date().toISOString();

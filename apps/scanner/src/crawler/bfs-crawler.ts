@@ -202,7 +202,12 @@ export class BFSCrawler {
 
     // Process queue with BFS
     // Enforce maxPages hard cap
+    const { isJobCanceled } = await import('../queue/cancel-manager.js');
     while (this.queue.length > 0 && this.pages.length < this.maxPages) {
+      if (this.scanId && await isJobCanceled(this.scanId)) {
+        console.log(`[CRAWL] Job canceled dynamically during BFS loop`);
+        break;
+      }
       console.log(`[CRAWL] Queue: ${this.queue.length} pages, Processed: ${this.pages.length}/${this.maxPages}`);
 
       // Process up to concurrency pages at a time

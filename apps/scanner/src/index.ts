@@ -46,7 +46,10 @@ import { z } from 'zod';
 import type { ScanRun } from '@raawi-x/core';
 
 const app = express();
-const jobQueue = new JobQueue();
+export const jobQueue = new JobQueue();
+
+import { createWorker } from './queue/scan-worker.js';
+const worker = createWorker();
 
 function assertAuditModeEnabled(auditMode: unknown): void {
   if (auditMode === 'raawi-agent' && !config.raawi.enabled) {

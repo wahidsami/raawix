@@ -110,14 +110,27 @@ export class ScanRepository {
     }
 
     try {
-      await prisma.scan.update({
-        where: { scanId },
+      const isTerminal = ['completed', 'failed', 'canceled'].includes(status);
+      
+      const result = await prisma.scan.updateMany({
+        where: { 
+          scanId,
+          // NEVER overwrite an existing terminal state (prevents late workers from overwriting a cancellation)
+          status: {
+            notIn: ['completed', 'failed', 'canceled']
+          }
+        },
         data: {
           status,
-          completedAt: completedAt || undefined,
+          ...(status === 'canceled' ? { canceledAt: new Date() } : { completedAt: completedAt || undefined }),
           updatedAt: new Date(),
         },
       });
+
+      if (result.count === 0 && isTerminal) {
+        this.logger.info('Scan status not updated (already in terminal state or not found)', { scanId, status });
+        return;
+      }
       this.logger.info('Scan status updated in database', { scanId, status });
     } catch (error) {
       this.logger.error('Failed to update scan status in database', {
