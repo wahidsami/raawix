@@ -20,7 +20,7 @@ import {
   Bot,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuItem, DropdownMenuSeparator } from '../components/ui/dropdown-menu';
-import { getLocalizedIssueTitle } from '../utils/localization-helpers';
+import { getLocalizedIssueTitle, getLocalizedIssueMessage } from '../utils/localization-helpers';
 import { useClientPagination } from '../hooks/useClientPagination';
 import TablePagination from '../components/TablePagination';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -578,16 +578,16 @@ export default function ScanDetailPage() {
         : (t('scanMonitor.auditModeLegacyLabel') || 'Legacy scan');
 
   const reportModeTitle = isRaawiAgentReport
-    ? 'Raawi agent report'
+    ? t('scanMonitor.raawiAgentReport') || 'Raawi agent report'
     : isClassicReport
-      ? 'Classic technical audit report'
-      : 'Technical audit report';
+      ? t('scanMonitor.classicTechnicalAuditReport') || 'Classic technical audit report'
+      : t('scanMonitor.technicalAuditReport') || 'Technical audit report';
 
   const reportModeIntro = isRaawiAgentReport
-    ? 'Raawi agent results are the primary report for this scan. DOM, vision, and assistive map results are kept as supporting technical evidence.'
+    ? t('scanMonitor.raawiAgentIntro') || 'Raawi agent results are the primary report for this scan. DOM, vision, and assistive map results are kept as supporting technical evidence.'
     : isClassicReport
-      ? 'Classic audit results are based on DOM/WCAG rules, vision checks, and assistive map output.'
-      : 'Results are based on legacy rules, vision checks, and assistive map output.';
+      ? t('scanMonitor.classicAuditResultsBasedOn') || 'Classic audit results are based on DOM/WCAG rules, vision checks, and assistive map output.'
+      : t('scanMonitor.legacyScanResultsIntro') || 'Results are based on legacy rules, vision checks, and assistive map output.';
   const authCoverageLabel =
     authContext?.status === 'authenticated'
       ? t('scanMonitor.authenticated') || 'Authenticated'
@@ -610,7 +610,7 @@ export default function ScanDetailPage() {
     ? 'Supporting technical evidence'
     : (t('scans.allFindings') || 'All scan findings');
   const technicalEvidenceIntro = isRaawiAgentReport
-    ? 'These DOM/WCAG and vision tables support the Raawi agent assessment. They are not the primary Raawi result, but they explain what the technical layers observed.'
+    ? t('scanMonitor.technicalEvidenceIntro') || 'These DOM/WCAG and vision tables support the Raawi agent assessment. They are not the primary Raawi result, but they explain what the technical layers observed.'
     : (t('scans.allFindingsIntro') ||
       'These tables aggregate results across every scanned page so nothing is hidden behind page selection.');
   const getAnalysisAgentStatusLabel = (status: 'pass' | 'fail' | 'not_run') => {
@@ -745,14 +745,13 @@ export default function ScanDetailPage() {
         <div className="flex gap-2">
           <DropdownMenu
             trigger={
-              <button
+              <div
                 className={`flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md ${isExporting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-primary/90 cursor-pointer'}`}
-                disabled={isExporting}
               >
                 {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 {t('common.actions') || 'Export'}
                 <ChevronDown className="w-4 h-4" />
-              </button>
+              </div>
             }
             align="right"
           >
@@ -839,7 +838,7 @@ export default function ScanDetailPage() {
               ) : null}
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              {authContext?.message || 'No authentication coverage metadata was saved for this scan.'}
+              {authContext?.message || t('scanMonitor.noAuthCoverageMetadata')}
             </p>
           </div>
           <div className="space-y-6 mb-4">
@@ -881,7 +880,7 @@ export default function ScanDetailPage() {
           {/* Summary Cards */}
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Scan Execution</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">{t('scanMonitor.scanExecutionHeader') || 'Scan Execution'}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div className="bg-card border border-border rounded-lg p-4">
                   <div className="text-sm text-muted-foreground">{t('scans.totalPages')}</div>
@@ -891,7 +890,7 @@ export default function ScanDetailPage() {
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Accessibility Outcomes</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">{t('scanMonitor.accessibilityOutcomesHeader') || 'Accessibility Outcomes'}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-card border border-border rounded-lg p-4">
                   <div className="text-sm text-muted-foreground">{t('scans.totalFindings') || 'Total Findings'}</div>
@@ -923,7 +922,7 @@ export default function ScanDetailPage() {
         <div className="bg-card border border-border rounded-lg p-6">
           <h2 className="text-xl font-bold mb-2">{t('scanMonitor.domScanVsRaawiAgent')}</h2>
           <p className="mb-4 text-sm text-muted-foreground">
-            This comparison separates automated technical findings from interaction trace findings.
+            {t('scanMonitor.thisComparisonSeparates') || 'This comparison separates automated technical findings from interaction trace findings.'}
           </p>
           <div className="mb-4 rounded-lg border border-border bg-background p-4">
             <div className="text-sm font-semibold">{t('scanMonitor.authenticationCoverage')}</div>
@@ -936,7 +935,7 @@ export default function ScanDetailPage() {
               ) : null}
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              {authContext?.message || 'No authentication coverage metadata was saved for this scan.'}
+              {authContext?.message || t('scanMonitor.noAuthCoverageMetadata')}
             </p>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1153,7 +1152,7 @@ export default function ScanDetailPage() {
                         </div>
                       </td>
                       <td className="px-4 py-2 text-muted-foreground max-w-[48rem]">
-                        <div className="break-words">{finding.message}</div>
+                        <div className="break-words">{getLocalizedIssueMessage(finding.message, t)}</div>
                         <a
                           href={finding.pageUrl}
                           target="_blank"
@@ -1222,7 +1221,7 @@ export default function ScanDetailPage() {
                 {isRaawiAgentReport ? t('findings.raawiAuditorFindings') : t('findings.auditorStyleFindings')}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Unified table using the report categories and subcategories. It combines DOM/WCAG, vision, and Raawi findings into the manual-audit format.
+                {t('scanMonitor.auditorStyleFindingsSubtitle') || 'Unified table using the report categories and subcategories. It combines DOM/WCAG, vision, and Raawi findings into the manual-audit format.'}
               </p>
             </div>
             <div className="rounded border border-border bg-background px-3 py-2 text-sm">
@@ -1248,7 +1247,13 @@ export default function ScanDetailPage() {
                 {auditorFindings.map((finding) => (
                   <tr key={finding.issueCode} className="hover:bg-muted/40 align-top">
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="font-medium">{finding.serviceName}</div>
+                      <div className="font-medium">
+                        {finding.serviceName === 'Classic audit report' ? t('scanMonitor.classicAuditReport') || 'Classic audit report'
+                          : finding.serviceName === 'Raawi agent report' ? t('scanMonitor.raawiAgentReport') || 'Raawi agent report'
+                          : finding.serviceName === 'Raawi agent' ? t('scanMonitor.auditModeRaawiAgentLabel') || 'Raawi agent'
+                          : finding.serviceName === 'Normal DOM / WCAG scan' ? t('scanMonitor.normalDomWcagScan') || 'Normal DOM / WCAG scan'
+                          : finding.serviceName}
+                      </div>
                       <div className="text-xs text-muted-foreground">{finding.sourceLabel}</div>
                     </td>
                     <td className="px-4 py-3 min-w-[260px]">
@@ -1265,7 +1270,7 @@ export default function ScanDetailPage() {
                     </td>
                     <td className="px-4 py-3 capitalize whitespace-nowrap">{t(`taxonomy.severities.${finding.severity}`, finding.severity)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{t(`taxonomy.categories.${finding.category}`, finding.category)}</td>
-                    <td className="px-4 py-3 min-w-[180px]">{finding.subcategory}</td>
+                    <td className="px-4 py-3 min-w-[180px]">{t(`taxonomy.subcategories.${finding.subcategory}`, finding.subcategory)}</td>
                     <td className="px-4 py-3 max-w-[220px]">
                       <span className="break-all text-xs text-primary">{finding.pageUrl}</span>
                     </td>
@@ -1575,7 +1580,7 @@ export default function ScanDetailPage() {
                             )}
                           </td>
                           <td className="px-4 py-2 whitespace-nowrap">{finding.status}</td>
-                          <td className="px-4 py-2 text-muted-foreground break-words">{finding.message}</td>
+                          <td className="px-4 py-2 text-muted-foreground break-words">{getLocalizedIssueMessage(finding.message, t)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1796,7 +1801,7 @@ export default function ScanDetailPage() {
                       <span className="text-xs text-muted-foreground">({finding.level})</span>
                     </div>
                     {finding.message && (
-                      <p className="text-sm text-muted-foreground">{finding.message}</p>
+                      <p className="text-sm text-muted-foreground">{getLocalizedIssueMessage(finding.message, t)}</p>
                     )}
                   </div>
                 ))}
@@ -1932,10 +1937,10 @@ export default function ScanDetailPage() {
                             )}
                           </div>
                           {finding.message && (
-                            <p className="text-sm text-muted-foreground">{finding.message}</p>
+                            <p className="text-sm text-muted-foreground">{getLocalizedIssueMessage(finding.message, t)}</p>
                           )}
                           {finding.howToVerify && (
-                            <p className="text-xs text-muted-foreground mt-1">How to verify: {finding.howToVerify}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{t('findings.howToVerify') || 'How to verify'}: {finding.howToVerify === 'HTML content not available for this page' ? t('scanMonitor.htmlContentNotAvailable') || 'HTML content not available for this page' : finding.howToVerify}</p>
                           )}
                         </div>
                       );

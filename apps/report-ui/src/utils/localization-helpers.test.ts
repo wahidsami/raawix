@@ -1,6 +1,6 @@
 // @ts-ignore
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getLocalizedIssueTitle } from './localization-helpers';
+import { getLocalizedIssueTitle, getLocalizedIssueMessage } from './localization-helpers';
 import { getWCAGRuleTitle } from '@raawi-x/core';
 
 vi.mock('@raawi-x/core', () => ({
@@ -78,5 +78,29 @@ describe('getLocalizedIssueTitle', () => {
 
     expect(getWCAGRuleTitle).toHaveBeenCalledWith('1.1.1', 'en');
     expect(result).toBe('WCAG Array Title');
+  });
+});
+
+describe('getLocalizedIssueMessage', () => {
+  let mockT: any;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockT = vi.fn((key: string, options: any) => {
+      if (key === 'ruleMessages.formFieldMissingName') {
+        return `ARABIC ${options.count} form fields`;
+      }
+      return key;
+    });
+  });
+
+  it('should extract count for form field missing name', () => {
+    const result = getLocalizedIssueMessage('2 form field(s) appear to lack an accessible name during the form task.', mockT);
+    expect(result).toBe('ARABIC 2 form fields');
+  });
+
+  it('should fallback to original message if no match', () => {
+    const result = getLocalizedIssueMessage('Some unknown message', mockT);
+    expect(result).toBe('Some unknown message');
   });
 });

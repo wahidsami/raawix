@@ -43,7 +43,9 @@
     "notWorking": "Not working",
     "needsReview": "Needs review",
     "working": "Working",
-    "notApplicable": "Not applicable"
+    "notApplicable": "Not applicable",
+    "from": "From",
+    "to": "To"
   },
   "auth": {
     "login": "Login",
@@ -218,7 +220,8 @@
     "totalFindings": "Total Findings",
     "wcagAScore": "WCAG A Score",
     "wcagAAScore": "WCAG AA Score",
-    "allFindings": "All Findings"
+    "allFindings": "All Findings",
+    "allFindingsIntro": "Detailed list of all findings across this scan."
   },
   "findings": {
     "detailsTitle": "Findings Details",
@@ -479,7 +482,18 @@
     "journeys": "Journeys",
     "steps": "Steps",
     "probes": "Probes",
-    "unauthenticated": "Unauthenticated"
+    "unauthenticated": "Unauthenticated",
+    "status": "Status",
+    "auditorStyleFindingsSubtitle": "Unified table using the report categories and subcategories. It combines DOM/WCAG, vision, and Raawi findings into the manual-audit format.",
+    "classicTechnicalAuditReport": "Classic technical audit report.",
+    "classicAuditResultsBasedOn": "Classic audit results are based on DOM/WCAG rules, vision checks, and assistive map output.",
+    "thisComparisonSeparates": "This comparison separates automated technical findings from interaction trace findings.",
+    "scanExecutionHeader": "SCAN EXECUTION",
+    "accessibilityOutcomesHeader": "ACCESSIBILITY OUTCOMES",
+    "classicAuditReport": "Classic audit report",
+    "normalDomWcagScan": "Normal DOM / WCAG scan",
+    "noAuthCoverageMetadata": "No authentication coverage metadata was saved for this scan.",
+    "htmlContentNotAvailable": "HTML content not available for this page"
   },
   "entities": {
     "title": "Entities",
@@ -595,6 +609,14 @@
       "needs_review": "Needs review",
       "not_applicable": "Not applicable",
       "manual_checkpoint": "Manual checkpoint"
+    },
+    "subcategories": {
+      "Missing labels": "Missing labels",
+      "Missing focus indicator": "Missing focus indicator",
+      "Low text contrast": "Low text contrast",
+      "Incorrect language declaration": "Incorrect language declaration",
+      "Missing page titles": "Missing page titles",
+      "Poor readability (complex language)": "Poor readability (complex language)"
     }
   },
   "agentFindings": {
@@ -609,5 +631,11 @@
     "ambiguous_control": "The purpose of this interactive control is ambiguous to the user.",
     "poor_label_quality": "The current label does not adequately describe the purpose of the control.",
     "clickable_unlabeled": "A clickable element has no visible label or text alternative."
+  },
+  "ruleMessages": {
+    "formFieldMissingName": "{{count}} form field(s) appear to lack an accessible name during the form task.",
+    "focusableElementNeedReview": "Only {{count}} focusable element(s) found - may need review",
+    "noVisibleFocusIndicator": "No visible focus indicator detected. Checked for: outline, border, box-shadow (repeated {{count}}x)",
+    "cannotDetermineColors": "Cannot determine text/background colors from inline styles - check computed styles (repeated {{count}}x)"
   }
 }

@@ -5,7 +5,7 @@ import { apiClient } from '../lib/api';
 import { Search, ExternalLink, AlertTriangle, X, FileText } from 'lucide-react';
 import GlobalEntityScopeBanner from '../components/GlobalEntityScopeBanner';
 import { getWCAGRuleDescription } from '@raawi-x/core';
-import { getLocalizedIssueTitle } from '../utils/localization-helpers';
+import { getLocalizedIssueTitle, getLocalizedIssueMessage } from '../utils/localization-helpers';
 import { useClientPagination } from '../hooks/useClientPagination';
 import TablePagination from '../components/TablePagination';
 
@@ -339,7 +339,7 @@ export default function FindingsPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm">
-                        {finding.message || '-'}
+                        {getLocalizedIssueMessage(finding.message, t) || '-'}
                       </td>
                       <td className="px-6 py-4">
                         <button
@@ -474,7 +474,7 @@ export default function FindingsPage() {
               {selectedFinding.message && (
                 <div>
                   <dt className="text-sm font-medium text-muted-foreground">{t('findings.message')}</dt>
-                  <dd className="mt-1">{selectedFinding.message}</dd>
+                  <dd className="mt-1">{getLocalizedIssueMessage(selectedFinding.message, t)}</dd>
                 </div>
               )}
 
@@ -498,7 +498,7 @@ export default function FindingsPage() {
               {selectedFinding.howToVerify && (
                 <div>
                   <dt className="text-sm font-medium text-muted-foreground">{t('findings.howToVerify')}</dt>
-                  <dd className="mt-1 text-sm">{selectedFinding.howToVerify}</dd>
+                  <dd className="mt-1 text-sm">{selectedFinding.howToVerify === 'HTML content not available for this page' ? t('scanMonitor.htmlContentNotAvailable') || 'HTML content not available for this page' : selectedFinding.howToVerify}</dd>
                 </div>
               )}
 

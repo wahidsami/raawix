@@ -43,7 +43,9 @@
     "notWorking": "لا يعمل",
     "needsReview": "يحتاج مراجعة",
     "working": "يعمل",
-    "notApplicable": "لا ينطبق"
+    "notApplicable": "لا ينطبق",
+    "from": "من",
+    "to": "إلى"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -218,7 +220,8 @@
     "totalFindings": "إجمالي النتائج",
     "wcagAScore": "نقاط WCAG A",
     "wcagAAScore": "نقاط WCAG AA",
-    "allFindings": "جميع النتائج"
+    "allFindings": "جميع النتائج",
+    "allFindingsIntro": "قائمة مفصلة بجميع النتائج عبر هذا المسح."
   },
   "findings": {
     "detailsTitle": "تفاصيل النتائج",
@@ -479,7 +482,18 @@
     "journeys": "الرحلات",
     "steps": "الخطوات",
     "probes": "الاختبارات",
-    "unauthenticated": "غير مصادق عليه"
+    "unauthenticated": "غير مصادق عليه",
+    "status": "الحالة",
+    "auditorStyleFindingsSubtitle": "جدول موحد باستخدام فئات التقرير والفئات الفرعية. يجمع بين قواعد DOM/WCAG والرؤية ونتائج راوي في شكل التدقيق اليدوي.",
+    "classicTechnicalAuditReport": "تقرير التدقيق الفني الكلاسيكي.",
+    "classicAuditResultsBasedOn": "تعتمد نتائج التدقيق الكلاسيكي على قواعد DOM/WCAG وفحوصات الرؤية ومخرجات الخرائط المساعدة.",
+    "thisComparisonSeparates": "يفصل هذا المقارنة النتائج الفنية الآلية عن نتائج تتبع التفاعل.",
+    "scanExecutionHeader": "تنفيذ المسح",
+    "accessibilityOutcomesHeader": "نتائج إمكانية الوصول",
+    "classicAuditReport": "تقرير التدقيق الكلاسيكي",
+    "normalDomWcagScan": "مسح DOM / WCAG عادي",
+    "noAuthCoverageMetadata": "لم يتم حفظ أي بيانات تعريف لتغطية المصادقة لهذا المسح.",
+    "htmlContentNotAvailable": "محتوى HTML غير متوفر لهذه الصفحة"
   },
   "entities": {
     "title": "الكيانات",
@@ -595,6 +609,14 @@
       "needs_review": "يحتاج مراجعة",
       "not_applicable": "لا ينطبق",
       "manual_checkpoint": "نقطة تحقق يدوية"
+    },
+    "subcategories": {
+      "Missing labels": "تسميات مفقودة",
+      "Missing focus indicator": "مؤشر التركيز مفقود",
+      "Low text contrast": "تباين النص منخفض",
+      "Incorrect language declaration": "إعلان لغة غير صحيح",
+      "Missing page titles": "عناوين الصفحات مفقودة",
+      "Poor readability (complex language)": "ضعف قابلية القراءة (لغة معقدة)"
     }
   },
   "agentFindings": {
@@ -609,5 +631,11 @@
     "ambiguous_control": "الغرض من هذا العنصر التفاعلي غير واضح للمستخدم.",
     "poor_label_quality": "التسمية الحالية لا تصف بشكل كاف غرض عنصر التحكم.",
     "clickable_unlabeled": "عنصر قابل للنقر لا يحتوي على تسمية مرئية أو بديل نصي."
+  },
+  "ruleMessages": {
+    "formFieldMissingName": "يبدو أن {{count}} حقل (حقول) نموذج يفتقر إلى اسم يمكن الوصول إليه أثناء مهمة النموذج.",
+    "focusableElementNeedReview": "تم العثور على {{count}} عنصر (عناصر) قابلة للتركيز فقط - قد تحتاج إلى مراجعة",
+    "noVisibleFocusIndicator": "لم يتم اكتشاف مؤشر تركيز مرئي. تم فحص: outline و border و box-shadow (تكرر {{count}} مرة)",
+    "cannotDetermineColors": "لا يمكن تحديد ألوان النص/الخلفية من الأنماط المضمنة - تحقق من الأنماط المحسوبة (تكرر {{count}} مرة)"
   }
 }
