@@ -21,6 +21,7 @@ export interface NormalizedIssue {
   wcagIds: string[];
   evidence: string;
   selector?: string;
+  recommendation?: string;
   howToVerify?: string;
   kind?: string;
 }
