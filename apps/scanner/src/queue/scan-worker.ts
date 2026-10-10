@@ -65,13 +65,7 @@ export function createWorker() {
         }
 
       } catch (error) {
-        logger.error('Job execution failed', { scanId, error: error instanceof Error ? error.message : 'Unknown' });
-        
-        // If it's the final attempt, mark as failed in DB
-        if (job.attemptsMade >= (job.opts.attempts || 1)) {
-           await scanRepository.updateScanStatus(scanId, 'failed');
-        }
-        
+        logger.error('Job execution failed (attempt)', { scanId, attempt: job.attemptsMade, error: error instanceof Error ? error.message : 'Unknown' });
         throw error; // Let BullMQ handle retries
       }
     },
@@ -81,8 +75,29 @@ export function createWorker() {
     }
   );
 
-  worker.on('failed', (job, err) => {
-    logger.error('Worker failed job', { jobId: job?.id, error: err.message });
+  worker.on('failed', async (job, err) => {
+    // This event fires when a job finally fails (exhausts all retries or stall limit)
+    const scanId = job?.id;
+    if (!scanId) {
+      logger.error('Worker failed job, but no jobId was present', { error: err.message });
+      return;
+    }
+
+    logger.error('Worker job definitively failed (exhausted retries or stalled)', { 
+      scanId, 
+      error: err.message, 
+      failedReason: job?.failedReason 
+    });
+
+    try {
+      // Update PostgreSQL to explicitly mark it failed
+      await scanRepository.updateScanStatus(scanId, 'failed');
+    } catch (dbError) {
+      logger.error('Failed to update terminal failure state in database', {
+        scanId,
+        error: dbError instanceof Error ? dbError.message : 'Unknown error',
+      });
+    }
   });
 
   worker.on('completed', (job) => {

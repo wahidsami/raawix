@@ -1211,21 +1211,8 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('\nShutting down gracefully...');
-  await disconnectPrisma();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  console.log('\nShutting down gracefully...');
-  await disconnectPrisma();
-  process.exit(0);
-});
-
 // Start server
-app.listen(config.port, () => {
+const server = app.listen(config.port, () => {
   console.log(`Scanner API server running on port ${config.port}`);
   console.log(`Report UI origin: ${config.reportUiOrigin}`);
   console.log(`Max concurrent scans: ${config.maxConcurrentScans}`);
@@ -1239,3 +1226,50 @@ app.listen(config.port, () => {
     });
   }
 });
+
+// Graceful shutdown
+let isShuttingDown = false;
+
+const shutdown = async (signal: string) => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`\nReceived ${signal}. Shutting down gracefully...`);
+
+  try {
+    // Stop accepting new HTTP requests
+    await new Promise<void>((resolve) => {
+      server.close((err) => {
+        if (err) console.error('Error closing HTTP server:', err);
+        else console.log('HTTP server closed');
+        resolve();
+      });
+    });
+
+    // Close worker
+    console.log('Closing BullMQ worker...');
+    await worker.close();
+
+    // Close queue connections
+    const { shutdownQueue } = await import('./queue/scan-queue.js');
+    await shutdownQueue();
+    console.log('BullMQ queue connections closed');
+
+    // Close Redis connection
+    const { redisConnection } = await import('./queue/redis-connection.js');
+    redisConnection.quit();
+    console.log('Redis connection closed');
+
+    // Close Prisma
+    console.log('Closing Prisma connection...');
+    await disconnectPrisma();
+
+    console.log('Graceful shutdown completed successfully.');
+    process.exit(0);
+  } catch (error) {
+    console.error('Error during graceful shutdown:', error);
+    process.exit(1);
+  }
+};
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
