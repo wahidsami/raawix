@@ -271,7 +271,7 @@ export default function FindingsPage() {
               type="text"
               value={filters.wcagId}
               onChange={(e) => setFilters({ ...filters, wcagId: e.target.value })}
-              placeholder="WCAG ID (e.g., 1.1.1)"
+              placeholder={t('findings.wcagIdPlaceholder')}
               className="px-3 py-2 border border-input rounded-md bg-background"
             />
           </div>
@@ -527,7 +527,7 @@ export default function FindingsPage() {
                       className="text-primary hover:underline flex items-center gap-1 text-sm"
                     >
                       <ExternalLink className="w-3 h-3" />
-                      View Screenshot Evidence
+                      {t('findings.viewScreenshotEvidence')}
                     </a>
                   </dd>
                 </div>

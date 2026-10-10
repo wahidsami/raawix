@@ -38,6 +38,7 @@ function VisionFindingImage({
   onViewFullSize: () => void;
   loadImageWithAuth: (url: string) => Promise<string>;
 }) {
+  const { t } = useTranslation();
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -79,7 +80,7 @@ function VisionFindingImage({
     return (
       <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground p-2 border border-border rounded bg-muted/50">
         <ImageIcon className="w-4 h-4" />
-        <span>Failed to load screenshot</span>
+        <span>{t('scanMonitor.failedLoadScreenshot')}</span>
       </div>
     );
   }
@@ -103,7 +104,7 @@ function VisionFindingImage({
         </button>
       </div>
       <p className="text-xs text-muted-foreground mt-1">
-        Screenshot crop of detected element
+        {t('findings.screenshotCrop')}
       </p>
     </div>
   );
@@ -587,14 +588,14 @@ export default function ScanDetailPage() {
       : 'Results are based on legacy rules, vision checks, and assistive map output.';
   const authCoverageLabel =
     authContext?.status === 'authenticated'
-      ? 'Authenticated'
+      ? t('scanMonitor.authenticated') || 'Authenticated'
       : authContext?.status === 'configured_but_failed'
-        ? 'Auth failed'
+        ? t('scanMonitor.authFailed') || 'Auth failed'
         : authContext?.status === 'profile_inactive'
-          ? 'Inactive auth profile'
+          ? t('scanMonitor.inactiveAuthProfile') || 'Inactive auth profile'
           : authContext?.status === 'unsupported_profile'
-            ? 'Unsupported auth profile'
-            : 'Unauthenticated';
+            ? t('scanMonitor.unsupportedAuthProfile') || 'Unsupported auth profile'
+            : t('scanMonitor.unauthenticated') || 'Unauthenticated';
   const authCoverageClass =
     authContext?.status === 'authenticated'
       ? 'bg-emerald-500/15 text-emerald-700 ring-emerald-500/20'
@@ -611,9 +612,9 @@ export default function ScanDetailPage() {
     : (t('scans.allFindingsIntro') ||
       'These tables aggregate results across every scanned page so nothing is hidden behind page selection.');
   const getAnalysisAgentStatusLabel = (status: 'pass' | 'fail' | 'not_run') => {
-    if (status === 'pass') return 'Pass';
-    if (status === 'fail') return 'Not pass';
-    return 'Not run';
+    if (status === 'pass') return t('scanMonitor.pass');
+    if (status === 'fail') return t('scanMonitor.notPass');
+    return t('scanMonitor.notRun') || 'Not run';
   };
   const getAnalysisAgentStatusClass = (status: 'pass' | 'fail' | 'not_run') => {
     if (status === 'pass') {
@@ -625,11 +626,11 @@ export default function ScanDetailPage() {
     return 'bg-muted text-muted-foreground ring-1 ring-border';
   };
   const getAuditorResultLabel = (result: string) => {
-    if (result === 'working') return 'Working';
-    if (result === 'not_working') return 'Not working';
-    if (result === 'needs_review') return 'Needs review';
-    if (result === 'not_applicable') return 'Not applicable';
-    if (result === 'manual_checkpoint') return 'Manual checkpoint';
+    if (result === 'working') return t('common.working') || 'Working';
+    if (result === 'not_working') return t('common.notWorking') || 'Not working';
+    if (result === 'needs_review') return t('common.needsReview') || 'Needs review';
+    if (result === 'not_applicable') return t('common.notApplicable') || 'Not applicable';
+    if (result === 'manual_checkpoint') return t('scanMonitor.manualCheckpoint') || 'Manual checkpoint';
     return result;
   };
   const getAuditorResultClass = (result: string) => {
@@ -639,9 +640,9 @@ export default function ScanDetailPage() {
     return 'bg-muted text-muted-foreground ring-1 ring-border';
   };
   const getManualContinuationEventLabel = (event: ManualCheckpointHistoryItem['event']) => {
-    if (event === 'paused') return 'Paused for code entry';
-    if (event === 'resumed') return 'Resumed';
-    return 'Resume failed';
+    if (event === 'paused') return t('scanMonitor.pausedForCode') || 'Paused for code entry';
+    if (event === 'resumed') return t('scanMonitor.resumed') || 'Resumed';
+    return t('scanMonitor.resumeFailed') || 'Resume failed';
   };
   const getManualContinuationEventClass = (event: ManualCheckpointHistoryItem['event']) => {
     if (event === 'paused') return 'bg-amber-500/15 text-amber-700 ring-1 ring-amber-500/20';
@@ -663,10 +664,10 @@ export default function ScanDetailPage() {
               {page.layerAgent.trace.statusLabel || getAnalysisAgentStatusLabel(page.layerAgent.trace.status)}
             </span>
           ) : (
-            <span className="text-muted-foreground text-xs">No trace</span>
+            <span className="text-muted-foreground text-xs">{t('scanMonitor.noTrace')}</span>
           )}
         </div>
-        <div>{page.layerAgent?.count ?? 0} findings</div>
+        <div>{page.layerAgent?.count ?? 0} {t('entities.findings').toLowerCase()}</div>
       </div>
     </td>
   );
@@ -694,19 +695,19 @@ export default function ScanDetailPage() {
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 md:min-w-[420px]">
             <div className="rounded border border-border bg-background/80 p-3">
-              <div className="text-xs text-muted-foreground">Pages</div>
+              <div className="text-xs text-muted-foreground">{t('scanMonitor.pages')}</div>
               <div className="text-lg font-semibold">{scanDetail.summary.totalPages}</div>
             </div>
             <div className="rounded border border-border bg-background/80 p-3">
-              <div className="text-xs text-muted-foreground">Raawi trace</div>
+              <div className="text-xs text-muted-foreground">{t('scanMonitor.raawiTrace')}</div>
               <div className="text-lg font-semibold">{raawiPagesWithTrace}</div>
             </div>
             <div className="rounded border border-border bg-background/80 p-3">
-              <div className="text-xs text-muted-foreground">Raawi issues</div>
+              <div className="text-xs text-muted-foreground">{t('scanMonitor.raawiIssues')}</div>
               <div className="text-lg font-semibold">{raawiIssueCount}</div>
             </div>
             <div className="rounded border border-border bg-background/80 p-3">
-              <div className="text-xs text-muted-foreground">DOM findings</div>
+              <div className="text-xs text-muted-foreground">{t('scanMonitor.domFindings')}</div>
               <div className="text-lg font-semibold">{scanDetail.summary.totalFindings}</div>
             </div>
           </div>
@@ -821,12 +822,12 @@ export default function ScanDetailPage() {
 
       {isRaawiAgentReport ? (
         <div className="bg-card border border-border rounded-lg p-6">
-          <h2 className="text-xl font-bold mb-2">Raawi assessment overview</h2>
+          <h2 className="text-xl font-bold mb-2">{t('scanMonitor.raawiAssessmentOverview')}</h2>
           <p className="text-sm text-muted-foreground mb-4">
             This report focuses on the Raawi agent trace and interaction results. Technical layers are available later as supporting evidence only.
           </p>
           <div className="mb-4 rounded-lg border border-border bg-background p-4">
-            <div className="text-sm font-semibold">Authentication coverage</div>
+            <div className="text-sm font-semibold">{t('scanMonitor.authenticationCoverage')}</div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className={`inline-flex rounded px-2 py-1 text-xs font-medium ring-1 ${authCoverageClass}`}>
                 {authCoverageLabel}
@@ -846,32 +847,32 @@ export default function ScanDetailPage() {
           </div>
           <div className="space-y-6 mb-4">
             <div>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Scan Execution</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">{t('scanMonitor.scanExecution')}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div className="rounded border border-border bg-background p-4">
-                  <div className="text-sm text-muted-foreground">Pages scanned</div>
+                  <div className="text-sm text-muted-foreground">{t('scanMonitor.pagesScanned')}</div>
                   <div className="text-2xl font-bold mt-1">{scanDetail.summary.totalPages}</div>
                 </div>
                 <div className="rounded border border-border bg-background p-4">
-                  <div className="text-sm text-muted-foreground">Pages with Raawi trace</div>
+                  <div className="text-sm text-muted-foreground">{t('scanMonitor.pagesWithRaawiTrace')}</div>
                   <div className="text-2xl font-bold mt-1">{raawiPagesWithTrace}</div>
                 </div>
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Accessibility Outcomes</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">{t('scanMonitor.accessibilityOutcomes')}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="rounded border border-border bg-background p-4">
-                  <div className="text-sm text-muted-foreground">Raawi findings</div>
+                  <div className="text-sm text-muted-foreground">{t('scanMonitor.raawiFindings')}</div>
                   <div className="text-2xl font-bold mt-1">{raawiIssueCount}</div>
                 </div>
                 <div className="rounded border border-border bg-background p-4">
-                  <div className="text-sm text-muted-foreground">Pass</div>
+                  <div className="text-sm text-muted-foreground">{t('scanMonitor.pass')}</div>
                   <div className="text-2xl font-bold mt-1">{analysisAgentSummary?.passPages ?? 0}</div>
                 </div>
                 <div className="rounded border border-border bg-background p-4">
-                  <div className="text-sm text-muted-foreground">Not pass</div>
+                  <div className="text-sm text-muted-foreground">{t('scanMonitor.notPass')}</div>
                   <div className="text-2xl font-bold mt-1">{analysisAgentSummary?.failPages ?? 0}</div>
                 </div>
               </div>
@@ -923,12 +924,12 @@ export default function ScanDetailPage() {
           </div>
 
         <div className="bg-card border border-border rounded-lg p-6">
-          <h2 className="text-xl font-bold mb-2">DOM scan vs Raawi agent</h2>
+          <h2 className="text-xl font-bold mb-2">{t('scanMonitor.domScanVsRaawiAgent')}</h2>
           <p className="mb-4 text-sm text-muted-foreground">
             This comparison separates automated technical findings from interaction trace findings.
           </p>
           <div className="mb-4 rounded-lg border border-border bg-background p-4">
-            <div className="text-sm font-semibold">Authentication coverage</div>
+            <div className="text-sm font-semibold">{t('scanMonitor.authenticationCoverage')}</div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className={`inline-flex rounded px-2 py-1 text-xs font-medium ring-1 ${authCoverageClass}`}>
                 {authCoverageLabel}
@@ -964,7 +965,7 @@ export default function ScanDetailPage() {
       {(manualCheckpoint || manualCheckpointHistory.length > 0) && (
         <div className="bg-card border border-border rounded-lg overflow-hidden">
           <div className="p-4 border-b border-border">
-            <h2 className="text-xl font-bold">Manual continuation timeline</h2>
+            <h2 className="text-xl font-bold">{t('scanMonitor.manualContinuationTimeline')}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               This records when Raawi paused at a verification checkpoint and what happened when the scan resumed.
             </p>
@@ -998,10 +999,10 @@ export default function ScanDetailPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">Time</th>
-                  <th className="px-4 py-3 text-left font-medium">Event</th>
-                  <th className="px-4 py-3 text-left font-medium">Page</th>
-                  <th className="px-4 py-3 text-left font-medium">Details</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('scanMonitor.time')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('scanMonitor.event')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('scanMonitor.page')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('scanMonitor.details')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -1126,11 +1127,11 @@ export default function ScanDetailPage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted">
                   <tr>
-                    <th className="px-4 py-2 text-left font-medium">Page</th>
-                    <th className="px-4 py-2 text-left font-medium">WCAG ID</th>
-                    <th className="px-4 py-2 text-left font-medium">Level</th>
-                    <th className="px-4 py-2 text-left font-medium">Status</th>
-                    <th className="px-4 py-2 text-left font-medium">Message</th>
+                    <th className="px-4 py-2 text-left font-medium">{t('scanMonitor.page')}</th>
+                    <th className="px-4 py-2 text-left font-medium">{t('scanMonitor.wcagId')}</th>
+                    <th className="px-4 py-2 text-left font-medium">{t('scanMonitor.level')}</th>
+                    <th className="px-4 py-2 text-left font-medium">{t('scanMonitor.status')}</th>
+                    <th className="px-4 py-2 text-left font-medium">{t('scanMonitor.message')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -1185,11 +1186,11 @@ export default function ScanDetailPage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted">
                   <tr>
-                    <th className="px-4 py-2 text-left font-medium">Page</th>
-                    <th className="px-4 py-2 text-left font-medium">Kind</th>
-                    <th className="px-4 py-2 text-left font-medium">Confidence</th>
-                    <th className="px-4 py-2 text-left font-medium">Detected Text</th>
-                    <th className="px-4 py-2 text-left font-medium">Description</th>
+                    <th className="px-4 py-2 text-left font-medium">{t('scanMonitor.page')}</th>
+                    <th className="px-4 py-2 text-left font-medium">{t('scanMonitor.kind')}</th>
+                    <th className="px-4 py-2 text-left font-medium">{t('scanMonitor.confidence')}</th>
+                    <th className="px-4 py-2 text-left font-medium">{t('scanMonitor.detectedText')}</th>
+                    <th className="px-4 py-2 text-left font-medium">{t('scanMonitor.description')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -1228,7 +1229,7 @@ export default function ScanDetailPage() {
               </p>
             </div>
             <div className="rounded border border-border bg-background px-3 py-2 text-sm">
-              <div className="text-muted-foreground">Total</div>
+              <div className="text-muted-foreground">{t('scanMonitor.total')}</div>
               <div className="text-lg font-semibold">{auditorFindings.length}</div>
             </div>
           </div>
@@ -1236,14 +1237,14 @@ export default function ScanDetailPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">Service Name</th>
-                  <th className="px-4 py-3 text-left font-medium">Issue Title</th>
-                  <th className="px-4 py-3 text-left font-medium">Result</th>
-                  <th className="px-4 py-3 text-left font-medium">Severity</th>
-                  <th className="px-4 py-3 text-left font-medium">Category</th>
-                  <th className="px-4 py-3 text-left font-medium">Subcategory</th>
-                  <th className="px-4 py-3 text-left font-medium">Page URL</th>
-                  <th className="px-4 py-3 text-left font-medium">Evidence</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('scanMonitor.serviceName')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('scanMonitor.issueTitle')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('scanMonitor.result')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('scanMonitor.severity')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('scanMonitor.category')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('scanMonitor.subcategory')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('scanMonitor.pageUrl')}</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('scanMonitor.evidence')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -1317,13 +1318,13 @@ export default function ScanDetailPage() {
                 <thead className="bg-muted">
                   <tr>
                     <th className="px-3 py-2 text-left font-medium">#</th>
-                    <th className="px-3 py-2 text-left font-medium">Page</th>
-                    <th className="px-3 py-2 text-left font-medium">Understanding</th>
-                    <th className="px-3 py-2 text-left font-medium">Journeys</th>
-                    <th className="px-3 py-2 text-left font-medium">Status</th>
-                    <th className="px-3 py-2 text-left font-medium">Steps</th>
-                    <th className="px-3 py-2 text-left font-medium">Probes</th>
-                    <th className="px-3 py-2 text-left font-medium">Issues</th>
+                    <th className="px-3 py-2 text-left font-medium">{t('scanMonitor.page')}</th>
+                    <th className="px-3 py-2 text-left font-medium">{t('scanMonitor.understanding')}</th>
+                    <th className="px-3 py-2 text-left font-medium">{t('scanMonitor.journeys')}</th>
+                    <th className="px-3 py-2 text-left font-medium">{t('scanMonitor.status')}</th>
+                    <th className="px-3 py-2 text-left font-medium">{t('scanMonitor.steps')}</th>
+                    <th className="px-3 py-2 text-left font-medium">{t('scanMonitor.probes')}</th>
+                    <th className="px-3 py-2 text-left font-medium">{t('scanMonitor.raawiIssues')}</th>
                     <th className="px-3 py-2 text-left font-medium">Summary</th>
                   </tr>
                 </thead>
