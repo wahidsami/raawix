@@ -121,17 +121,31 @@ export default function FindingsPage() {
             f.ruleId.toLowerCase().includes(searchLower)
         );
       }
-      // UI-006: Severity-first sorting (Critical/A -> High/AA -> Medium/AAA -> Low/other)
+      // UI-006: Severity-first sorting (Critical/A -> Important/AA -> Moderate/AAA -> Passed)
       const getSeverityScore = (level?: string) => {
         if (!level) return 99;
         const upper = level.toUpperCase();
-        if (upper === 'A') return 1;
-        if (upper === 'AA') return 2;
-        if (upper === 'AAA') return 3;
+        if (upper === 'CRITICAL' || upper === 'A') return 1;
+        if (upper === 'IMPORTANT' || upper === 'HIGH' || upper === 'AA') return 2;
+        if (upper === 'MODERATE' || upper === 'MEDIUM' || upper === 'AAA') return 3;
+        if (upper === 'LOW') return 4;
         return 99;
       };
 
-      filteredFindings.sort((a, b) => getSeverityScore(a.level) - getSeverityScore(b.level));
+      filteredFindings.sort((a, b) => {
+        // Sort Passed items last
+        const aIsPass = a.status === 'pass' || a.status === 'working';
+        const bIsPass = b.status === 'pass' || b.status === 'working';
+        if (aIsPass !== bIsPass) return aIsPass ? 1 : -1;
+
+        // Then sort by severity
+        const aSev = getSeverityScore(a.level);
+        const bSev = getSeverityScore(b.level);
+        if (aSev !== bSev) return aSev - bSev;
+
+        // Secondary deterministic sort
+        return (a.wcagId || '').localeCompare(b.wcagId || '');
+      });
 
       setFindings(filteredFindings);
       setError(null);

@@ -269,7 +269,11 @@ export default function ScansPage() {
             </thead>
             <tbody className="divide-y divide-border">
               {pagedScans.map((scan) => (
-                <tr key={scan.scanId} className="hover:bg-muted/50">
+                <tr 
+                  key={scan.scanId} 
+                  className="hover:bg-muted/50 cursor-pointer"
+                  onClick={() => navigate(`/scans/${scan.scanId}`)}
+                >
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(scan.status)}`}>
                       {t(`scans.${scan.status}` as any) || scan.status}
@@ -284,6 +288,7 @@ export default function ScansPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary hover:underline text-sm truncate max-w-xs block"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       {scan.seedUrl}
                     </a>
@@ -310,13 +315,19 @@ export default function ScansPage() {
                   </td>
                   <td className="px-6 py-4 flex items-center gap-4">
                     <button
-                      onClick={() => navigate(`/scans/${scan.scanId}`)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/scans/${scan.scanId}`);
+                      }}
                       className="text-primary hover:underline text-sm"
                     >
                       {t('common.view')}
                     </button>
                     <button
-                      onClick={() => navigate(`/findings?scanId=${scan.scanId}`)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/findings?scanId=${scan.scanId}`);
+                      }}
                       className="text-primary hover:underline text-sm whitespace-nowrap"
                     >
                       {t('findings.title')}

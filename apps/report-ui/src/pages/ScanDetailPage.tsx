@@ -562,18 +562,29 @@ export default function ScanDetailPage() {
   const manualCheckpoint = scanDetail.manualCheckpoint;
   const manualCheckpointHistory = scanDetail.manualCheckpointHistory ?? [];
   const isRaawiAgentReport = scanDetail.auditMode === 'raawi-agent';
+  const isClassicReport = scanDetail.auditMode === 'classic';
+
   const raawiPagesWithTrace = analysisAgentSummary?.pagesWithTrace ?? scanDetail.analysisAgent?.pagesWithArtifact ?? 0;
   const raawiIssueCount = analysisAgentSummary?.totalIssues ?? scanDetail.summary.totalAgentFindings ?? scanDetail.analysisAgent?.count ?? 0;
+
   const auditModeLabel =
     isRaawiAgentReport
       ? (t('scanMonitor.auditModeRaawiAgentLabel') || 'Raawi agent')
-      : (t('scanMonitor.auditModeClassicLabel') || 'Classic audit');
+      : isClassicReport
+        ? (t('scanMonitor.auditModeClassicLabel') || 'Classic audit')
+        : (t('scanMonitor.auditModeLegacyLabel') || 'Legacy scan');
+
   const reportModeTitle = isRaawiAgentReport
     ? 'Raawi agent report'
-    : 'Classic technical audit report';
+    : isClassicReport
+      ? 'Classic technical audit report'
+      : 'Technical audit report';
+
   const reportModeIntro = isRaawiAgentReport
     ? 'Raawi agent results are the primary report for this scan. DOM, vision, and assistive map results are kept as supporting technical evidence.'
-    : 'Classic audit results are based on DOM/WCAG rules, vision checks, and assistive map output.';
+    : isClassicReport
+      ? 'Classic audit results are based on DOM/WCAG rules, vision checks, and assistive map output.'
+      : 'Results are based on legacy rules, vision checks, and assistive map output.';
   const authCoverageLabel =
     authContext?.status === 'authenticated'
       ? 'Authenticated'
@@ -720,7 +731,9 @@ export default function ScanDetailPage() {
               <span className={`inline-flex items-center rounded-full px-2.5 py-1 font-medium ring-1 ${
                 isRaawiAgentReport
                   ? 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/20'
-                  : 'bg-muted text-muted-foreground ring-border'
+                  : isClassicReport
+                    ? 'bg-blue-500/10 text-blue-700 ring-blue-500/20'
+                    : 'bg-muted text-muted-foreground ring-border'
               }`}>
                 {auditModeLabel}
               </span>
