@@ -404,6 +404,33 @@
 - **Core Stability:** Scanner test suite (100/100 tests passing across 22 test files), widget test suite (99/99 unit tests passing across 6 files), and widget Vite production build (`dist/widget.iife.js` 93.38 kB) verified with zero regressions.
 - **Strict Boundary Adherence:** Zero database mutations, zero remote deployments, zero new external scans, and zero synthetic findings generated. All documented limitations preserved.
 
+# Tasks - Phase 7A: Architectural Alignment and Complete Scanning Validation Preflight
+
+- [x] 1. Preflight and Baseline Verification
+  - [x] Verify current HEAD commit SHA (`0bba5417029790d780e0455766b58572206976fe`), branch (`feature/semantic-core`), and origin synchronization
+  - [x] Review Phase 2-6 reports and scan history (`scan_1792479482089_scvi6r1`)
+  - [x] Inspect scanner request parsing, pipeline resolution, and config gates
+- [x] 2. Four-Way Scanning Mode and Architecture Audit
+  - [x] Mode A: `auditMode: 'classic'` (conventional DOM/WCAG scan, scoring, exports) -> Proven by end-to-end execution
+  - [x] Mode B: `pipeline.analysisAgent` & process gate (`AGENT_ENABLED`) -> Attempted in live scan (0 steps), verified by unit tests
+  - [x] Mode C: `auditMode: 'raawi-agent'` -> Branding/reporting flag; verified by report unit tests only (identical scanner execution)
+  - [x] Mode D: Autonomous goal execution (`RAAWI_EXECUTION_AGENT_ENABLED` / `RaawiAgent.execute`) -> Disabled by configuration & not tested
+- [x] 3. Controlled Acceptance Test Preflight Design
+  - [x] Design multi-layer test sequence on local fixtures (`portal-good` & `gov-sim`) without launching scans
+  - [x] Formulate bounded scan parameters, allowed/prohibited actions, expected findings, and artifacts
+  - [x] Establish diagnostic classification for auth failure, 0-step traces, stale state, and redirects
+- [x] 4. Phase 7 Architecture Specifications
+  - [x] Draft Scan Comparison Specification (DGA-02) with matching identity, state transitions, API/UI, and product decisions
+  - [x] Draft Scan Name Migration Plan (DGA-08) with nullable schema, API/UI flow, backfill, rollback, and test plan
+  - [x] Draft DGA-01 and DGA-16 Dashboard Accessibility verification plan
+  - [x] Draft DGA-11 Authenticated-Scan preflight
+  - [x] Formulate Widget Enhancement Backlog with discovery structure and regression gates
+- [x] 5. Deliverable and Closure
+  - [x] Create comprehensive report: `PHASE_7A_ARCHITECTURE_AND_SCAN_PREFLIGHT_REPORT.md`
+  - [x] Commit and push documentation to `feature/semantic-core`
+  - [x] Stop for coordinator review (no scans, no migrations, no deployments)
+
+
 
 
 
