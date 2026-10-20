@@ -127,6 +127,18 @@ export class ReportGenerator {
         artifact.agentPath = metadata.agentPath;
       }
 
+      // Load computed styles if available
+      const computedStylesPath = metadata.computedStylesPath || join(pageDir, 'computed-styles.json');
+      try {
+        const csContent = await readFile(computedStylesPath, 'utf-8');
+        artifact.computedStyles = JSON.parse(csContent);
+        artifact.computedStylesPath = computedStylesPath;
+      } catch {
+        if (metadata.computedStyles) {
+          artifact.computedStyles = metadata.computedStyles;
+        }
+      }
+
       return artifact;
     } catch (error) {
       console.warn(`Failed to load page artifact from ${pageDir}:`, error);

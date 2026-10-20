@@ -298,7 +298,7 @@ export class PageCapture {
                     pageNumber,
                     layer: 'L2',
                     status: 'done',
-                    meta: { skipped: true, visionCount: 0 },
+                    meta: { skipped: true, visionCount: 0, outcome: 'skipped', reason: 'layer2_disabled' },
                     timestamp: new Date().toISOString(),
                 });
             }
@@ -416,37 +416,48 @@ export class PageCapture {
                     console.log('[L1] a11y snapshot generation disabled by WRITE_A11Y_SNAPSHOT=false');
                 }
             }
-            if (pl.layer2 && config.vision.enabled) {
-                try {
-                    const visionStartedAt = Date.now();
-                    const visionAnalyzer = new VisionAnalyzer();
-                    const visionFindings = await visionAnalyzer.analyzePage(page, pageNumber, finalUrl, outputDir);
-                    timings.visionMs = Date.now() - visionStartedAt;
-                    visionCount = visionFindings.length;
-                    if (visionFindings.length > 0) {
+            let visionOutcome = 'skipped';
+            let visionError;
+            if (pl.layer2) {
+                if (!config.vision.enabled) {
+                    visionOutcome = 'skipped';
+                    console.log(`[L2] Vision analysis skipped for page ${pageNumber}: vision disabled in config`);
+                }
+                else {
+                    try {
+                        const visionStartedAt = Date.now();
+                        const visionAnalyzer = new VisionAnalyzer();
+                        const visionFindings = await visionAnalyzer.analyzePage(page, pageNumber, finalUrl, outputDir);
+                        timings.visionMs = Date.now() - visionStartedAt;
+                        visionCount = visionFindings.length;
+                        visionOutcome = 'completed';
                         visionPath = await visionAnalyzer.saveFindings(visionFindings, pageNumber, outputDir);
                         result.visionPath = visionPath;
                         console.log(`[L2] Vision complete for page ${pageNumber}: ${visionFindings.length} findings`);
                     }
-                    else {
-                        console.log(`[L2] Vision complete for page ${pageNumber}: 0 findings`);
+                    catch (error) {
+                        visionOutcome = 'failed';
+                        visionError = error instanceof Error ? error.message : String(error);
+                        console.warn(`Vision analysis failed for page ${pageNumber}:`, error);
                     }
                 }
-                catch (error) {
-                    console.warn(`Vision analysis failed for page ${pageNumber}:`, error);
+                if (this.scanId) {
+                    scanEventEmitter.emitEvent(this.scanId, {
+                        type: 'layer_status',
+                        scanId: this.scanId,
+                        url,
+                        pageNumber,
+                        layer: 'L2',
+                        status: visionOutcome === 'failed' ? 'failed' : 'done',
+                        meta: {
+                            visionCount,
+                            outcome: visionOutcome,
+                            ...(visionOutcome === 'skipped' ? { skipped: true, reason: 'vision_disabled' } : {}),
+                            ...(visionError ? { error: visionError } : {}),
+                        },
+                        timestamp: new Date().toISOString(),
+                    });
                 }
-            }
-            if (pl.layer2 && this.scanId) {
-                scanEventEmitter.emitEvent(this.scanId, {
-                    type: 'layer_status',
-                    scanId: this.scanId,
-                    url,
-                    pageNumber,
-                    layer: 'L2',
-                    status: 'done',
-                    meta: { visionCount },
-                    timestamp: new Date().toISOString(),
-                });
             }
             // Analysis AI agent (keyboard interaction trace) — optional per scan
             if (pl.analysisAgent && config.agent.enabled) {

@@ -59,6 +59,9 @@ export interface LayerStatusEvent {
     visionCount?: number;
     /** Layer was not run (operator disabled it in scan options). */
     skipped?: boolean;
+    outcome?: 'completed' | 'skipped' | 'failed';
+    reason?: string;
+    error?: string;
     assistiveCounts?: {
       images?: number;
       labels?: number;

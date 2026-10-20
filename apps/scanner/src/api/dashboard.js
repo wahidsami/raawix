@@ -677,5 +677,88 @@ router.get('/assistive-maps', requireAuth, async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch assistive maps' });
     }
 });
+/**
+ * GET /api/assistive-maps/:id
+ * Retrieve a specific assistive map by its ID or pageVersionId
+ */
+router.get('/assistive-maps/:id', requireAuth, async (req, res) => {
+    try {
+        const prisma = await getPrismaClient();
+        if (!prisma) {
+            return res.status(503).json({ error: 'Database not available' });
+        }
+        const { id } = req.params;
+        if (!id || typeof id !== 'string') {
+            return res.status(400).json({ error: 'Invalid map ID' });
+        }
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        let map = null;
+        if (isUuid) {
+            map = await prisma.assistiveMap.findFirst({
+                where: {
+                    OR: [
+                        { id },
+                        { pageVersionId: id },
+                    ],
+                },
+                include: {
+                    pageVersion: {
+                        include: {
+                            site: {
+                                select: {
+                                    domain: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+        }
+        if (!map) {
+            return res.status(404).json({ error: 'Assistive map not found' });
+        }
+        const confidenceSummary = map.confidenceSummary || {
+            labelOverrides: { high: 0, medium: 0, low: 0 },
+            imageDescriptions: { high: 0, medium: 0, low: 0 },
+            actionIntents: { high: 0, medium: 0, low: 0 },
+        };
+        const high = (confidenceSummary.labelOverrides?.high || 0) +
+            (confidenceSummary.imageDescriptions?.high || 0) +
+            (confidenceSummary.actionIntents?.high || 0);
+        const medium = (confidenceSummary.labelOverrides?.medium || 0) +
+            (confidenceSummary.imageDescriptions?.medium || 0) +
+            (confidenceSummary.actionIntents?.medium || 0);
+        const low = (confidenceSummary.labelOverrides?.low || 0) +
+            (confidenceSummary.imageDescriptions?.low || 0) +
+            (confidenceSummary.actionIntents?.low || 0);
+        const mapFormatted = {
+            id: map.id,
+            pageVersionId: map.pageVersionId,
+            siteId: map.pageVersion?.siteId,
+            domain: map.pageVersion?.site?.domain,
+            canonicalUrl: map.pageVersion?.canonicalUrl,
+            finalUrl: map.pageVersion?.finalUrl,
+            fingerprintHash: map.pageVersion?.fingerprintHash,
+            scanId: map.pageVersion?.scanId,
+            generatedAt: map.pageVersion?.generatedAt?.toISOString?.() || map.pageVersion?.generatedAt,
+            createdAt: map.createdAt?.toISOString?.() || map.createdAt,
+            updatedAt: map.updatedAt?.toISOString?.() || map.updatedAt,
+            confidenceSummary: {
+                ...confidenceSummary,
+                totals: { high, medium, low },
+                high,
+                medium,
+                low,
+            },
+            data: map.json,
+            json: map.json,
+        };
+        res.json({ map: mapFormatted });
+    }
+    catch (error) {
+        console.error('[DASHBOARD] Error fetching assistive map by ID:', error);
+        res.status(500).json({ error: 'Failed to fetch assistive map' });
+    }
+});
 export default router;
 //# sourceMappingURL=dashboard.js.map

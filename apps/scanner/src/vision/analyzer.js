@@ -70,7 +70,7 @@ export class VisionAnalyzer {
                 pageNumber,
                 error: error instanceof Error ? error.message : 'Unknown error',
             });
-            return [];
+            throw error;
         }
     }
     /**

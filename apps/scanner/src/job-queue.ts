@@ -993,7 +993,7 @@ export class JobQueue {
     pendingJob.startedAt = new Date().toISOString();
 
     // Keep Prisma row in sync (was often left `queued` until completion, which broke status-based UX)
-    void scanRepository.updateScanStatus(pendingJob.id, 'running', undefined).catch((err) => {
+    void Promise.resolve(scanRepository.updateScanStatus(pendingJob.id, 'running', undefined)).catch((err) => {
       logger.warn('Failed to update scan status to running in database', {
         scanId: pendingJob.id,
         error: err instanceof Error ? err.message : String(err),
@@ -1009,7 +1009,7 @@ export class JobQueue {
     });
 
     // Process job asynchronously
-    this.executeJob(pendingJob, logger).catch((error) => {
+    Promise.resolve(this.executeJob(pendingJob, logger)).catch((error) => {
       logger.error('Job execution failed', { scanId: pendingJob.id, error: error instanceof Error ? error.message : 'Unknown error' });
       // Error handling is done in executeJob, just clean up here
       this.running.delete(pendingJob.id);

@@ -9,7 +9,7 @@ export function getFocusableElements(document: Document): Element[] {
   const focusableSelectors = [
     'a[href]',
     'button:not([disabled])',
-    'input:not([disabled])',
+    'input:not([disabled]):not([type="hidden"])',
     'select:not([disabled])',
     'textarea:not([disabled])',
     '[tabindex]:not([tabindex="-1"])',
@@ -20,6 +20,10 @@ export function getFocusableElements(document: Document): Element[] {
   focusableSelectors.forEach((selector) => {
     const found = document.querySelectorAll(selector);
     found.forEach((el) => {
+      // Exclude hidden inputs explicitly
+      if (el.tagName.toLowerCase() === 'input' && (el.getAttribute('type')?.toLowerCase() === 'hidden' || (el as HTMLInputElement).type?.toLowerCase() === 'hidden')) {
+        return;
+      }
       // Check if element is visible (basic heuristic)
       const style = (el as HTMLElement).style;
       const computedDisplay = style.display;

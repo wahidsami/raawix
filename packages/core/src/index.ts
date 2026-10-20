@@ -168,6 +168,7 @@ export interface PageScanResult {
   semanticPath?: string;
   visionPath?: string;
   agentPath?: string;
+  computedStylesPath?: string;
   metadataPath?: string;
   timings?: PageCaptureTimings;
   manualCheckpoint?: ManualCheckpoint;
@@ -233,6 +234,45 @@ export interface PageArtifact {
   html?: string;
   a11y?: unknown;
   error?: string;
+  computedStylesPath?: string;
+  computedStyles?: ComputedStyleData;
+}
+
+export interface ComputedFocusEvidence {
+  selector: string;
+  tagName: string;
+  htmlSnippet: string;
+  hasVisibleIndicator: boolean;
+  methods: string[];
+  styles?: {
+    outlineWidth?: string;
+    outlineStyle?: string;
+    outlineColor?: string;
+    boxShadow?: string;
+    borderColor?: string;
+  };
+}
+
+export interface ComputedContrastEvidence {
+  selector: string;
+  tagName: string;
+  htmlSnippet: string;
+  text: string;
+  textColor: string;
+  backgroundColor: string;
+  contrastRatio: number | null;
+  fontSize?: string;
+  fontWeight?: string;
+  isLargeText?: boolean;
+}
+
+export interface ComputedStyleData {
+  focus?: {
+    sampledElements: ComputedFocusEvidence[];
+  };
+  contrast?: {
+    sampledElements: ComputedContrastEvidence[];
+  };
 }
 
 /**
@@ -352,3 +392,4 @@ export interface Journey {
 }
 
 export * from './wcag-metadata.js';
+export * from './localization.js';

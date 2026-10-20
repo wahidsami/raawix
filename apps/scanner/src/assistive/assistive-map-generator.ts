@@ -399,31 +399,114 @@ export class AssistiveMapGenerator {
   }
 
   /**
-   * Generate stable selector for element
+   * Generate robust, unique selector for element within the page
    */
-  private generateSelector(element: Element): string {
-    // Try id first
-    if (element.id) {
-      return `#${element.id}`;
+  generateSelector(element: Element, doc?: Document): string {
+    const document = doc || element.ownerDocument;
+    if (!document) {
+      return element.tagName.toLowerCase();
     }
 
-    // Try data-testid
-    const testId = element.getAttribute('data-testid');
+    const isUnique = (sel: string): boolean => {
+      try {
+        return document.querySelectorAll(sel).length === 1;
+      } catch {
+        return false;
+      }
+    };
+
+    // 1. Try id (must be unique in document and a valid CSS ident)
+    if (element.id && /^[a-zA-Z][\w:.-]*$/.test(element.id)) {
+      const idSel = `#${element.id}`;
+      if (isUnique(idSel)) {
+        return idSel;
+      }
+    }
+
+    // 2. Try data-testid or data-id
+    const testId = element.getAttribute('data-testid') || element.getAttribute('data-id');
     if (testId) {
-      return `[data-testid="${testId}"]`;
+      const testIdSel = `[data-testid="${testId}"]`;
+      if (isUnique(testIdSel)) {
+        return testIdSel;
+      }
     }
 
-    // Try class names
-    const classes = Array.from(element.classList).filter(c => c.length > 0);
-    if (classes.length > 0) {
-      return `.${classes.join('.')}`;
-    }
-
-    // Fallback to tag + position
     const tagName = element.tagName.toLowerCase();
+
+    // 3. For links, try a[href="..."]
+    if (tagName === 'a') {
+      const href = element.getAttribute('href');
+      if (href && !href.startsWith('javascript:') && !href.startsWith('#')) {
+        const escapedHref = href.replace(/["\\]/g, '\\$&');
+        const hrefSel = `a[href="${escapedHref}"]`;
+        if (isUnique(hrefSel)) {
+          return hrefSel;
+        }
+      }
+    }
+
+    // 4. Try tag with name or type attribute
+    const name = element.getAttribute('name');
+    if (name) {
+      const nameSel = `${tagName}[name="${name}"]`;
+      if (isUnique(nameSel)) {
+        return nameSel;
+      }
+    }
+
+    // 5. Try class names
+    const classes = Array.from(element.classList).filter((c) => c.length > 0 && !/\s/.test(c));
+    if (classes.length > 0) {
+      const classSel = `${tagName}.${classes.join('.')}`;
+      if (isUnique(classSel)) {
+        return classSel;
+      }
+    }
+
+    // 6. Build hierarchical path with ancestor context and :nth-of-type
+    const path: string[] = [];
+    let current: Element | null = element;
+
+    while (current && current !== document.documentElement && current !== document.body) {
+      const parent: Element | null = current.parentElement;
+      if (!parent) {
+        path.unshift(current.tagName.toLowerCase());
+        break;
+      }
+
+      // If an ancestor has a unique ID, anchor to that ancestor
+      if (current.id && /^[a-zA-Z][\w:.-]*$/.test(current.id) && isUnique(`#${current.id}`)) {
+        path.unshift(`#${current.id}`);
+        break;
+      }
+
+      const tag = current.tagName.toLowerCase();
+      const currentClasses = Array.from(current.classList).filter((c) => c.length > 0 && !/\s/.test(c));
+      const classSuffix = currentClasses.length > 0 ? `.${currentClasses[0]}` : '';
+
+      const siblings = Array.from(parent.children).filter((c) => c.tagName === current!.tagName);
+      const index = siblings.indexOf(current);
+      const part = siblings.length > 1 ? `${tag}${classSuffix}:nth-of-type(${index + 1})` : `${tag}${classSuffix}`;
+      path.unshift(part);
+
+      const candidate = path.join(' > ');
+      if (isUnique(candidate)) {
+        return candidate;
+      }
+
+      current = parent;
+    }
+
+    const fullPath = path.join(' > ');
+    if (isUnique(fullPath)) {
+      return fullPath;
+    }
+
+    // 7. Safe fallback: element tag + nth-of-type relative to parent
     const parent = element.parentElement;
     if (parent) {
-      const siblings = Array.from(parent.children).filter(c => c.tagName === element.tagName);
+      const siblings = Array.from(parent.children).filter((c) => c.tagName === element.tagName);
       const index = siblings.indexOf(element);
       if (index >= 0 && siblings.length > 1) {
         return `${tagName}:nth-of-type(${index + 1})`;

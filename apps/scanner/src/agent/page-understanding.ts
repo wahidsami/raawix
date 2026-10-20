@@ -52,6 +52,7 @@ export interface RaawiTaskAssessment {
     evidence: Record<string, unknown>;
     suggestedWcagIds?: string[];
     howToVerify?: string;
+    source?: 'static_profile';
   };
 }
 
@@ -366,7 +367,8 @@ export async function captureRaawiPageProfile(page: Page, url: string): Promise<
       .filter(Boolean);
     const links = Array.from(document.querySelectorAll('a[href]'));
     const buttons = Array.from(document.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"]'));
-    const fields = Array.from(document.querySelectorAll('input, select, textarea'));
+    const fields = Array.from(document.querySelectorAll('input:not([type="hidden"]), select, textarea'))
+      .filter((el) => el.getAttribute('type')?.toLowerCase() !== 'hidden');
     const images = Array.from(document.querySelectorAll('img'));
     const forms = Array.from(document.querySelectorAll('form'));
     const media = document.querySelectorAll('audio, video, iframe[src*="youtube"], iframe[src*="vimeo"]').length;
@@ -475,7 +477,8 @@ export async function captureRaawiPageProfile(page: Page, url: string): Promise<
       sampleControls,
       forms: forms.slice(0, 5).map((form, index) => {
         const formText = `${(form.textContent ?? '').replace(/\s+/g, ' ').trim()} ${form.getAttribute('aria-label') ?? ''}`.toLowerCase();
-        const formFields = Array.from(form.querySelectorAll('input, select, textarea'));
+        const formFields = Array.from(form.querySelectorAll('input:not([type="hidden"]), select, textarea'))
+          .filter((el) => el.getAttribute('type')?.toLowerCase() !== 'hidden');
         const fieldSamples = formFields.slice(0, 6).map((field) => {
           const input = field as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
           const type = field.getAttribute('type');

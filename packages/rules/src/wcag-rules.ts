@@ -244,10 +244,14 @@ export const wcag412Rule: Rule = {
 
     const dom = new JSDOM(page.html);
     const document = dom.window.document;
-    const formControls = document.querySelectorAll('input, select, textarea');
+    const formControls = document.querySelectorAll('input:not([type="hidden"]), select, textarea');
     const violations: EvidenceItem[] = [];
 
     formControls.forEach((control: Element) => {
+      // Skip hidden inputs explicitly
+      if (control.tagName.toLowerCase() === 'input' && control.getAttribute('type')?.toLowerCase() === 'hidden') {
+        return;
+      }
       const id = control.getAttribute('id');
       const ariaLabel = control.getAttribute('aria-label');
       const ariaLabelledBy = control.getAttribute('aria-labelledby');
@@ -492,6 +496,58 @@ export const wcag247Rule: Rule = {
       }
     }
 
+    if (page.computedStyles?.focus?.sampledElements && page.computedStyles.focus.sampledElements.length > 0) {
+      const sampled = page.computedStyles.focus.sampledElements;
+      const elementsWithIndicator = sampled.filter((e) => e.hasVisibleIndicator).length;
+      const sampleSize = sampled.length;
+      const passRate = elementsWithIndicator / sampleSize;
+      const threshold = 0.7; // 70% threshold
+
+      if (passRate >= threshold) {
+        return {
+          ruleId: 'wcag-2.4.7',
+          wcagId: '2.4.7',
+          status: 'pass',
+          confidence: 'high',
+          evidence: [],
+          howToVerify: 'Verify all focusable elements have visible focus indicators (outline, border, or box-shadow)',
+          message: `${elementsWithIndicator}/${sampleSize} sampled elements have focus indicators`,
+        };
+      }
+
+      const violations: EvidenceItem[] = sampled
+        .filter((e) => !e.hasVisibleIndicator)
+        .map((e) => ({
+          type: 'element',
+          value: e.htmlSnippet || `<${e.tagName}>`,
+          selector: e.selector,
+          description: `No visible focus indicator detected in browser. Checked for: outline, border, box-shadow`,
+        }));
+
+      if (elementsWithIndicator === 0) {
+        return {
+          ruleId: 'wcag-2.4.7',
+          wcagId: '2.4.7',
+          status: 'fail',
+          confidence: 'high',
+          evidence: violations,
+          howToVerify: 'Add CSS :focus or :focus-visible styles with outline, border, or box-shadow to all focusable elements',
+          message: `None of ${sampleSize} sampled elements have visible focus indicators`,
+        };
+      }
+
+      return {
+        ruleId: 'wcag-2.4.7',
+        wcagId: '2.4.7',
+        status: 'needs_review',
+        confidence: 'medium',
+        evidence: violations,
+        howToVerify: 'Review focusable elements and ensure they have visible focus indicators',
+        message: `Only ${elementsWithIndicator}/${sampleSize} sampled elements have focus indicators`,
+      };
+    }
+
+    // Fallback: Static JSDOM evaluation
     const passRate = elementsWithIndicator / sampleSize;
     const threshold = 0.7; // 70% of elements should have indicators
 
@@ -507,26 +563,16 @@ export const wcag247Rule: Rule = {
       };
     }
 
-    if (violations.length === sampleSize) {
-      return {
-        ruleId: 'wcag-2.4.7',
-        wcagId: '2.4.7',
-        status: 'fail',
-        confidence: 'medium',
-        evidence: violations,
-        howToVerify: 'Add CSS :focus styles with outline, border, or box-shadow to all focusable elements',
-        message: `None of ${sampleSize} sampled elements have visible focus indicators`,
-      };
-    }
-
+    // When running purely statically without computed browser styles, do not falsely claim absolute failure.
+    // Preserve appropriately uncertain needs_review outcome.
     return {
       ruleId: 'wcag-2.4.7',
       wcagId: '2.4.7',
       status: 'needs_review',
-      confidence: 'medium',
+      confidence: 'low',
       evidence: violations,
-      howToVerify: 'Review focusable elements and ensure they have visible focus indicators',
-      message: `Only ${elementsWithIndicator}/${sampleSize} sampled elements have focus indicators`,
+      howToVerify: 'Review focusable elements in browser with stylesheets loaded. Static parser cannot verify external CSS focus styles.',
+      message: `${violations.length} sampled element(s) require computed focus indicator review in browser`,
     };
   },
 };
@@ -684,7 +730,7 @@ export const wcag212Rule: Rule = {
     const potentialTraps: EvidenceItem[] = [];
 
     modals.forEach((modal) => {
-      const modalFocusable = Array.from(modal.querySelectorAll('a, button, input, select, textarea, [tabindex]'));
+      const modalFocusable = Array.from(modal.querySelectorAll('a[href], button:not([disabled]), input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
       const hasEscape = modal.querySelector('[aria-label*="close" i], [aria-label*="dismiss" i], .close, [data-dismiss]');
       const hasEscapeKey = modal.getAttribute('data-escape-key') !== 'false';
 
@@ -701,7 +747,7 @@ export const wcag212Rule: Rule = {
     // Check for regions with many focusable elements but no exit
     const regions = document.querySelectorAll('[role="region"], section, article');
     regions.forEach((region) => {
-      const regionFocusable = Array.from(region.querySelectorAll('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])'));
+      const regionFocusable = Array.from(region.querySelectorAll('a[href], button:not([disabled]), input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
       if (regionFocusable.length > 10) {
         // Heuristic: Many focusable elements in one region might indicate trap
         const hasExit = region.querySelector('a[href], button[type="button"]');
@@ -759,6 +805,68 @@ export const wcag143Rule: Rule = {
         confidence: 'high',
         evidence: [],
         howToVerify: 'HTML content not available for this page',
+      };
+    }
+
+    if (page.computedStyles?.contrast?.sampledElements && page.computedStyles.contrast.sampledElements.length > 0) {
+      const sampled = page.computedStyles.contrast.sampledElements;
+      const violations: EvidenceItem[] = [];
+      const needsReview: EvidenceItem[] = [];
+
+      for (const el of sampled) {
+        if (el.contrastRatio === null || el.contrastRatio === undefined) {
+          needsReview.push({
+            type: 'element',
+            value: el.htmlSnippet,
+            selector: el.selector,
+            description: `Cannot determine computed background color for text element`,
+          });
+          continue;
+        }
+
+        const requiredRatio = el.isLargeText ? 3.0 : 4.5;
+        if (el.contrastRatio < requiredRatio) {
+          violations.push({
+            type: 'element',
+            value: el.htmlSnippet,
+            selector: el.selector,
+            description: `Contrast ratio ${el.contrastRatio.toFixed(2)}:1 (below ${requiredRatio}:1). Text: ${el.textColor}, BG: ${el.backgroundColor}`,
+          });
+        }
+      }
+
+      if (violations.length === 0 && needsReview.length === 0) {
+        return {
+          ruleId: 'wcag-1.4.3',
+          wcagId: '1.4.3',
+          status: 'pass',
+          confidence: 'high',
+          evidence: [],
+          howToVerify: 'Verify text contrast using browser DevTools or contrast checker tools',
+          message: `Checked ${sampled.length} text element(s) - all meet contrast requirements`,
+        };
+      }
+
+      if (violations.length > 0) {
+        return {
+          ruleId: 'wcag-1.4.3',
+          wcagId: '1.4.3',
+          status: 'fail',
+          confidence: 'high',
+          evidence: violations,
+          howToVerify: 'Increase contrast by adjusting text or background colors to meet 4.5:1 ratio (3:1 for large text)',
+          message: `Found ${violations.length} text element(s) with insufficient contrast`,
+        };
+      }
+
+      return {
+        ruleId: 'wcag-1.4.3',
+        wcagId: '1.4.3',
+        status: 'needs_review',
+        confidence: 'medium',
+        evidence: needsReview,
+        howToVerify: 'Review text contrast using computed styles. Some elements may need manual verification.',
+        message: `${needsReview.length} element(s) need manual contrast review`,
       };
     }
 

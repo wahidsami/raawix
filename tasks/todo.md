@@ -1,0 +1,101 @@
+# Tasks - Phase 2: Execute One Controlled End-to-End Scan
+
+- [x] 1. Pre-Launch Verification
+  - [x] Verify test environment isolation (`test-api.unifinitylab.com` / `test-report.unifinitylab.com`)
+  - [x] Verify `DISABLE_LEGACY_SCAN_API=true` protection (HTTP 404 confirmed)
+  - [x] Verify target `https://www.w3.org/WAI/demos/bad/` is reachable over HTTPS (HTTP 200 confirmed)
+  - [x] Prepare exact scan start payload matching API schema
+- [x] 2. Launch Exactly ONE Scan
+  - [x] Submit `POST /api/scans/start` with approved bounded parameters
+  - [x] Immediately capture and record the returned `scanId`: `scan_1792479482089_scvi6r1`
+- [x] 3. Lifecycle Observation & Live Monitoring
+  - [x] Connect to SSE stream `/api/scans/:id/events`
+  - [x] Track state transitions: queued -> running -> completed (34.9s duration)
+  - [x] Capture per-page timings, layer statuses, and agent progress events
+- [x] 4. Post-Scan Evidence Verification (Cross-Layer)
+  - [x] Verify Layer 1 (DOM, HTML, 10 WCAG rule findings: 7 pass, 2 fail, 1 needs review)
+  - [x] Verify Layer 2 (screenshot.png, vision analysis completed, visionCount: 0)
+  - [x] Verify Layer 3A (interaction agent executed in 83ms, 1 finding: unnamed_task_control)
+  - [x] Verify Layer 3B (assistive map generated with 2 action intents, persisted to DB)
+  - [x] Check Test Report UI rendering for this scan (75% score, bilingual EN/AR verified)
+- [x] 5. Export Verification (English & Arabic Excel Workbooks)
+  - [x] Download English Excel workbook (`locale=en`) for this scan (11,876 bytes)
+  - [x] Download Arabic Excel workbook (`locale=ar`) for this scan (12,460 bytes)
+  - [x] Directly inspect workbooks for structure, metadata, RTL/LTR, and row-level finding translations
+- [x] 6. Comprehensive Deliverable
+  - [x] Produce `PHASE_2_CONTROLLED_E2E_SCAN_REPORT.md`
+  - [x] Executive verdict: PASS (with target Cloudflare edge challenge note)
+  - [x] Stop for coordinator review
+
+## Execution Review
+- Single scan `scan_1792479482089_scvi6r1` executed end-to-end in 34.9 seconds.
+- All three layers (L1 DOM/WCAG, L2 Vision, L3A Keyboard Agent, L3B Assistive Map) succeeded and persisted.
+- Target edge served Cloudflare challenge page (`title: "Just a moment..."`), which was fully audited.
+- Real finding rows populated English and Arabic Excel workbooks; row-level status (`Pass`/`نجح`, `Fail`/`فشل`, `Needs Review`/`يحتاج مراجعة`) and severities (`Critical`/`حرج`, `Important`/`مهم`) verified.
+
+# Tasks - Phase 3: Existing Scan Evidence and Accuracy Review
+
+- [x] 1. Cross-Layer Evidence Verification
+  - [x] Correlate scan lifecycle, page metadata, HTML, WCAG findings, vision, keyboard trace, assistive map, and UI/exports
+- [x] 2. Layer 1 Accuracy & False Positive Assessment
+  - [x] Verify Cloudflare challenge page impact vs intended W3C target (audited page was `<title>Just a moment...</title>`)
+  - [x] Analyze hidden Turnstile response input `#cf-chl-widget-wmnkd_response` in WCAG 4.1.2 and WCAG 2.4.7 (confirmed false positive)
+  - [x] Evaluate focus indicator sampling logic (sampling hidden inputs for focus styles and only checking inline styles)
+  - [x] Analyze contrast review on `div.main-wrapper.QOLSX4` (WCAG 1.4.3 JSDOM inline-only check causes 19 elements to fall back to needs_review)
+  - [x] Document impact on reported compliance score (75% applies only to challenge page)
+- [x] 3. Keyboard Agent Discrepancy Investigation
+  - [x] Trace `unnamed_task_control` generation vs `0 steps, 0 probes attempted, 1 issue` in trace
+  - [x] Inspect source in `page-understanding.ts`, `interaction-agent.ts`, and `analysis-agent-summary.ts` for metric calculations
+  - [x] Determine that trace represents pre-interaction static page-profile assessment of hidden input; active loop exited in 83ms without tab steps
+- [x] 4. Vision Layer Verification
+  - [x] Trace vision pipeline execution from `screenshot.png` to `visionCount: 0` (ran in 8.1s, heuristic check only)
+  - [x] Determine that external AI vision models (OpenAI/Gemini) were disabled by configuration; zero findings on 2 text links was expected
+  - [x] Assess telemetry: `saveFindings()` is skipped when findings count is 0; `vision.json` is not written to disk by design
+- [x] 5. Assistive Map Assessment
+  - [x] Inspect the 2 action intents (`a` -> Cloudflare, `.footer-text` -> Privacy) in database/artifacts
+  - [x] Evaluate API retrieval endpoints: `GET /api/assistive-maps` works, but individual `:id` endpoint returns 404
+  - [x] Assess suitability: accurately models footer links, but selector `a` is too generic
+- [x] 6. Bilingual Report & Excel Localization Audit
+  - [x] Identify dynamic English messages and recommendations in Arabic workbook sheet `نتائج WCAG` and `وكيل التحليل`
+  - [x] Check trace summary localization in Arabic sheet `تتبّع الوكيل` (`0 steps, 0 probes attempted, 1 issue` remains English)
+  - [x] Trace Excel export localization code (`excel-report-generator.ts`): runs in backend Node.js and has no access to frontend `getLocalizedIssueMessage`
+- [x] 7. Comprehensive Deliverable & Recommendations
+  - [x] Compile prioritized defect list (P1-P4) with impact and proposed remediation
+  - [x] Write `PHASE_3_SCAN_EVIDENCE_AND_ACCURACY_REVIEW.md`
+  - [x] Stop for coordinator review
+# Tasks - Phase 4: Pipeline Accuracy and Reporting Reliability Remediation
+
+- [x] 1. Workstream 1: Correct Hidden-Input Handling
+  - [x] Audit and fix selector in `packages/rules/src/wcag-rules.ts` (WCAG 4.1.2)
+  - [x] Audit and fix selector in `packages/rules/src/utils/focus.ts` (`getFocusableElements`)
+  - [x] Audit and fix selector in `apps/scanner/src/agent/page-understanding.ts` (`fields`, `fieldsWithoutName`)
+  - [x] Audit other form/focus rules in `packages/rules` for hidden input issues (WCAG 2.1.2 modal/region checks)
+  - [x] Write unit tests verifying hidden inputs are ignored and visible unnamed inputs still flagged (`hidden-input.test.ts` passing)
+- [x] 2. Workstream 2: Correct Focus and Contrast Evaluation
+  - [x] Inspect integration between Playwright browser capture and rule evaluation
+  - [x] Implement computed-style aware focus evaluation (supporting stylesheet `:focus`/`:focus-visible`)
+  - [x] Implement computed-style aware contrast evaluation (supporting stylesheet colors and graceful fallback)
+  - [x] Write tests covering stylesheet focus indicators, stylesheet contrast, and large-text handling (`computed-styles.test.ts` passing)
+- [x] 3. Workstream 3: Make Interaction Telemetry Trustworthy
+  - [x] Refactor `apps/scanner/src/agent/page-understanding.ts` & `interaction-agent.ts` to distinguish static vs interaction findings
+  - [x] Update `analysis-agent-summary.ts` lifecycle status & summary (do not represent 0-step trace as completed failed test)
+  - [x] Write tests for: 1 static issue with 0 steps/probes; completed interaction with steps; failed execution (`telemetry.test.ts` passing)
+- [x] 4. Workstream 4: Share Localization with Excel Exporter
+  - [x] Create shared localization module in `@raawi-x/core` with message translations, recommendations, and trace formatters
+  - [x] Wire `apps/scanner/src/services/excel-report-generator.ts` to use shared localization for Arabic workbooks
+  - [x] Keep English exports and raw technical evidence (numbers, selectors, URLs) intact
+  - [x] Write tests generating and inspecting real XLSX workbooks for cell values, RTL, and formatting (`excel-localization.test.ts` passing)
+- [x] 5. Workstream 5: Assistive-Map Selector & API Completeness
+  - [x] Improve action-intent selector generation in `assistive-map-generator.ts` for uniqueness with safe fallback
+  - [x] Add `GET /api/assistive-maps/:id` in `apps/scanner/src/api/dashboard.ts` with auth, resource association, and 404
+  - [x] Write tests for selector uniqueness and `GET /api/assistive-maps/:id` endpoint (`assistive-map.test.ts` passing)
+- [x] 6. Workstream 6: Vision Execution Telemetry
+  - [x] Update `VisionAnalyzer` and `page-capture.ts` to explicitly distinguish 0 findings, skipped, and failed/exception
+  - [x] Enhance event metadata and artifact handling for clean vs failed vision
+  - [x] Write tests verifying error outcomes are not reported as successful zero-finding analysis (`vision-telemetry.test.ts` passing)
+- [ ] 7. Full Validation, Report & Git Push
+  - [x] Run all package tests and app builds (100/100 tests passing)
+  - [ ] Produce `PHASE_4_ACCURACY_REMEDIATION_REPORT.md`
+  - [ ] Commit and push to `feature/semantic-core`
+  - [ ] Stop for coordinator review
+

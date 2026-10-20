@@ -94,6 +94,7 @@ export type InteractionArtifact = {
     evidence: unknown;
     suggestedWcagIds?: string[];
     howToVerify?: string;
+    source?: 'static_profile' | 'keyboard_interaction' | 'probe';
   }>;
   probes?: Array<{
     name: 'modal_probe' | 'menu_probe' | 'form_validation_probe' | 'search_probe' | 'workspace_probe' | 'media_probe';
@@ -1464,7 +1465,10 @@ export async function runInteractionAgent(
       taskAssessments = assessRaawiTaskIntents(pageProfile);
       for (const assessment of taskAssessments) {
         if (!assessment.issue) continue;
-        issues.push(assessment.issue);
+        issues.push({
+          ...assessment.issue,
+          source: 'static_profile',
+        });
       }
     } catch (profileErr) {
       console.warn('[InteractionAgent] Page profile capture failed:', profileErr);

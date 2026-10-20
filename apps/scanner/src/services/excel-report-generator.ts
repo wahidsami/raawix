@@ -18,7 +18,16 @@ import {
   type RaawiTraceRow,
   type SupportingTechnicalEvidenceRow,
 } from '../utils/raawi-export-data.js';
-import { getWCAGRuleTitle, getWCAGRuleDescription } from '@raawi-x/core';
+import {
+  getWCAGRuleTitle,
+  getWCAGRuleDescription,
+  getLocalizedFindingMessage,
+  getLocalizedRecommendation,
+  getLocalizedAgentKind,
+  getLocalizedTraceSummary,
+  getLocalizedStatus,
+  getLocalizedSeverity,
+} from '@raawi-x/core';
 
 /**
  * Excel Report Generator
@@ -364,7 +373,7 @@ export class ExcelReportGenerator {
           trace.stepCount,
           trace.probesText,
           trace.issueCount,
-          trace.summary,
+          locale === 'ar' ? getLocalizedTraceSummary(trace.summary, 'ar') : trace.summary,
         ]),
       );
       this.styleDataRows(rows);
@@ -396,10 +405,10 @@ export class ExcelReportGenerator {
         sheet.addRow([
           index + 1,
           finding.pageUrl,
-          finding.kind,
+          locale === 'ar' ? getLocalizedAgentKind(finding.kind, 'ar') : finding.kind,
           finding.sourceLabel,
           finding.confidenceLabel,
-          finding.message,
+          locale === 'ar' ? getLocalizedFindingMessage(finding.message, 'ar') : finding.message,
         ]),
       );
       this.styleDataRows(rows);
@@ -705,9 +714,11 @@ export class ExcelReportGenerator {
 
       const displayTitle = title ? `${title}\nWCAG ${finding.wcagId}` : (finding.wcagId || 'N/A');
       const baseMessage = (finding as any).message || 'N/A';
-      const description = desc ? `${desc}\n\n${baseMessage}` : baseMessage;
+      const localizedBaseMessage = locale === 'ar' ? getLocalizedFindingMessage(baseMessage, 'ar') : baseMessage;
+      const description = desc ? `${desc}\n\n${localizedBaseMessage}` : localizedBaseMessage;
       const selector = this.extractSelector(finding);
-      const recommendation = (finding as any).howToVerify || 'N/A';
+      const rawRec = (finding as any).howToVerify || 'N/A';
+      const recommendation = locale === 'ar' ? getLocalizedRecommendation(rawRec, 'ar') : rawRec;
 
       const row = sheet.addRow([
         displayTitle,
@@ -832,13 +843,17 @@ export class ExcelReportGenerator {
           : af.suggestedWcagIdsJson
       );
 
+      const localizedKind = locale === 'ar' ? getLocalizedAgentKind(af.kind, 'ar') : (af.kind || 'N/A');
+      const localizedMessage = locale === 'ar' ? getLocalizedFindingMessage(af.message, 'ar') : (af.message || 'N/A');
+      const localizedHowToVerify = locale === 'ar' ? getLocalizedRecommendation(af.howToVerify, 'ar') : (af.howToVerify || 'N/A');
+
       const row = sheet.addRow([
         pageUrl,
-        af.kind || 'N/A',
+        localizedKind,
         agentSourceLabel(af.source, locale),
         formatAgentConfidenceScore(af.confidence),
-        af.message || 'N/A',
-        af.howToVerify || 'N/A',
+        localizedMessage,
+        localizedHowToVerify,
         suggested,
       ]);
       row.alignment = { wrapText: true, vertical: 'top' };
@@ -944,13 +959,15 @@ export class ExcelReportGenerator {
               ? 'نجح'
               : summary.status === 'fail'
                 ? 'لم ينجح'
-                : 'لم يعمل'
+                : summary.status === 'incomplete'
+                  ? 'غير مكتمل'
+                  : 'لم يعمل'
             : formatAnalysisAgentPageStatus(summary.status),
           summary.stepCount,
           summary.probeAttemptCount,
           summary.probeSuccessCount,
           summary.issueCount,
-          summary.traceSummary,
+          locale === 'ar' ? getLocalizedTraceSummary(summary.traceSummary, 'ar') : summary.traceSummary,
         ]);
         row.alignment = { wrapText: true, vertical: 'top' };
       }
@@ -1108,6 +1125,9 @@ export class ExcelReportGenerator {
    * Extract selector from evidenceJson
    */
   private extractSelector(finding: any): string {
+    if (finding.selector) {
+      return finding.selector;
+    }
     try {
       if (!finding.evidenceJson) {
         return 'N/A';

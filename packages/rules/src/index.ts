@@ -24,6 +24,8 @@ export {
   wcag143Rule,
   wcag1410Rule,
 } from './wcag-rules.js';
+export * from './utils/contrast.js';
+export * from './utils/focus.js';
 
 
 // Legacy rule engine for backward compatibility

@@ -387,6 +387,36 @@ class ApiClient {
     return this.request('/api/assistive-maps');
   }
 
+  async getAssistiveMap(id: string): Promise<{
+    map: {
+      id: string;
+      pageVersionId: string;
+      siteId?: string;
+      domain?: string;
+      canonicalUrl?: string;
+      finalUrl?: string;
+      fingerprintHash?: string;
+      scanId?: string;
+      generatedAt?: string;
+      createdAt?: string;
+      updatedAt?: string;
+      confidenceSummary?: {
+        high: number;
+        medium: number;
+        low: number;
+        labelOverrides?: { high: number; medium: number; low: number };
+        imageDescriptions?: { high: number; medium: number; low: number };
+        actionIntents?: { high: number; medium: number; low: number };
+        forms?: any;
+        totals?: { high: number; medium: number; low: number };
+      };
+      data: any;
+      json: any;
+    };
+  }> {
+    return this.request(`/api/assistive-maps/${id}`);
+  }
+
   // Entity API methods
   async getEntities(params?: {
     status?: string;
