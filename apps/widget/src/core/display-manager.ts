@@ -12,10 +12,31 @@ import type { StateManager } from './state';
 import type { WidgetSettings } from './types';
 
 export class DisplayManager {
+  public static readonly MANAGED_ATTRIBUTES = [
+    'data-raawi-text-size',
+    'data-raawi-line-spacing',
+    'data-raawi-contrast-mode',
+    'data-raawi-stop-animations',
+    'data-raawi-cursor',
+    'data-raawi-hide-images',
+  ] as const;
+
+  public static readonly MANAGED_PROPERTIES = [
+    '--raawi-text-size',
+    '--raawi-line-spacing',
+  ] as const;
+
   private state: StateManager;
   private shadow: ShadowRoot;
   private styleElement: HTMLStyleElement | null = null;
   private unsubscribe: (() => void) | null = null;
+
+  // Ownership tracking: captures initial host baseline before widget modifies DOM
+  private initialHostAttributes: Map<string, string | null> = new Map();
+  private initialHostProperties: Map<string, string> = new Map();
+  // Exact values applied by this widget instance
+  private lastAppliedAttributes: Map<string, string> = new Map();
+  private lastAppliedProperties: Map<string, string> = new Map();
 
   // Reading overlays (contained strictly within Shadow DOM)
   private readingRuler: HTMLElement | null = null;
@@ -28,12 +49,24 @@ export class DisplayManager {
   private currentY: number = 200;
   private targetY: number = 200;
 
-  // Tracked host modifications
-  private pausedVideos: WeakSet<HTMLMediaElement> = new WeakSet();
+  // Tracked host modifications: video playback state preservation
+  private pausedByWidgetVideos: Set<HTMLVideoElement> = new Set();
+  private videoObserver: MutationObserver | null = null;
 
   constructor(state: StateManager, shadow: ShadowRoot) {
     this.state = state;
     this.shadow = shadow;
+
+    // 1. Capture initial host baseline for managed attributes and properties
+    if (typeof document !== 'undefined') {
+      const root = document.documentElement;
+      for (const attr of DisplayManager.MANAGED_ATTRIBUTES) {
+        this.initialHostAttributes.set(attr, root.hasAttribute(attr) ? root.getAttribute(attr) : null);
+      }
+      for (const prop of DisplayManager.MANAGED_PROPERTIES) {
+        this.initialHostProperties.set(prop, root.style.getPropertyValue(prop));
+      }
+    }
 
     this.ensureStyleElement();
     this.applySettings(this.state.getSettings());
@@ -50,57 +83,137 @@ export class DisplayManager {
   }
 
   /**
-   * Applies all active display preferences to the host page and Shadow DOM overlays
+   * Sets a managed host attribute, tracking widget ownership.
    */
-  public applySettings(settings: WidgetSettings): void {
+  private setManagedAttribute(attr: string, value: string): void {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
 
+    if (!this.initialHostAttributes.has(attr)) {
+      this.initialHostAttributes.set(attr, root.hasAttribute(attr) ? root.getAttribute(attr) : null);
+    }
+
+    root.setAttribute(attr, value);
+    this.lastAppliedAttributes.set(attr, value);
+  }
+
+  /**
+   * Restores a managed host attribute according to the ownership-aware policy:
+   * 1. If current value on root matches lastAppliedAttributes[attr], restore to initial baseline.
+   * 2. If current value does NOT match lastAppliedAttributes[attr], an external actor modified it — preserve host change.
+   */
+  private restoreManagedAttribute(attr: string): void {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+
+    if (!this.lastAppliedAttributes.has(attr)) {
+      return;
+    }
+
+    const currentVal = root.getAttribute(attr);
+    const lastApplied = this.lastAppliedAttributes.get(attr);
+
+    if (currentVal === lastApplied) {
+      const initialVal = this.initialHostAttributes.get(attr);
+      if (initialVal !== null && initialVal !== undefined) {
+        root.setAttribute(attr, initialVal);
+      } else {
+        root.removeAttribute(attr);
+      }
+    }
+    this.lastAppliedAttributes.delete(attr);
+  }
+
+  /**
+   * Sets a managed CSS custom property on root.style, tracking widget ownership.
+   */
+  private setManagedProperty(prop: string, value: string): void {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+
+    if (!this.initialHostProperties.has(prop)) {
+      this.initialHostProperties.set(prop, root.style.getPropertyValue(prop));
+    }
+
+    root.style.setProperty(prop, value);
+    this.lastAppliedProperties.set(prop, value);
+  }
+
+  /**
+   * Restores a managed CSS custom property on root.style according to ownership-aware policy.
+   */
+  private restoreManagedProperty(prop: string): void {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+
+    if (!this.lastAppliedProperties.has(prop)) {
+      return;
+    }
+
+    const currentVal = root.style.getPropertyValue(prop);
+    const lastApplied = this.lastAppliedProperties.get(prop);
+
+    if (currentVal === lastApplied) {
+      const initialVal = this.initialHostProperties.get(prop);
+      if (initialVal) {
+        root.style.setProperty(prop, initialVal);
+      } else {
+        root.style.removeProperty(prop);
+      }
+    }
+    this.lastAppliedProperties.delete(prop);
+  }
+
+  /**
+   * Applies all active display preferences to the host page and Shadow DOM overlays
+   */
+  public applySettings(settings: WidgetSettings): void {
     // 1. Text scaling (proportional typography hierarchy preservation)
     if (settings.textSize !== 1.0) {
-      root.style.setProperty('--raawi-text-size', String(settings.textSize));
-      root.setAttribute('data-raawi-text-size', String(settings.textSize));
+      this.setManagedProperty('--raawi-text-size', String(settings.textSize));
+      this.setManagedAttribute('data-raawi-text-size', String(settings.textSize));
     } else {
-      root.style.removeProperty('--raawi-text-size');
-      root.removeAttribute('data-raawi-text-size');
+      this.restoreManagedProperty('--raawi-text-size');
+      this.restoreManagedAttribute('data-raawi-text-size');
     }
 
     // 2. Line spacing (content blocks only, preserving compact controls & tables)
     if (settings.lineSpacing !== 1.0) {
-      root.style.setProperty('--raawi-line-spacing', String(settings.lineSpacing));
-      root.setAttribute('data-raawi-line-spacing', String(settings.lineSpacing));
+      this.setManagedProperty('--raawi-line-spacing', String(settings.lineSpacing));
+      this.setManagedAttribute('data-raawi-line-spacing', String(settings.lineSpacing));
     } else {
-      root.style.removeProperty('--raawi-line-spacing');
-      root.removeAttribute('data-raawi-line-spacing');
+      this.restoreManagedProperty('--raawi-line-spacing');
+      this.restoreManagedAttribute('data-raawi-line-spacing');
     }
 
     // 3. Curated High-Contrast Dark Theme
     if (settings.contrastMode) {
-      root.setAttribute('data-raawi-contrast-mode', 'true');
+      this.setManagedAttribute('data-raawi-contrast-mode', 'true');
     } else {
-      root.removeAttribute('data-raawi-contrast-mode');
+      this.restoreManagedAttribute('data-raawi-contrast-mode');
     }
 
     // 4. Stop Animations & Reduced Motion
     if (settings.stopAnimations) {
-      root.setAttribute('data-raawi-stop-animations', 'true');
+      this.setManagedAttribute('data-raawi-stop-animations', 'true');
       this.pauseHostMedia();
     } else {
-      root.removeAttribute('data-raawi-stop-animations');
+      this.restoreManagedAttribute('data-raawi-stop-animations');
+      this.resumeHostMedia();
     }
 
     // 5. High-Visibility Cursor
     if (settings.bigCursor !== 'off') {
-      root.setAttribute('data-raawi-cursor', settings.bigCursor);
+      this.setManagedAttribute('data-raawi-cursor', settings.bigCursor);
     } else {
-      root.removeAttribute('data-raawi-cursor');
+      this.restoreManagedAttribute('data-raawi-cursor');
     }
 
     // 6. Hide Images
     if (settings.hideImages) {
-      root.setAttribute('data-raawi-hide-images', 'true');
+      this.setManagedAttribute('data-raawi-hide-images', 'true');
     } else {
-      root.removeAttribute('data-raawi-hide-images');
+      this.restoreManagedAttribute('data-raawi-hide-images');
     }
 
     // 7. Reading Ruler Overlay (Shadow DOM contained)
@@ -245,14 +358,16 @@ export class DisplayManager {
   }
 
   /**
-   * Pauses playing HTML5 videos safely without permanently altering media state
+   * Pauses playing HTML5 videos safely, recording strictly which videos were playing
+   * before activation so only those videos are resumed upon deactivation.
    */
   private pauseHostMedia(): void {
     if (typeof document === 'undefined') return;
     const videos = document.querySelectorAll('video');
     videos.forEach((video) => {
-      if (!video.paused) {
-        this.pausedVideos.add(video);
+      // Record and pause only videos that were actively playing
+      if (!video.paused && !video.ended) {
+        this.pausedByWidgetVideos.add(video);
         try {
           video.pause();
         } catch {
@@ -260,22 +375,83 @@ export class DisplayManager {
         }
       }
     });
+
+    // Observe dynamically inserted videos while stopAnimations is enabled
+    const ObserverClass = typeof MutationObserver !== 'undefined' 
+      ? MutationObserver 
+      : (typeof window !== 'undefined' ? (window as any).MutationObserver : null);
+
+    if (!this.videoObserver && ObserverClass && document.body) {
+      const observer = new ObserverClass((mutations: MutationRecord[]) => {
+        for (const mutation of mutations) {
+          for (const node of Array.from(mutation.addedNodes)) {
+            if (node instanceof HTMLElement) {
+              const insertedVideos: HTMLVideoElement[] = [];
+              if (node.tagName.toLowerCase() === 'video') {
+                insertedVideos.push(node as HTMLVideoElement);
+              }
+              insertedVideos.push(...Array.from(node.querySelectorAll('video')));
+              for (const v of insertedVideos) {
+                if (!v.paused && !v.ended) {
+                  this.pausedByWidgetVideos.add(v);
+                  try {
+                    v.pause();
+                  } catch {}
+                }
+              }
+            }
+          }
+        }
+      });
+      this.videoObserver = observer;
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
   }
 
   /**
-   * Injects the single, managed style element into document.head
+   * Resumes only the videos that this widget paused, clearing tracking state
+   * to prevent stale references or duplicate actions.
+   */
+  private resumeHostMedia(): void {
+    if (this.videoObserver) {
+      this.videoObserver.disconnect();
+      this.videoObserver = null;
+    }
+
+    if (this.pausedByWidgetVideos.size === 0) return;
+
+    this.pausedByWidgetVideos.forEach((video) => {
+      // Resume only if video is still in DOM, still paused, and was paused by widget
+      if (video.isConnected && video.paused) {
+        try {
+          const playPromise = video.play();
+          if (playPromise && typeof playPromise.catch === 'function') {
+            playPromise.catch(() => {});
+          }
+        } catch {
+          // Ignore play rejection
+        }
+      }
+    });
+
+    this.pausedByWidgetVideos.clear();
+  }
+
+  /**
+   * Injects the single, managed style element into document.head,
+   * tagged as owned by this DisplayManager instance.
    */
   private ensureStyleElement(): void {
     if (typeof document === 'undefined') return;
 
-    let existing = document.getElementById('raawi-display-styles') as HTMLStyleElement | null;
-    if (!existing) {
-      existing = document.createElement('style');
-      existing.id = 'raawi-display-styles';
-      existing.textContent = this.generateManagedStyles();
-      document.head.appendChild(existing);
+    if (!this.styleElement) {
+      const style = document.createElement('style');
+      style.id = 'raawi-display-styles';
+      style.setAttribute('data-raawi-owned', 'true');
+      style.textContent = this.generateManagedStyles();
+      document.head.appendChild(style);
+      this.styleElement = style;
     }
-    this.styleElement = existing;
   }
 
   /**
@@ -419,21 +595,22 @@ export class DisplayManager {
   }
 
   /**
-   * Cleanly restores original host-page state
+   * Cleanly restores original host-page state according to ownership-aware policy
    */
   public reset(): void {
-    if (typeof document === 'undefined') return;
-    const root = document.documentElement;
+    // 1. Restore all managed attributes and properties
+    for (const attr of DisplayManager.MANAGED_ATTRIBUTES) {
+      this.restoreManagedAttribute(attr);
+    }
 
-    root.style.removeProperty('--raawi-text-size');
-    root.style.removeProperty('--raawi-line-spacing');
-    root.removeAttribute('data-raawi-text-size');
-    root.removeAttribute('data-raawi-line-spacing');
-    root.removeAttribute('data-raawi-contrast-mode');
-    root.removeAttribute('data-raawi-stop-animations');
-    root.removeAttribute('data-raawi-cursor');
-    root.removeAttribute('data-raawi-hide-images');
+    for (const prop of DisplayManager.MANAGED_PROPERTIES) {
+      this.restoreManagedProperty(prop);
+    }
 
+    // 2. Resume only videos paused by this widget
+    this.resumeHostMedia();
+
+    // 3. Hide Shadow DOM reading overlays
     if (this.readingRuler) {
       this.readingRuler.style.display = 'none';
     }
@@ -448,7 +625,7 @@ export class DisplayManager {
   }
 
   /**
-   * Widget teardown: cleanly cleans up listeners, styles, and DOM elements
+   * Widget teardown: cleanly cleans up listeners, styles, overlays, and tracking collections
    */
   public destroy(): void {
     this.reset();
@@ -458,6 +635,7 @@ export class DisplayManager {
       this.unsubscribe = null;
     }
 
+    // Remove only the exact stylesheet element created and owned by this instance
     if (this.styleElement && this.styleElement.parentNode) {
       this.styleElement.parentNode.removeChild(this.styleElement);
       this.styleElement = null;
@@ -477,6 +655,13 @@ export class DisplayManager {
       this.readingMaskBottom.parentNode.removeChild(this.readingMaskBottom);
       this.readingMaskBottom = null;
     }
+
+    // Clear tracking collections
+    this.initialHostAttributes.clear();
+    this.initialHostProperties.clear();
+    this.lastAppliedAttributes.clear();
+    this.lastAppliedProperties.clear();
+    this.pausedByWidgetVideos.clear();
   }
 
   public getReadingRuler(): HTMLElement | null {
@@ -489,5 +674,17 @@ export class DisplayManager {
 
   public getReadingMaskBottom(): HTMLElement | null {
     return this.readingMaskBottom;
+  }
+
+  public getPausedVideosCount(): number {
+    return this.pausedByWidgetVideos.size;
+  }
+
+  public isVideoTracked(video: HTMLVideoElement): boolean {
+    return this.pausedByWidgetVideos.has(video);
+  }
+
+  public getManagedStyleElement(): HTMLStyleElement | null {
+    return this.styleElement;
   }
 }

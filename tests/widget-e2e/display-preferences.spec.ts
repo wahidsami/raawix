@@ -364,4 +364,173 @@ test.describe('Phase 5.3 Real-Browser Display and Reading Preferences', () => {
     const speakCalls = await page.evaluate(() => (window as any).__speechSynthesisSpeakCalls || 0);
     expect(speakCalls).toBe(0);
   });
+
+  test('11. Pre-existing data-raawi-* and unrelated attributes survive preference toggle, reset, and destruction', async ({ page }) => {
+    // Set up a pre-existing managed attribute and unrelated attributes before widget initializes
+    await page.evaluate(() => {
+      (window as any).AccessibilityWidget?.destroy();
+      document.documentElement.setAttribute('data-raawi-text-size', '1.15');
+      document.documentElement.setAttribute('data-raawi-entity-code', 'E2E-GOV-99');
+      document.documentElement.setAttribute('data-raawi-version', '3.1.0');
+      (window as any).AccessibilityWidget?.init();
+    });
+
+    const launcher = page.locator('[data-testid="raawi-launcher"]');
+    await launcher.click();
+    const visionTab = page.locator('.raawi-tab-btn[data-tab="vision"]');
+    await visionTab.click();
+
+    // Change text size to 1.3
+    await page.locator('#raawi-btn-text-inc').click();
+    await page.locator('#raawi-btn-text-inc').click();
+    await page.locator('#raawi-btn-text-inc').click();
+
+    // Turn on contrast
+    await page.locator('label:has(#raawi-toggle-contrast)').click();
+    await expect(page.locator('html')).toHaveAttribute('data-raawi-contrast-mode', 'true');
+
+    // Click Reset
+    await page.locator('[data-testid="raawi-reset-all"]').click();
+
+    // Verify pre-existing data-raawi-text-size was restored to '1.15' (NOT deleted)
+    const textSizeVal = await page.evaluate(() => document.documentElement.getAttribute('data-raawi-text-size'));
+    expect(textSizeVal).toBe('1.15');
+
+    // Verify unrelated data-raawi-* attributes were never removed
+    const entityCode = await page.evaluate(() => document.documentElement.getAttribute('data-raawi-entity-code'));
+    const versionVal = await page.evaluate(() => document.documentElement.getAttribute('data-raawi-version'));
+    expect(entityCode).toBe('E2E-GOV-99');
+    expect(versionVal).toBe('3.1.0');
+
+    // Verify widget-owned attribute data-raawi-contrast-mode was removed
+    await expect(page.locator('html')).not.toHaveAttribute('data-raawi-contrast-mode');
+
+    // Clean up
+    await page.evaluate(() => {
+      document.documentElement.removeAttribute('data-raawi-text-size');
+      document.documentElement.removeAttribute('data-raawi-entity-code');
+      document.documentElement.removeAttribute('data-raawi-version');
+    });
+  });
+
+  test('12. Real-browser video playback state preservation: playing video pauses and resumes; paused video stays paused', async ({ page }) => {
+    // Inject two video elements into the page: one playing, one paused
+    await page.evaluate(() => {
+      const container = document.createElement('div');
+      container.id = 'e2e-video-container';
+
+      const vPlaying = document.createElement('video');
+      vPlaying.id = 'e2e-v-playing';
+      (vPlaying as any).__mockPlaying = true;
+      Object.defineProperty(vPlaying, 'paused', { get: () => !(vPlaying as any).__mockPlaying, configurable: true });
+      vPlaying.pause = () => { (vPlaying as any).__mockPlaying = false; };
+      vPlaying.play = async () => { (vPlaying as any).__mockPlaying = true; };
+
+      const vPaused = document.createElement('video');
+      vPaused.id = 'e2e-v-paused';
+      (vPaused as any).__mockPlaying = false;
+      Object.defineProperty(vPaused, 'paused', { get: () => !(vPaused as any).__mockPlaying, configurable: true });
+      vPaused.pause = () => { (vPaused as any).__mockPlaying = false; };
+      vPaused.play = async () => { (vPaused as any).__mockPlaying = true; };
+
+      container.appendChild(vPlaying);
+      container.appendChild(vPaused);
+      document.body.appendChild(container);
+    });
+
+    const launcher = page.locator('[data-testid="raawi-launcher"]');
+    await launcher.click();
+    const visionTab = page.locator('.raawi-tab-btn[data-tab="vision"]');
+    await visionTab.click();
+
+    // Turn ON Stop Animations
+    const animToggle = page.locator('label:has(#raawi-toggle-stop-animations)');
+    await animToggle.click();
+    await expect(page.locator('html')).toHaveAttribute('data-raawi-stop-animations', 'true');
+
+    // Both videos should now be paused (vPlaying was paused by widget; vPaused was already paused)
+    const statesWhenActive = await page.evaluate(() => {
+      const v1 = document.getElementById('e2e-v-playing') as HTMLVideoElement;
+      const v2 = document.getElementById('e2e-v-paused') as HTMLVideoElement;
+      return { v1Paused: v1.paused, v2Paused: v2.paused };
+    });
+    expect(statesWhenActive.v1Paused).toBe(true);
+    expect(statesWhenActive.v2Paused).toBe(true);
+
+    // Turn OFF Stop Animations
+    await animToggle.click();
+    await expect(page.locator('html')).not.toHaveAttribute('data-raawi-stop-animations');
+
+    // vPlaying should have RESUMED; vPaused must remain PAUSED!
+    const statesWhenDeactivated = await page.evaluate(() => {
+      const v1 = document.getElementById('e2e-v-playing') as HTMLVideoElement;
+      const v2 = document.getElementById('e2e-v-paused') as HTMLVideoElement;
+      return { v1Paused: v1.paused, v2Paused: v2.paused };
+    });
+    expect(statesWhenDeactivated.v1Paused).toBe(false);
+    expect(statesWhenDeactivated.v2Paused).toBe(true);
+
+    // Clean up
+    await page.evaluate(() => document.getElementById('e2e-video-container')?.remove());
+  });
+
+  test('13. Ownership-aware restoration: host mutation during active preference is preserved without blind overwrite', async ({ page }) => {
+    const launcher = page.locator('[data-testid="raawi-launcher"]');
+    await launcher.click();
+    const visionTab = page.locator('.raawi-tab-btn[data-tab="vision"]');
+    await visionTab.click();
+
+    // Turn ON High Contrast
+    await page.locator('label:has(#raawi-toggle-contrast)').click();
+    await expect(page.locator('html')).toHaveAttribute('data-raawi-contrast-mode', 'true');
+
+    // Host application externally mutates the attribute
+    await page.evaluate(() => {
+      document.documentElement.setAttribute('data-raawi-contrast-mode', 'host-custom-mode');
+    });
+
+    // Reset all settings in widget
+    await page.locator('[data-testid="raawi-reset-all"]').click();
+
+    // Widget checks ownership: current value is NOT 'true', so host modification is preserved
+    const contrastVal = await page.evaluate(() => document.documentElement.getAttribute('data-raawi-contrast-mode'));
+    expect(contrastVal).toBe('host-custom-mode');
+
+    // Clean up
+    await page.evaluate(() => document.documentElement.removeAttribute('data-raawi-contrast-mode'));
+  });
+
+  test('14. Teardown removes only widget-owned stylesheet without deleting unrelated stylesheets', async ({ page }) => {
+    // Add unrelated host stylesheets
+    await page.evaluate(() => {
+      const style1 = document.createElement('style');
+      style1.id = 'host-custom-style-1';
+      document.head.appendChild(style1);
+
+      const style2 = document.createElement('style');
+      style2.id = 'raawi-unrelated-styles';
+      document.head.appendChild(style2);
+    });
+
+    // Destroy widget programmatically
+    await page.evaluate(() => {
+      (window as any).AccessibilityWidget?.destroy();
+    });
+
+    // Verify widget's managed stylesheet is removed
+    const managedStyle = await page.evaluate(() => document.getElementById('raawi-display-styles'));
+    expect(managedStyle).toBeNull();
+
+    // Verify unrelated stylesheets remain in document.head
+    const hostStyle1 = await page.evaluate(() => document.getElementById('host-custom-style-1'));
+    const hostStyle2 = await page.evaluate(() => document.getElementById('raawi-unrelated-styles'));
+    expect(hostStyle1).not.toBeNull();
+    expect(hostStyle2).not.toBeNull();
+
+    // Clean up
+    await page.evaluate(() => {
+      document.getElementById('host-custom-style-1')?.remove();
+      document.getElementById('raawi-unrelated-styles')?.remove();
+    });
+  });
 });

@@ -49,6 +49,7 @@ export class AccessibilityWidget {
     if (typeof window !== 'undefined') {
       (window as any).raawiAccessibilityWidget = existing;
       (window as any).RaawiXAccessibility = AccessibilityWidget;
+      (window as any).AccessibilityWidget = AccessibilityWidget;
     }
 
     return existing;
@@ -62,6 +63,11 @@ export class AccessibilityWidget {
     if (AccessibilityWidget.instance) {
       AccessibilityWidget.instance.remove();
       AccessibilityWidget.instance = null;
+    } else if (typeof document !== 'undefined') {
+      const el = document.querySelector<RaawiAccessibilityWidget>(RaawiAccessibilityWidget.TAG_NAME);
+      if (el) {
+        el.remove();
+      }
     }
   }
 }

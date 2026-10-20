@@ -221,7 +221,40 @@ All regression suites were executed and verified:
 
 ---
 
-### 7. Next Recommended Milestone
+---
+
+### 8. Acceptance Remediation (Safe Host-State Restoration)
+
+In response to the Phase 5.3 Acceptance Review, two specific remediation fixes were designed, implemented, and verified:
+
+#### A. Attribute Ownership & Collision-Aware Restoration
+- **Defect Identified:** Previously, preference reset and teardown removed managed `data-raawi-*` attributes unconditionally without checking whether the attribute existed on `document.documentElement` before widget initialization or whether an external host script mutated it during runtime.
+- **Remediation Implemented:**
+  - `DisplayManager` captures an initial baseline map (`initialHostAttributes` and `initialHostProperties`) for all managed attributes (`data-raawi-text-size`, `data-raawi-line-spacing`, `data-raawi-contrast-mode`, `data-raawi-stop-animations`, `data-raawi-cursor`, `data-raawi-hide-images`) and custom properties (`--raawi-text-size`, `--raawi-line-spacing`) at instantiation.
+  - The manager tracks `lastAppliedAttributes`. On deactivation, reset, or teardown:
+    - If the current attribute value matches `lastAppliedAttributes[attr]`, the attribute is restored to its exact pre-existing value (or removed if absent initially).
+    - If the current value differs from `lastAppliedAttributes[attr]`, the widget detects that an external host script legitimately changed the attribute and preserves the host modification without overwriting.
+  - Unmanaged attributes (such as `data-raawi-entity-code`, `data-raawi-version`, or user custom attributes) are strictly excluded and never touched.
+  - The managed stylesheet is uniquely tagged with `data-raawi-owned="true"`; on teardown, only this exact stylesheet instance is removed, leaving host stylesheets intact.
+
+#### B. Video Playback-State Preservation
+- **Defect Identified:** Enabling stop-animations previously paused playing HTML5 `<video>` elements, but deactivating the preference never resumed playback, and there was no tracking of which videos were actively playing versus already paused prior to activation.
+- **Remediation Implemented:**
+  - `DisplayManager` maintains `pausedByWidgetVideos: Set<HTMLVideoElement>`. When stop-animations is enabled, it inspects host `<video>` elements and pauses *only* actively playing videos (`!video.paused && !video.ended`).
+  - Videos already paused prior to activation are never tracked and are never resumed.
+  - Deactivating the preference, resetting settings, or destroying the widget resumes only the tracked videos and immediately clears the set.
+  - Dynamically inserted `<video>` elements are observed via `MutationObserver` while stop-animations is active, paused if playing, and cleanly resumed on deactivation.
+  - Media `src`, `volume`, and `muted` attributes are completely untouched.
+
+#### C. Acceptance Remediation Test Coverage
+- **Unit Tests (`apps/widget/test/phase5-3.test.ts`):** Expanded from 12 to 20 tests (all 20 passing). Tests 13–20 explicitly verify pre-existing attribute survival, unrelated attribute preservation, collision handling, stylesheet isolation, playing video resumption, paused video non-resumption, repeated toggle hygiene, and dynamic video capture.
+- **Playwright Real-Browser Tests (`tests/widget-e2e/display-preferences.spec.ts`):** Expanded from 10 to 14 tests (all 14 passing). Tests 11–14 verify end-to-end attribute survival, real-browser video playback preservation, collision detection, and stylesheet cleanup.
+- **Combined Test Verification:** 44 Unit Tests + 26 Playwright E2E Tests = **70/70 PASSED (100% pass rate).**
+- **Production Build:** Recompiled cleanly in 150ms (`58.51 kB` minified, `13.39 kB` gzip).
+
+---
+
+### 9. Next Recommended Milestone
 
 **Phase 5.4: AssistiveMap Integration and Safe Remediation Engine**
 - Consume the AssistiveMap API generated during scanner audits (`/api/assistive-maps/:id`).
@@ -231,4 +264,4 @@ All regression suites were executed and verified:
 ---
 **Report Prepared By:** Raawi X Engineering  
 **Date:** October 20, 2026  
-**Status:** READY FOR COORDINATOR REVIEW — Phase 5.3 Implementation Complete.
+**Status:** READY FOR COORDINATOR REVIEW — Phase 5.3 Acceptance Remediation Complete.

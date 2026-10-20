@@ -53,8 +53,10 @@ describe('Phase 5.3: Non-Destructive Display and Reading Preferences', () => {
     (global as any).document = document;
     (global as any).HTMLElement = window.HTMLElement;
     (global as any).HTMLButtonElement = window.HTMLButtonElement;
+    (global as any).HTMLVideoElement = window.HTMLVideoElement;
     (global as any).customElements = window.customElements;
     (global as any).localStorage = window.localStorage;
+    (global as any).MutationObserver = window.MutationObserver;
     (global as any).requestAnimationFrame = (cb: any) => setTimeout(cb, 16);
     (global as any).cancelAnimationFrame = (id: any) => clearTimeout(id);
 
@@ -75,6 +77,14 @@ describe('Phase 5.3: Non-Destructive Display and Reading Preferences', () => {
     document.documentElement.style.removeProperty('--raawi-text-size');
     document.documentElement.style.removeProperty('--raawi-line-spacing');
     window.localStorage.clear();
+
+    // Reset host video state to paused
+    const hostVideo = document.getElementById('host-video') as HTMLVideoElement | null;
+    if (hostVideo) {
+      Object.defineProperty(hostVideo, 'paused', { value: true, configurable: true, writable: true });
+    }
+    // Remove dynamically added videos from previous tests
+    document.querySelectorAll('video:not(#host-video)').forEach((v) => v.remove());
   });
 
   afterEach(() => {
@@ -194,10 +204,14 @@ describe('Phase 5.3: Non-Destructive Display and Reading Preferences', () => {
 
     const video = document.getElementById('host-video') as HTMLVideoElement;
     let videoPaused = false;
-    Object.defineProperty(video, 'paused', { value: false, configurable: true, writable: true });
+    let videoPlayed = false;
+    Object.defineProperty(video, 'paused', { get: () => videoPaused, configurable: true });
     video.pause = () => {
       videoPaused = true;
-      video.paused = true;
+    };
+    video.play = async () => {
+      videoPlayed = true;
+      videoPaused = false;
     };
 
     // Activate Stop Animations
@@ -208,6 +222,7 @@ describe('Phase 5.3: Non-Destructive Display and Reading Preferences', () => {
     // Revert Stop Animations
     state.updateSetting('stopAnimations', false);
     assert.equal(root.hasAttribute('data-raawi-stop-animations'), false);
+    assert.equal(videoPlayed, true, 'Original playing video must be resumed upon deactivation');
   });
 
   it('7. High-visibility cursor assistance applies SVG cursor mode reversibly', () => {
@@ -334,5 +349,251 @@ describe('Phase 5.3: Non-Destructive Display and Reading Preferences', () => {
 
     // Verify speech synthesis was never called
     assert.equal(speakCalls, 0, 'No automatic TTS narration should start during preference adjustments');
+  });
+
+  it('13. Pre-existing managed attribute survives activation, reset, and teardown with its original value', () => {
+    // Host pre-sets data-raawi-text-size to a custom integration value before widget initializes
+    document.documentElement.setAttribute('data-raawi-text-size', '1.15');
+
+    const widget = AccessibilityWidget.init();
+    const state = widget.getStateManager();
+    const root = document.documentElement;
+
+    // Widget changes text size
+    state.updateSetting('textSize', 1.4);
+    assert.equal(root.getAttribute('data-raawi-text-size'), '1.4');
+
+    // Reset settings
+    state.resetSettings();
+    // Must be restored to original pre-existing value '1.15', NOT removed
+    assert.equal(root.getAttribute('data-raawi-text-size'), '1.15');
+
+    // Re-enable and destroy
+    state.updateSetting('textSize', 1.5);
+    AccessibilityWidget.destroy();
+    assert.equal(root.getAttribute('data-raawi-text-size'), '1.15');
+  });
+
+  it('14. Unrelated data-raawi-* attributes are never removed or altered', () => {
+    // Integration attributes on html
+    document.documentElement.setAttribute('data-raawi-entity-code', 'GOV-PORTAL-01');
+    document.documentElement.setAttribute('data-raawi-version', '2.4.0');
+    document.documentElement.setAttribute('data-raawi-custom-flag', 'enabled');
+
+    const widget = AccessibilityWidget.init();
+    const state = widget.getStateManager();
+    const root = document.documentElement;
+
+    // Activate various settings
+    state.updateSetting('contrastMode', true);
+    state.updateSetting('stopAnimations', true);
+    state.updateSetting('bigCursor', 'dark');
+
+    // Reset
+    state.resetSettings();
+
+    // Verify unrelated attributes survived intact
+    assert.equal(root.getAttribute('data-raawi-entity-code'), 'GOV-PORTAL-01');
+    assert.equal(root.getAttribute('data-raawi-version'), '2.4.0');
+    assert.equal(root.getAttribute('data-raawi-custom-flag'), 'enabled');
+
+    // Destroy
+    AccessibilityWidget.destroy();
+    assert.equal(root.getAttribute('data-raawi-entity-code'), 'GOV-PORTAL-01');
+    assert.equal(root.getAttribute('data-raawi-version'), '2.4.0');
+    assert.equal(root.getAttribute('data-raawi-custom-flag'), 'enabled');
+  });
+
+  it('15. Ownership-aware restoration: host mutation during active preference is preserved', () => {
+    const widget = AccessibilityWidget.init();
+    const state = widget.getStateManager();
+    const root = document.documentElement;
+
+    // Widget sets contrastMode
+    state.updateSetting('contrastMode', true);
+    assert.equal(root.getAttribute('data-raawi-contrast-mode'), 'true');
+
+    // Host application externally overrides attribute to a custom value
+    root.setAttribute('data-raawi-contrast-mode', 'host-custom-high-contrast');
+
+    // Reset settings
+    state.resetSettings();
+
+    // Ownership check: current value does NOT match what widget set ('true'), so widget leaves it untouched
+    assert.equal(root.getAttribute('data-raawi-contrast-mode'), 'host-custom-high-contrast');
+  });
+
+  it('16. Managed stylesheet element is removed upon teardown without removing unrelated stylesheets', () => {
+    // Add an unrelated stylesheet to head with a similar or different id
+    const hostStyle1 = document.createElement('style');
+    hostStyle1.id = 'host-main-styles';
+    hostStyle1.textContent = 'body { margin: 0; }';
+    document.head.appendChild(hostStyle1);
+
+    const hostStyle2 = document.createElement('style');
+    hostStyle2.className = 'raawi-custom-theme';
+    hostStyle2.textContent = '.custom { color: red; }';
+    document.head.appendChild(hostStyle2);
+
+    const widget = AccessibilityWidget.init();
+    const displayManager = widget.getDisplayManager();
+    assert.ok(displayManager.getManagedStyleElement(), 'Widget must own a managed style element');
+
+    AccessibilityWidget.destroy();
+
+    // Managed style must be gone
+    assert.equal(document.getElementById('raawi-display-styles'), null);
+
+    // Unrelated stylesheets must still be present in document.head
+    assert.ok(document.getElementById('host-main-styles'));
+    assert.ok(document.head.querySelector('.raawi-custom-theme'));
+
+    // Clean up test styles
+    hostStyle1.remove();
+    hostStyle2.remove();
+  });
+
+  it('17. Video playing before activation is paused and resumes when disabled; paused video remains paused', () => {
+    // Setup two videos: video1 (playing) and video2 (paused)
+    const container = document.createElement('div');
+    const v1 = document.createElement('video') as HTMLVideoElement;
+    v1.id = 'v1-playing';
+    const v2 = document.createElement('video') as HTMLVideoElement;
+    v2.id = 'v2-paused';
+
+    let v1Paused = false;
+    let v1PlayedTimes = 0;
+    Object.defineProperty(v1, 'paused', { get: () => v1Paused, configurable: true });
+    v1.pause = () => { v1Paused = true; };
+    v1.play = async () => { v1Paused = false; v1PlayedTimes++; };
+
+    let v2Paused = true;
+    let v2PlayedTimes = 0;
+    Object.defineProperty(v2, 'paused', { get: () => v2Paused, configurable: true });
+    v2.pause = () => { v2Paused = true; };
+    v2.play = async () => { v2Paused = false; v2PlayedTimes++; };
+
+    container.appendChild(v1);
+    container.appendChild(v2);
+    document.body.appendChild(container);
+
+    const widget = AccessibilityWidget.init();
+    const state = widget.getStateManager();
+    const displayManager = widget.getDisplayManager();
+
+    // Activate Stop Animations
+    state.updateSetting('stopAnimations', true);
+
+    // Only v1 should have been paused and tracked
+    assert.equal(v1Paused, true, 'v1 was playing and must now be paused');
+    assert.equal(v2Paused, true, 'v2 was already paused');
+    assert.equal(displayManager.isVideoTracked(v1), true, 'v1 must be tracked as paused by widget');
+    assert.equal(displayManager.isVideoTracked(v2), false, 'v2 must NOT be tracked since it was already paused');
+    assert.equal(displayManager.getPausedVideosCount(), 1, 'Only 1 video was paused by the widget');
+
+    // Deactivate Stop Animations
+    state.updateSetting('stopAnimations', false);
+
+    // v1 resumes; v2 remains paused
+    assert.equal(v1Paused, false, 'v1 must resume playback');
+    assert.equal(v1PlayedTimes, 1, 'v1.play() called exactly once');
+    assert.equal(v2Paused, true, 'v2 must remain paused');
+    assert.equal(v2PlayedTimes, 0, 'v2.play() must NEVER be called');
+    assert.equal(displayManager.getPausedVideosCount(), 0, 'Tracking set must be empty after deactivation');
+
+    container.remove();
+  });
+
+  it('18. Reset and teardown restore video playback state without duplicate actions or runtime errors', () => {
+    const v = document.createElement('video') as HTMLVideoElement;
+    let isPaused = false;
+    let playCalls = 0;
+    let pauseCalls = 0;
+    Object.defineProperty(v, 'paused', { get: () => isPaused, configurable: true });
+    v.pause = () => { isPaused = true; pauseCalls++; };
+    v.play = async () => { isPaused = false; playCalls++; };
+    document.body.appendChild(v);
+
+    const widget = AccessibilityWidget.init();
+    const state = widget.getStateManager();
+
+    // Enable stop animations
+    state.updateSetting('stopAnimations', true);
+    assert.equal(pauseCalls, 1);
+    assert.equal(isPaused, true);
+
+    // Reset settings
+    state.resetSettings();
+    assert.equal(playCalls, 1);
+    assert.equal(isPaused, false);
+
+    // Enable stop animations again
+    state.updateSetting('stopAnimations', true);
+    assert.equal(pauseCalls, 2);
+
+    // Destroy widget directly
+    AccessibilityWidget.destroy();
+    assert.equal(playCalls, 2, 'Destroying widget must resume video');
+    assert.equal(isPaused, false);
+
+    v.remove();
+  });
+
+  it('19. Repeated enable/disable toggle cycles leave zero stale tracking state', () => {
+    const v = document.createElement('video') as HTMLVideoElement;
+    let isPaused = false;
+    Object.defineProperty(v, 'paused', { get: () => isPaused, configurable: true });
+    v.pause = () => { isPaused = true; };
+    v.play = async () => { isPaused = false; };
+    document.body.appendChild(v);
+
+    const widget = AccessibilityWidget.init();
+    const state = widget.getStateManager();
+    const displayManager = widget.getDisplayManager();
+
+    // Toggle 5 times in succession
+    for (let i = 0; i < 5; i++) {
+      state.updateSetting('stopAnimations', true);
+      assert.equal(displayManager.getPausedVideosCount(), 1);
+      state.updateSetting('stopAnimations', false);
+      assert.equal(displayManager.getPausedVideosCount(), 0);
+    }
+
+    assert.equal(displayManager.getPausedVideosCount(), 0, 'Zero stale video tracking state after repeated cycles');
+    v.remove();
+  });
+
+  it('20. Dynamically inserted video while stop-animations is enabled is paused and resumed cleanly', async () => {
+    const widget = AccessibilityWidget.init();
+    const state = widget.getStateManager();
+    const displayManager = widget.getDisplayManager();
+
+    // Enable stop animations first
+    state.updateSetting('stopAnimations', true);
+
+    // Dynamically insert a playing video into body
+    const dynVideo = document.createElement('video') as HTMLVideoElement;
+    dynVideo.id = 'dyn-video';
+    let dynPaused = false;
+    let dynPlayCount = 0;
+    Object.defineProperty(dynVideo, 'paused', { get: () => dynPaused, configurable: true });
+    dynVideo.pause = () => { dynPaused = true; };
+    dynVideo.play = async () => { dynPaused = false; dynPlayCount++; };
+
+    document.body.appendChild(dynVideo);
+
+    // Wait microtask for MutationObserver
+    await new Promise((r) => setTimeout(r, 50));
+
+    // The dynamically added playing video should have been paused by widget
+    assert.equal(dynPaused, true, 'Dynamically inserted video must be paused while stopAnimations is active');
+    assert.equal(displayManager.isVideoTracked(dynVideo), true);
+
+    // Deactivate stop animations
+    state.updateSetting('stopAnimations', false);
+    assert.equal(dynPaused, false, 'Dynamically inserted video must be resumed');
+    assert.equal(dynPlayCount, 1);
+
+    dynVideo.remove();
   });
 });

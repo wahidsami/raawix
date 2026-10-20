@@ -204,6 +204,40 @@
 - Complete reversibility: `reset()` clears all `data-raawi-*` attributes, resets display manager state, and restores host state. `destroy()` disconnects observers, removes listeners, tears down Shadow DOM overlays, and removes the managed style sheet.
 - Verification: 12/12 Phase 5.3 unit tests passing, 10/10 real-browser Playwright tests passing, 24/24 Phase 5.1 & 5.2 regression unit tests passing, 12/12 Phase 5.1 & 5.2 Playwright regression tests passing. Zero TypeScript errors. Production bundle: 55.47 kB (gzip: 12.65 kB).
 
+# Tasks - Phase 5.3 Acceptance Remediation (Safe Host-State Restoration)
+
+- [x] 1. Preflight & Defect Inspection
+  - [x] Verify clean working tree on branch `feature/semantic-core` at commit `d1eb1eb`
+  - [x] Audit `apps/widget/src/core/display-manager.ts` attribute management and video playback paths
+- [x] 2. Fix A: Attribute Ownership & Collision-Aware Restoration
+  - [x] Capture initial host baseline map for managed attributes (`data-raawi-*`) and custom properties (`--raawi-*`) at instantiation
+  - [x] Track exact applied values in `lastAppliedAttributes`
+  - [x] Implement ownership-aware restoration: restore to baseline only if current value matches applied value; preserve external host mutations without overwriting
+  - [x] Exclude unmanaged attributes (e.g. `data-raawi-entity-code`, `data-raawi-version`) from mutation or removal
+  - [x] Tag managed stylesheet with `data-raawi-owned="true"` and remove only the instance-owned element on destroy
+- [x] 3. Fix B: Video Playback-State Preservation
+  - [x] Distinguish between playing vs already paused `<video>` elements when stop-animations is enabled
+  - [x] Maintain `pausedByWidgetVideos: Set<HTMLVideoElement>` storing only actively playing videos
+  - [x] On deactivation, reset, or destroy, resume only tracked videos and clear tracking state
+  - [x] Ensure videos already paused prior to activation remain paused
+  - [x] Handle dynamically inserted videos cleanly via `MutationObserver` without stale accumulation
+  - [x] Preserve media source, currentTime, volume, and muted attributes
+- [x] 4. Automated Testing & Verification
+  - [x] Expand unit tests in `apps/widget/test/phase5-3.test.ts` from 12 to 20 tests (all 20 passing)
+  - [x] Expand Playwright tests in `tests/widget-e2e/display-preferences.spec.ts` from 10 to 14 tests (all 14 passing)
+  - [x] Run full regression test suites (Phase 5.1, 5.2, 5.3: 44 unit, 26 Playwright passing)
+  - [x] Validate TypeScript compilation (0 errors) and rebuild production bundle (58.51 kB IIFE)
+- [x] 5. Documentation & Delivery
+  - [x] Update `PHASE_5_3_IMPLEMENTATION_REPORT.md` with Section 8 Acceptance Remediation
+  - [x] Create `PHASE_5_3_ACCEPTANCE_REMEDIATION_REPORT.md`
+  - [x] Commit and push to `feature/semantic-core` and STOP
+
+## Execution Review (Phase 5.3 Acceptance Remediation)
+- Ownership-aware attribute restoration completely verified: `initialHostAttributes` captures pre-existing host values (`data-raawi-text-size="1.15"`); on reset/teardown, the pre-existing value is restored rather than deleted. Unmanaged integration attributes (`data-raawi-entity-code`, `data-raawi-version`) are untouched.
+- External collision preservation verified: When an external host script mutates an attribute while a preference is active, the widget detects `currentVal !== lastApplied` and preserves the host modification without overwriting.
+- Video playback preservation verified: Actively playing videos are paused and resumed; already-paused videos remain paused; zero stale references remain after repeated toggles; dynamically inserted videos are handled cleanly.
+- Full verification: 44/44 unit tests passing, 26/26 Playwright real-browser tests passing (70/70 total suite, 100% pass rate). Production bundle: 58.51 kB minified (13.39 kB gzip). Zero TypeScript errors.
+
 
 
 
