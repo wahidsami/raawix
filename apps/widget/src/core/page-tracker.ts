@@ -17,6 +17,48 @@ export interface PageTrackerOptions {
   onStaleDetected?: (reason?: string) => void;
 }
 
+export interface RaawiHistoryRegistry {
+  pushListeners: Set<() => void>;
+  replaceListeners: Set<() => void>;
+  originalPushState: typeof history.pushState | null;
+  originalReplaceState: typeof history.replaceState | null;
+  wrappedPushState: typeof history.pushState | null;
+  wrappedReplaceState: typeof history.replaceState | null;
+}
+
+export const HISTORY_REGISTRY_KEY = '__RAAWI_HISTORY_REGISTRY__';
+
+export function getHistoryRegistry(): RaawiHistoryRegistry {
+  const target = typeof window !== 'undefined' ? (window as any) : (globalThis as any);
+  if (!target[HISTORY_REGISTRY_KEY]) {
+    target[HISTORY_REGISTRY_KEY] = {
+      pushListeners: new Set<() => void>(),
+      replaceListeners: new Set<() => void>(),
+      originalPushState: null,
+      originalReplaceState: null,
+      wrappedPushState: null,
+      wrappedReplaceState: null,
+    };
+  }
+  return target[HISTORY_REGISTRY_KEY];
+}
+
+export function resetHistoryRegistryForTests(): void {
+  const target = typeof window !== 'undefined' ? (window as any) : (globalThis as any);
+  if (target && target[HISTORY_REGISTRY_KEY]) {
+    const reg = target[HISTORY_REGISTRY_KEY] as RaawiHistoryRegistry;
+    if (typeof history !== 'undefined') {
+      if (reg.originalPushState && history.pushState === reg.wrappedPushState) {
+        history.pushState = reg.originalPushState;
+      }
+      if (reg.originalReplaceState && history.replaceState === reg.wrappedReplaceState) {
+        history.replaceState = reg.originalReplaceState;
+      }
+    }
+    delete target[HISTORY_REGISTRY_KEY];
+  }
+}
+
 export class PageTracker {
   private apiClient: MapApiClient;
   private domRemediator: DomRemediator;
@@ -29,8 +71,7 @@ export class PageTracker {
   private debounceTimer: any = null;
   private isDestroyed: boolean = false;
 
-  private originalPushState: typeof history.pushState | null = null;
-  private originalReplaceState: typeof history.replaceState | null = null;
+  private urlTransitionListener: (() => void) | null = null;
   private boundPopstateListener: ((e: PopStateEvent) => void) | null = null;
   private boundHashchangeListener: ((e: HashChangeEvent) => void) | null = null;
 
@@ -51,27 +92,58 @@ export class PageTracker {
   private initSpaListeners(): void {
     if (typeof window === 'undefined' || typeof history === 'undefined') return;
 
-    // 1. Monkey-patch pushState
-    this.originalPushState = history.pushState;
-    history.pushState = (...args: Parameters<typeof history.pushState>) => {
-      this.originalPushState!.apply(history, args);
+    const registry = getHistoryRegistry();
+
+    // 1. Cooperative monkey-patch pushState (install once across instances)
+    if (!registry.originalPushState) {
+      registry.originalPushState = history.pushState;
+      const wrappedPush = function (this: History, ...args: Parameters<typeof history.pushState>) {
+        const result = registry.originalPushState!.apply(this, args);
+        registry.pushListeners.forEach((listener) => {
+          try {
+            listener();
+          } catch (e) {
+            console.error('[RaawiX PageTracker] Error in pushState listener:', e);
+          }
+        });
+        return result;
+      };
+      registry.wrappedPushState = wrappedPush;
+      history.pushState = wrappedPush;
+    }
+
+    // 2. Cooperative monkey-patch replaceState (install once across instances)
+    if (!registry.originalReplaceState) {
+      registry.originalReplaceState = history.replaceState;
+      const wrappedReplace = function (this: History, ...args: Parameters<typeof history.replaceState>) {
+        const result = registry.originalReplaceState!.apply(this, args);
+        registry.replaceListeners.forEach((listener) => {
+          try {
+            listener();
+          } catch (e) {
+            console.error('[RaawiX PageTracker] Error in replaceState listener:', e);
+          }
+        });
+        return result;
+      };
+      registry.wrappedReplaceState = wrappedReplace;
+      history.replaceState = wrappedReplace;
+    }
+
+    // 3. Register this instance's callback into shared registry
+    this.urlTransitionListener = () => {
       this.handleUrlTransition();
     };
+    registry.pushListeners.add(this.urlTransitionListener);
+    registry.replaceListeners.add(this.urlTransitionListener);
 
-    // 2. Monkey-patch replaceState
-    this.originalReplaceState = history.replaceState;
-    history.replaceState = (...args: Parameters<typeof history.replaceState>) => {
-      this.originalReplaceState!.apply(history, args);
-      this.handleUrlTransition();
-    };
-
-    // 3. Listen to popstate
+    // 4. Listen to popstate
     this.boundPopstateListener = () => {
       this.handleUrlTransition();
     };
     window.addEventListener('popstate', this.boundPopstateListener);
 
-    // 4. Listen to hashchange
+    // 5. Listen to hashchange
     this.boundHashchangeListener = () => {
       this.handleUrlTransition();
     };
@@ -190,13 +262,31 @@ export class PageTracker {
         window.removeEventListener('hashchange', this.boundHashchangeListener);
         this.boundHashchangeListener = null;
       }
-      if (this.originalPushState) {
-        history.pushState = this.originalPushState;
-        this.originalPushState = null;
+
+      // Unregister from cooperative history registry
+      const registry = getHistoryRegistry();
+      if (this.urlTransitionListener) {
+        registry.pushListeners.delete(this.urlTransitionListener);
+        registry.replaceListeners.delete(this.urlTransitionListener);
+        this.urlTransitionListener = null;
       }
-      if (this.originalReplaceState) {
-        history.replaceState = this.originalReplaceState;
-        this.originalReplaceState = null;
+
+      // Safe teardown: Only restore if NO other Raawi instances are listening
+      // AND history.pushState was NOT wrapped by host / third-party after us!
+      if (registry.pushListeners.size === 0) {
+        if (typeof history !== 'undefined' && history.pushState === registry.wrappedPushState) {
+          history.pushState = registry.originalPushState!;
+          registry.originalPushState = null;
+          registry.wrappedPushState = null;
+        }
+      }
+
+      if (registry.replaceListeners.size === 0) {
+        if (typeof history !== 'undefined' && history.replaceState === registry.wrappedReplaceState) {
+          history.replaceState = registry.originalReplaceState!;
+          registry.originalReplaceState = null;
+          registry.wrappedReplaceState = null;
+        }
       }
     }
   }

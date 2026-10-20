@@ -321,3 +321,43 @@
 - **Diagnostic Badges & Refresh:** 8 discrete localized statuses in Arabic and English, plus a cache-bypassing `#raawi-btn-refresh` button with in-flight duplicate-click protection.
 - **Verification:** 89/89 unit tests passing (Phases 5.1-5.5) and 42/42 real-browser Playwright tests passing across 4 suites. Bundle build: 92.28 kB IIFE (22.72 kB gzip). Exit code 0 on TypeScript check.
 
+# Tasks - Phase 5.6: Full Widget Integration, Regression and Acceptance Verification
+
+- [x] 1. Preflight and Environment Inspection
+  - [x] Verify branch `feature/semantic-core`, HEAD commit `3efbafc`, clean working tree
+  - [x] Audit existing test scripts and configurations across repo
+  - [x] Inspect existing test fixtures (`portal-good` AR RTL and `gov-sim` EN LTR)
+- [x] 2. Defect Investigation & History API Safeguard Remediation
+  - [x] Audit History API monkey-patching in `apps/widget/src/core/page-tracker.ts`
+  - [x] Implement cooperative wrapping pattern with shared listener registry
+  - [x] Prevent overwriting third-party wrappers installed after widget
+  - [x] Prevent accumulating duplicate wrappers across multiple init/destroy cycles
+  - [x] Write unit tests for cooperative History API wrapping in `apps/widget/test/phase5-6.test.ts`
+- [x] 3. Comprehensive Acceptance Testing Across All Matrix Areas (A-G)
+  - [x] Area A: Build, initialization, embedding, duplicate script protection, CSS isolation, teardown/reinit
+  - [x] Area B: Host-page isolation, visual & reading preferences on representative host fixtures, desktop & mobile viewports, non-destructive reset, collision preservation
+  - [x] Area C: Dialog semantics, initial focus, bidirectional tab trap, Escape dismissal, focus restore, polite ARIA live region without automatic speech synthesis, full Arabic (RTL) and English (LTR) audit
+  - [x] Area D: AssistiveMap consumption, match-confidence policy, safe alt & control labeling, selector uniqueness, preservation of `alt=""` and authored labels, ownership-aware cleanup
+  - [x] Area E: Freshness engine, fingerprint contract verification against scanner algorithms, SPA navigation, debounced DOM mutation, race condition prevention via abort, manual refresh
+  - [x] Area F: Landmark navigation, uniqueness verification, temporary tabindex injection and blur cleanup, motion-aware scrolling, read-only form guidance
+  - [x] Area G: Offline handling, timeouts, 404, malformed payloads, and graceful degradation
+- [x] 4. Automated Test Suites & Regression Verification
+  - [x] Run full unit test suite (Phases 5.1–5.6: 99/99 passing, 0 failures)
+  - [x] Run Playwright real-browser test suites across desktop and mobile (50/50 passing, 0 failures)
+  - [x] Document automated accessibility and screen-reader limitations honestly
+  - [x] Verify TypeScript check (`tsc --noEmit` exits 0) and production build (`vite build` 93.38 kB / gzip: 23.01 kB)
+- [x] 5. Documentation, Reports & Delivery
+  - [x] Produce `PHASE_5_6_ACCEPTANCE_REPORT.md`
+  - [x] Produce `PHASE_5_6_REMEDIATION_REPORT.md` documenting History API safeguard
+  - [x] Update `tasks/todo.md` with final execution review
+  - [x] Commit and push to `feature/semantic-core`
+  - [x] Final stop for coordinator review
+
+## Execution Review (Phase 5.6)
+- **Defect Correction:** Resolved History API monkey-patching defect in `apps/widget/src/core/page-tracker.ts` using cooperative listener registry. Teardown now strictly preserves host and third-party wrappers installed after the widget; multiple initializations do not accumulate redundant wrappers.
+- **Verification:** 100% pass rate across 99 unit tests (Phases 5.1–5.6) and 50 Playwright real-browser tests across 6 test suites (`acceptance.spec.ts`, `dialog-focus.spec.ts`, `display-preferences.spec.ts`, `dom-remediation.spec.ts`, `freshness-navigation.spec.ts`, `smoke.spec.ts`).
+- **Production Build:** Bundle compiled cleanly via Vite (`dist/widget.iife.js`: 93.38 kB / gzip: 23.01 kB, 198ms build time). Synchronized across test site public assets.
+- **Acceptance Verdict:** ACCEPTED. Phase 5 widget milestone complete and verified. Awaiting coordinator review before Phase 6.
+
+
+

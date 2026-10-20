@@ -8,7 +8,13 @@ import { I18nManager, translations } from './core/i18n';
 import { DisplayManager } from './core/display-manager';
 import { MapApiClient, evaluateMatchConfidence, type MatchConfidenceLevel, type MatchConfidenceEvaluation } from './core/api-client';
 import { DomRemediator } from './core/dom-remediator';
-import { PageTracker, type PageTrackerOptions } from './core/page-tracker';
+import {
+  PageTracker,
+  type PageTrackerOptions,
+  getHistoryRegistry,
+  resetHistoryRegistryForTests,
+  type RaawiHistoryRegistry,
+} from './core/page-tracker';
 import {
   computeSha256,
   computeLivePageFingerprint,
@@ -44,6 +50,8 @@ export {
   evaluateMatchConfidence,
   DomRemediator,
   PageTracker,
+  getHistoryRegistry,
+  resetHistoryRegistryForTests,
   LandmarkNavigator,
   computeSha256,
   computeLivePageFingerprint,
@@ -67,6 +75,7 @@ export type {
   FreshnessEvaluation,
   FreshnessStatus,
   PageTrackerOptions,
+  RaawiHistoryRegistry,
   NavigationResult,
   LandmarkNavigatorOptions,
   ImageDescription,
