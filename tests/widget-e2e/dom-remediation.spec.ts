@@ -11,7 +11,7 @@ test.describe('Phase 5.4 Real-Browser AssistiveMap Integration & Safe Remediatio
         contentType: 'application/json',
         body: JSON.stringify({
           targetUrl: url.searchParams.get('url') || 'http://localhost:4173/good',
-          matchConfidence: 0.95,
+          matchConfidence: 'high',
           guidance: {
             summary: 'Unified Digital Government Portal for All Citizens and Residents',
             landmarks: [
@@ -25,24 +25,24 @@ test.describe('Phase 5.4 Real-Browser AssistiveMap Integration & Safe Remediatio
               {
                 selector: '#e2e-missing-img',
                 description: 'Support and assistance services illustration',
-                confidence: 0.95,
+                confidence: 'high',
               },
               {
                 selector: '#e2e-revert-img',
                 description: 'Service portal overview banner',
-                confidence: 0.95,
+                confidence: 'high',
               },
             ],
             labelOverrides: [
               {
                 selector: '#e2e-unlabeled-btn',
                 ariaLabel: 'Open and close main navigation menu',
-                confidence: 0.92,
+                confidence: 'high',
               },
               {
                 selector: '#e2e-revert-btn',
                 ariaLabel: 'Toggle quick actions panel',
-                confidence: 0.92,
+                confidence: 'high',
               },
             ],
           },

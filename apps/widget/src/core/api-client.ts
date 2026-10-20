@@ -8,6 +8,134 @@
 
 import type { PagePackageResponse, MapFetchStatus } from './types';
 
+/**
+ * MatchConfidence represents the URL/page resolution confidence returned by the scanner
+ * (as defined in `apps/scanner/src/db/assistive-map-repository.ts` and `apps/scanner/src/api/url-resolver.ts`).
+ */
+export type MatchConfidenceLevel = 'high' | 'medium' | 'low';
+
+export interface MatchConfidenceEvaluation {
+  accepted: boolean;
+  normalizedLevel: MatchConfidenceLevel;
+  numericScore: number;
+  reason?: string;
+}
+
+/**
+ * Evaluates the matchConfidence contract according to Raawi X policy:
+ * 
+ * 1. String Enums (Actual Scanner Runtime Contract):
+ *    - 'high': Exact canonical or final URL match -> ACCEPTED (Score: 1.0)
+ *    - 'medium': Queryless/path-based URL match -> ACCEPTED (Score: 0.75)
+ *    - 'low': Heuristic/fingerprint similarity or fallback -> REJECTED (Score: 0.30)
+ * 
+ * 2. Blueprint / Legacy Enum Aliases:
+ *    - 'exact' | 'canonical' | 'final': Treated as 'high' -> ACCEPTED (Score: 1.0)
+ *    - 'path' | 'query-ignored': Treated as 'medium' -> ACCEPTED (Score: 0.75)
+ *    - 'fingerprint' | 'none': Treated as 'low' -> REJECTED (Score: 0.30)
+ * 
+ * 3. Numeric Scores (Normalized):
+ *    - Score >= 0.85: 'high' -> ACCEPTED
+ *    - Score >= 0.65: 'medium' -> ACCEPTED
+ *    - Score < 0.65: 'low' -> REJECTED
+ * 
+ * 4. Missing / Null / Unrecognized:
+ *    - REJECTED
+ */
+export function evaluateMatchConfidence(rawConfidence: unknown): MatchConfidenceEvaluation {
+  if (rawConfidence === undefined || rawConfidence === null) {
+    return {
+      accepted: false,
+      normalizedLevel: 'low',
+      numericScore: 0,
+      reason: 'Missing matchConfidence in payload',
+    };
+  }
+
+  // Handle String Enum Contract
+  if (typeof rawConfidence === 'string') {
+    const normalized = rawConfidence.trim().toLowerCase();
+    switch (normalized) {
+      case 'high':
+      case 'exact':
+      case 'canonical':
+      case 'final':
+        return {
+          accepted: true,
+          normalizedLevel: 'high',
+          numericScore: 1.0,
+        };
+
+      case 'medium':
+      case 'path':
+      case 'query-ignored':
+        return {
+          accepted: true,
+          normalizedLevel: 'medium',
+          numericScore: 0.75,
+        };
+
+      case 'low':
+      case 'fingerprint':
+      case 'none':
+        return {
+          accepted: false,
+          normalizedLevel: 'low',
+          numericScore: 0.3,
+          reason: `Low match confidence enum: '${rawConfidence}'`,
+        };
+
+      default:
+        return {
+          accepted: false,
+          normalizedLevel: 'low',
+          numericScore: 0,
+          reason: `Unrecognized match confidence enum: '${rawConfidence}'`,
+        };
+    }
+  }
+
+  // Handle Numeric Score (0.0 to 1.0) if present in fixtures or normalized pipelines
+  if (typeof rawConfidence === 'number') {
+    if (isNaN(rawConfidence)) {
+      return {
+        accepted: false,
+        normalizedLevel: 'low',
+        numericScore: 0,
+        reason: 'NaN numeric confidence value',
+      };
+    }
+
+    if (rawConfidence >= 0.85) {
+      return {
+        accepted: true,
+        normalizedLevel: 'high',
+        numericScore: rawConfidence,
+      };
+    } else if (rawConfidence >= 0.65) {
+      return {
+        accepted: true,
+        normalizedLevel: 'medium',
+        numericScore: rawConfidence,
+      };
+    } else {
+      return {
+        accepted: false,
+        normalizedLevel: 'low',
+        numericScore: rawConfidence,
+        reason: `Numeric confidence ${rawConfidence} below minimum threshold (0.65)`,
+      };
+    }
+  }
+
+  return {
+    accepted: false,
+    normalizedLevel: 'low',
+    numericScore: 0,
+    reason: `Invalid matchConfidence type: ${typeof rawConfidence}`,
+  };
+}
+
 export interface ApiClientOptions {
   apiUrl?: string;
   entityCode?: string;
@@ -187,10 +315,10 @@ export class MapApiClient {
       return null;
     }
 
-    // Check matchConfidence: reject 'low' or absent confidence
-    const confidence = payload.matchConfidence;
-    if (confidence === 'low' || (typeof confidence === 'number' && confidence < 0.65)) {
-      this.notify('mismatch', null, 'Mapping data rejected: low match confidence');
+    // Evaluate matchConfidence against explicit policy
+    const evalResult = evaluateMatchConfidence(payload.matchConfidence);
+    if (!evalResult.accepted) {
+      this.notify('mismatch', null, `Mapping data rejected: ${evalResult.reason}`);
       return null;
     }
 

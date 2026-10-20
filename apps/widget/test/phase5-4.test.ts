@@ -1,5 +1,9 @@
 /**
  * Phase 5.4 Unit & Integration Tests: AssistiveMap Integration & Safe DOM Remediation
+ * 
+ * Verifies the actual scanner runtime contract for `matchConfidence` and page-package data
+ * as implemented in `apps/scanner/src/index.ts`, `apps/scanner/src/db/assistive-map-repository.ts`,
+ * and `apps/scanner/src/api/url-resolver.ts`.
  */
 
 import { describe, it, before, beforeEach, afterEach } from 'node:test';
@@ -15,6 +19,7 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
   let document: Document;
   let StateManager: any;
   let MapApiClient: any;
+  let evaluateMatchConfidence: any;
   let DomRemediator: any;
   let AccessibilityWidget: any;
   let RaawiAccessibilityWidget: any;
@@ -104,12 +109,135 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
 
     StateManager = stateMod.StateManager;
     MapApiClient = apiMod.MapApiClient;
+    evaluateMatchConfidence = apiMod.evaluateMatchConfidence;
     DomRemediator = remediatorMod.DomRemediator;
     RaawiAccessibilityWidget = shadowMod.RaawiAccessibilityWidget;
     AccessibilityWidget = mainMod.AccessibilityWidget;
   });
 
-  describe('1. MapApiClient Contract & Safety', () => {
+  /**
+   * Helper that mirrors the real scanner response builder
+   * from `apps/scanner/src/index.ts:1113-1135`.
+   */
+  function createRealScannerPagePackage(overrides?: Record<string, any>) {
+    return {
+      siteId: 'site-uuid-101',
+      entityId: 'entity-uuid-202',
+      entityCode: 'TEST-ENT-54',
+      propertyId: 'prop-uuid-303',
+      propertyDomain: 'portal.gov.sa',
+      url: 'https://portal.gov.sa/services',
+      matchedUrl: 'https://portal.gov.sa/services',
+      matchConfidence: 'high' as const, // Actual scanner enum
+      generatedAt: new Date().toISOString(),
+      fingerprint: {
+        title: 'بوابة الخدمات',
+        firstHeading: 'بوابة الاختبار',
+        mainTextHash: 'sha256-abc',
+      },
+      assistiveMap: {
+        imageDescriptions: {
+          'desc-1': {
+            selector: '#img-no-alt',
+            alt: 'صورة توضيحية لخدمات البوابة',
+            confidence: 'high',
+            source: 'vision',
+          },
+        },
+        labelOverrides: {
+          'lbl-1': {
+            selector: '#btn-icon-unlabeled',
+            label: 'فتح قائمة الإشعارات',
+            confidence: 'high',
+            source: 'dom',
+          },
+        },
+        actionIntents: {},
+        forms: [],
+      },
+      confidenceSummary: {
+        imageDescriptions: { high: 1, medium: 0, low: 0 },
+        labelOverrides: { high: 1, medium: 0, low: 0 },
+        actionIntents: { high: 0, medium: 0, low: 0 },
+      },
+      semanticModel: null,
+      guidance: {
+        summary: 'بوابة الخدمات الحكومية الإلكترونية',
+        landmarks: [{ role: 'main', label: 'المحتوى الرئيسي', selector: 'main' }],
+        formSteps: [],
+        keyActions: [],
+      },
+      issuesSummary: { total: 0, critical: 0, important: 0 },
+      scanTimestamp: new Date().toISOString(),
+      ...overrides,
+    };
+  }
+
+  describe('1. MatchConfidence Policy Contract & Policy Evaluation', () => {
+    it('correctly accepts actual scanner string enums: high and medium', () => {
+      const highRes = evaluateMatchConfidence('high');
+      assert.equal(highRes.accepted, true);
+      assert.equal(highRes.normalizedLevel, 'high');
+      assert.equal(highRes.numericScore, 1.0);
+
+      const mediumRes = evaluateMatchConfidence('medium');
+      assert.equal(mediumRes.accepted, true);
+      assert.equal(mediumRes.normalizedLevel, 'medium');
+      assert.equal(mediumRes.numericScore, 0.75);
+    });
+
+    it('correctly rejects scanner string enum: low with explicit reason', () => {
+      const lowRes = evaluateMatchConfidence('low');
+      assert.equal(lowRes.accepted, false);
+      assert.equal(lowRes.normalizedLevel, 'low');
+      assert.ok(lowRes.reason?.includes('Low match confidence enum'));
+    });
+
+    it('correctly maps blueprint and legacy alias enums without type errors', () => {
+      // Blueprint high-confidence aliases
+      assert.equal(evaluateMatchConfidence('exact').accepted, true);
+      assert.equal(evaluateMatchConfidence('canonical').accepted, true);
+      assert.equal(evaluateMatchConfidence('final').accepted, true);
+
+      // Blueprint medium-confidence aliases
+      assert.equal(evaluateMatchConfidence('path').accepted, true);
+      assert.equal(evaluateMatchConfidence('query-ignored').accepted, true);
+
+      // Blueprint low-confidence aliases
+      assert.equal(evaluateMatchConfidence('fingerprint').accepted, false);
+      assert.equal(evaluateMatchConfidence('none').accepted, false);
+    });
+
+    it('rejects missing, null, undefined, or unrecognized strings', () => {
+      assert.equal(evaluateMatchConfidence(null).accepted, false);
+      assert.equal(evaluateMatchConfidence(undefined).accepted, false);
+      assert.equal(evaluateMatchConfidence('').accepted, false);
+      assert.equal(evaluateMatchConfidence('arbitrary-invalid-enum').accepted, false);
+    });
+
+    it('normalizes numeric confidence scores accurately without string/numeric confusion', () => {
+      // High score >= 0.85
+      const numHigh = evaluateMatchConfidence(0.95);
+      assert.equal(numHigh.accepted, true);
+      assert.equal(numHigh.normalizedLevel, 'high');
+
+      // Medium score >= 0.65
+      const numMed = evaluateMatchConfidence(0.70);
+      assert.equal(numMed.accepted, true);
+      assert.equal(numMed.normalizedLevel, 'medium');
+
+      // Low score < 0.65
+      const numLow = evaluateMatchConfidence(0.40);
+      assert.equal(numLow.accepted, false);
+      assert.equal(numLow.normalizedLevel, 'low');
+
+      // NaN
+      const numNan = evaluateMatchConfidence(NaN);
+      assert.equal(numNan.accepted, false);
+    });
+  });
+
+  describe('2. MapApiClient Contract & Real Backend Response Validation', () => {
     it('initializes with detected entityCode and apiUrl from document attributes', () => {
       const client = new MapApiClient();
       assert.equal(client.getEntityCode(), 'TEST-ENT-54');
@@ -119,7 +247,6 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
     });
 
     it('handles network failure gracefully without throwing uncaught exceptions', async () => {
-      // Mock fetch rejection
       const originalFetch = window.fetch;
       const originalGlobalFetch = (global as any).fetch;
       const mockFail = async () => {
@@ -144,25 +271,70 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
       client.destroy();
     });
 
-    it('rejects low confidence maps (< 0.65) and marks status as mismatch', async () => {
+    it('accepts real scanner page package with matchConfidence: "high"', async () => {
       const originalFetch = window.fetch;
       const originalGlobalFetch = (global as any).fetch;
-      const mockMismatch = async () => ({
+      const realPackage = createRealScannerPagePackage({ matchConfidence: 'high' });
+
+      window.fetch = async () => ({
         ok: true,
         status: 200,
-        json: async () => ({
-          targetUrl: 'https://portal.gov.sa/services',
-          matchConfidence: 0.45, // low confidence
-          assistiveMap: {
-            imageDescriptions: [{ selector: '#img-no-alt', description: 'Hero banner', confidence: 0.9 }],
-          },
-        }),
+        json: async () => realPackage,
       } as any);
-      window.fetch = mockMismatch;
-      (global as any).fetch = mockMismatch;
+      (global as any).fetch = window.fetch;
 
       const client = new MapApiClient();
       const result = await client.fetchPagePackage('https://portal.gov.sa/services');
+
+      assert.notEqual(result, null);
+      assert.equal(client.getStatus(), 'ready');
+      assert.equal(result?.matchConfidence, 'high');
+      assert.equal(result?.guidance?.summary, 'بوابة الخدمات الحكومية الإلكترونية');
+
+      window.fetch = originalFetch;
+      (global as any).fetch = originalGlobalFetch;
+      client.destroy();
+    });
+
+    it('accepts real scanner page package with matchConfidence: "medium"', async () => {
+      const originalFetch = window.fetch;
+      const originalGlobalFetch = (global as any).fetch;
+      const realPackage = createRealScannerPagePackage({ matchConfidence: 'medium' });
+
+      window.fetch = async () => ({
+        ok: true,
+        status: 200,
+        json: async () => realPackage,
+      } as any);
+      (global as any).fetch = window.fetch;
+
+      const client = new MapApiClient();
+      const result = await client.fetchPagePackage('https://portal.gov.sa/services');
+
+      assert.notEqual(result, null);
+      assert.equal(client.getStatus(), 'ready');
+      assert.equal(result?.matchConfidence, 'medium');
+
+      window.fetch = originalFetch;
+      (global as any).fetch = originalGlobalFetch;
+      client.destroy();
+    });
+
+    it('rejects low confidence maps ("low") and marks status as mismatch', async () => {
+      const originalFetch = window.fetch;
+      const originalGlobalFetch = (global as any).fetch;
+      const lowPackage = createRealScannerPagePackage({ matchConfidence: 'low' });
+
+      window.fetch = async () => ({
+        ok: true,
+        status: 200,
+        json: async () => lowPackage,
+      } as any);
+      (global as any).fetch = window.fetch;
+
+      const client = new MapApiClient();
+      const result = await client.fetchPagePackage('https://portal.gov.sa/services');
+
       assert.equal(result, null);
       assert.equal(client.getStatus(), 'mismatch');
 
@@ -171,35 +343,46 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
       client.destroy();
     });
 
-    it('accepts high confidence valid page-package and populates cache', async () => {
+    it('rejects package when matchedUrl belongs to a different domain', async () => {
+      const originalFetch = window.fetch;
+      const originalGlobalFetch = (global as any).fetch;
+      const mismatchedDomainPackage = createRealScannerPagePackage({
+        matchedUrl: 'https://different-domain.gov.sa/services',
+      });
+
+      window.fetch = async () => ({
+        ok: true,
+        status: 200,
+        json: async () => mismatchedDomainPackage,
+      } as any);
+      (global as any).fetch = window.fetch;
+
+      const client = new MapApiClient();
+      const result = await client.fetchPagePackage('https://portal.gov.sa/services');
+
+      assert.equal(result, null);
+      assert.equal(client.getStatus(), 'mismatch');
+
+      window.fetch = originalFetch;
+      (global as any).fetch = originalGlobalFetch;
+      client.destroy();
+    });
+
+    it('caches valid page-package responses and avoids duplicate network requests', async () => {
       let fetchCallCount = 0;
       const originalFetch = window.fetch;
       const originalGlobalFetch = (global as any).fetch;
-      const mockSuccess = async () => {
+      const validPackage = createRealScannerPagePackage({ matchConfidence: 'high' });
+
+      window.fetch = async () => {
         fetchCallCount++;
         return {
           ok: true,
           status: 200,
-          json: async () => ({
-            targetUrl: 'https://portal.gov.sa/services',
-            matchConfidence: 0.95,
-            guidance: {
-              summary: 'بوابة الخدمات الحكومية الإلكترونية',
-              landmarks: [{ role: 'main', label: 'المحتوى الرئيسي', selector: 'main' }],
-            },
-            assistiveMap: {
-              imageDescriptions: [
-                { selector: '#img-no-alt', description: 'صورة توضيحية لخدمات البوابة', confidence: 0.95 },
-              ],
-              labelOverrides: [
-                { selector: '#btn-icon-unlabeled', ariaLabel: 'فتح قائمة الإشعارات', confidence: 0.9 },
-              ],
-            },
-          }),
+          json: async () => validPackage,
         } as any;
       };
-      window.fetch = mockSuccess;
-      (global as any).fetch = mockSuccess;
+      (global as any).fetch = window.fetch;
 
       const client = new MapApiClient();
       const res1 = await client.fetchPagePackage('https://portal.gov.sa/services');
@@ -207,7 +390,7 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
       assert.equal(client.getStatus(), 'ready');
       assert.equal(fetchCallCount, 1);
 
-      // Repeated call should hit in-memory cache
+      // Second call must return cached copy
       const res2 = await client.fetchPagePackage('https://portal.gov.sa/services');
       assert.deepEqual(res1, res2);
       assert.equal(fetchCallCount, 1);
@@ -218,18 +401,26 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
     });
   });
 
-  describe('2. Safe Image Remediation', () => {
-    it('applies description only to images missing alt attributes', () => {
+  describe('3. Safe Image Remediation with Real Schema', () => {
+    it('applies description only to images missing alt attributes from real schema', () => {
       const state = new StateManager('ar');
       const remediator = new DomRemediator(state);
 
       const imgNoAlt = document.getElementById('img-no-alt') as HTMLImageElement;
       assert.equal(imgNoAlt.hasAttribute('alt'), false);
 
+      // Real scanner schema: imageDescriptions is a Record<string, ImageDescription> with 'alt'
       remediator.setAssistiveMap({
-        imageDescriptions: [
-          { selector: '#img-no-alt', description: 'صورة توضيحية لخدمات البوابة', confidence: 0.95 },
-        ],
+        labelOverrides: {},
+        actionIntents: {},
+        imageDescriptions: {
+          'img-1': {
+            selector: '#img-no-alt',
+            alt: 'صورة توضيحية لخدمات البوابة',
+            confidence: 'high',
+            source: 'vision',
+          },
+        },
       });
 
       // Remediation is opt-in: should not apply yet
@@ -257,10 +448,12 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
       assert.equal(imgDecorative.getAttribute('alt'), '');
 
       remediator.setAssistiveMap({
-        imageDescriptions: [
-          { selector: '#img-with-alt', description: 'شعار مختلف تم تخمينه', confidence: 0.99 },
-          { selector: '#img-decorative', description: 'خط فاصل زخرفي', confidence: 0.99 },
-        ],
+        labelOverrides: {},
+        actionIntents: {},
+        imageDescriptions: {
+          'img-auth': { selector: '#img-with-alt', alt: 'شعار مختلف تم تخمينه', confidence: 'high' },
+          'img-dec': { selector: '#img-decorative', alt: 'خط فاصل زخرفي', confidence: 'high' },
+        },
       });
 
       remediator.apply();
@@ -283,9 +476,11 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
       assert.equal(galleryImages.length, 2);
 
       remediator.setAssistiveMap({
-        imageDescriptions: [
-          { selector: '.gallery-item', description: 'صورة معرض عامة', confidence: 0.95 },
-        ],
+        labelOverrides: {},
+        actionIntents: {},
+        imageDescriptions: {
+          'gallery-ambiguous': { selector: '.gallery-item', alt: 'صورة معرض عامة', confidence: 'high' },
+        },
       });
 
       remediator.apply();
@@ -302,9 +497,11 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
       const remediator = new DomRemediator(state);
 
       remediator.setAssistiveMap({
-        imageDescriptions: [
-          { selector: 'img[invalid==syntax]]::unknown', description: 'وصف تجريبي', confidence: 0.95 },
-        ],
+        labelOverrides: {},
+        actionIntents: {},
+        imageDescriptions: {
+          'invalid-sel': { selector: 'img[invalid==syntax]]::unknown', alt: 'وصف تجريبي', confidence: 'high' },
+        },
       });
 
       assert.doesNotThrow(() => {
@@ -314,7 +511,7 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
     });
   });
 
-  describe('3. Safe Control Label Remediation', () => {
+  describe('4. Safe Control Label Remediation with Real Schema', () => {
     it('applies generated aria-label only to controls without accessible names', () => {
       const state = new StateManager('ar');
       const remediator = new DomRemediator(state);
@@ -322,10 +519,13 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
       const btnIcon = document.getElementById('btn-icon-unlabeled') as HTMLButtonElement;
       assert.equal(btnIcon.hasAttribute('aria-label'), false);
 
+      // Real scanner schema: labelOverrides is Record<string, LabelOverride> with 'label'
       remediator.setAssistiveMap({
-        labelOverrides: [
-          { selector: '#btn-icon-unlabeled', ariaLabel: 'فتح قائمة الإشعارات', confidence: 0.92 },
-        ],
+        actionIntents: {},
+        imageDescriptions: {},
+        labelOverrides: {
+          'btn-1': { selector: '#btn-icon-unlabeled', label: 'فتح قائمة الإشعارات', confidence: 'high' },
+        },
       });
 
       remediator.apply();
@@ -348,13 +548,15 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
       const inputWrapped = document.getElementById('input-wrapped') as HTMLInputElement;
 
       remediator.setAssistiveMap({
-        labelOverrides: [
-          { selector: '#btn-with-text', ariaLabel: 'إرسال معدل', confidence: 0.98 },
-          { selector: '#btn-with-aria-label', ariaLabel: 'بحث معدل', confidence: 0.98 },
-          { selector: '#btn-with-labelledby', ariaLabel: 'معلومات معدلة', confidence: 0.98 },
-          { selector: '#input-name', ariaLabel: 'الاسم معدل', confidence: 0.98 },
-          { selector: '#input-wrapped', ariaLabel: 'البريد معدل', confidence: 0.98 },
-        ],
+        actionIntents: {},
+        imageDescriptions: {},
+        labelOverrides: {
+          'btn-text': { selector: '#btn-with-text', label: 'إرسال معدل', confidence: 'high' },
+          'btn-aria': { selector: '#btn-with-aria-label', label: 'بحث معدل', confidence: 'high' },
+          'btn-labelled': { selector: '#btn-with-labelledby', label: 'معلومات معدلة', confidence: 'high' },
+          'input-name': { selector: '#input-name', label: 'الاسم معدل', confidence: 'high' },
+          'input-wrap': { selector: '#input-wrapped', label: 'البريد معدل', confidence: 'high' },
+        },
       });
 
       remediator.apply();
@@ -371,16 +573,18 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
     });
   });
 
-  describe('4. Ownership-Aware Restoration & Host Modifications', () => {
+  describe('5. Ownership-Aware Restoration & Host Modifications', () => {
     it('does not overwrite host modification made while remediation was active', () => {
       const state = new StateManager('ar');
       const remediator = new DomRemediator(state);
 
       const btn = document.getElementById('btn-icon-unlabeled') as HTMLButtonElement;
       remediator.setAssistiveMap({
-        labelOverrides: [
-          { selector: '#btn-icon-unlabeled', ariaLabel: 'تسمية مؤقتة', confidence: 0.9 },
-        ],
+        actionIntents: {},
+        imageDescriptions: {},
+        labelOverrides: {
+          'btn-temp': { selector: '#btn-icon-unlabeled', label: 'تسمية مؤقتة', confidence: 'high' },
+        },
       });
 
       remediator.apply();
@@ -409,9 +613,11 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
       document.body.appendChild(tempImg);
 
       remediator.setAssistiveMap({
-        imageDescriptions: [
-          { selector: '#temp-img-dynamic', description: 'صورة مؤقتة', confidence: 0.9 },
-        ],
+        actionIntents: {},
+        labelOverrides: {},
+        imageDescriptions: {
+          'temp-desc': { selector: '#temp-img-dynamic', alt: 'صورة مؤقتة', confidence: 'high' },
+        },
       });
 
       remediator.apply();
@@ -427,7 +633,7 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
     });
   });
 
-  describe('5. Widget Full Integration & Reset Lifecycle', () => {
+  describe('6. Widget Full Integration & Reset Lifecycle', () => {
     it('integrates DomRemediator and MapApiClient with custom element', () => {
       const widget = new RaawiAccessibilityWidget();
       document.body.appendChild(widget);

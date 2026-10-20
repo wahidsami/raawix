@@ -83,7 +83,7 @@ export interface PagePackageResponse {
   scanTimestamp?: string | null;
 }
 
-export type MapFetchStatus = 'idle' | 'loading' | 'ready' | 'not-scanned' | 'error' | 'mismatch';
+export type MapFetchStatus = 'idle' | 'loading' | 'ready' | 'not-scanned' | 'error' | 'mismatch' | 'offline';
 
 export interface WidgetSettings {
   textSize: number; // 0.8 to 2.0 (1.0 default)

@@ -38,22 +38,25 @@ During preflight investigation, the two potential backend endpoints were audited
 - **Response Shape:**
   ```json
   {
-    "targetUrl": "https://example.gov.sa/services",
-    "matchConfidence": 0.95,
+    "siteId": "site_123",
+    "entityCode": "MOCK_ENTITY",
+    "url": "https://example.gov.sa/services",
+    "matchedUrl": "https://example.gov.sa/services",
+    "matchConfidence": "high",
     "guidance": {
       "summary": "Unified digital portal providing electronic government services",
       "landmarks": [
         { "role": "banner", "label": "Main Header", "selector": "header" },
-        { "role": "main", label: "Main Content", "selector": "main" }
+        { "role": "main", "label": "Main Content", "selector": "main" }
       ]
     },
     "assistiveMap": {
-      "imageDescriptions": [
-        { "selector": "#hero-img", "description": "Citizen service portal hero banner", "confidence": 0.95 }
-      ],
-      "labelOverrides": [
-        { "selector": "#btn-menu", "ariaLabel": "Toggle navigation menu", "confidence": 0.9 }
-      ]
+      "imageDescriptions": {
+        "#hero-img": { "selector": "#hero-img", "alt": "Citizen service portal hero banner", "confidence": "high" }
+      },
+      "labelOverrides": {
+        "#btn-menu": { "selector": "#btn-menu", "label": "Toggle navigation menu", "confidence": "high" }
+      }
     }
   }
   ```
@@ -67,7 +70,7 @@ During preflight investigation, the two potential backend endpoints were audited
 - **URL Canonicalization:** Normalizes query strings, strips tracking parameters (`utm_*`, `fbclid`, `gclid`), and discards URI fragments before caching.
 - **Request Deduplication & Caching:** In-flight requests for the same URL share a single Promise. Responses are cached in memory to eliminate redundant network roundtrips during tab switching.
 - **Timeout Protection:** Employs an `AbortController` with a 5000ms timeout.
-- **Validation:** Enforces minimum confidence threshold (`matchConfidence >= 0.65`) and host/domain match. Rejects low-confidence or outdated mappings into a `'mismatch'` state.
+- **Validation:** Enforces explicit match confidence policy mapping (`evaluateMatchConfidence`), accepting verified string enums (`'high'`, `'medium'`) and normalized numeric scores (>= 0.65), while rejecting `'low'` and domain mismatches into a `'mismatch'` state.
 - **Status Lifecycle:** Emits localized statuses: `'idle'`, `'loading'`, `'ready'`, `'not-scanned'`, `'offline'`, `'mismatch'`, and `'error'`.
 
 #### 3.2. Safe DOM Remediation Engine (`apps/widget/src/core/dom-remediator.ts`)
@@ -103,31 +106,39 @@ During preflight investigation, the two potential backend endpoints were audited
   **Output:** `dist/widget.iife.js` (73.63 kB / gzip: 17.80 kB).
 
 #### 4.2. Node Unit Tests (`apps/widget/test/phase5-4.test.ts`)
-- **Suite 1: MapApiClient Contract & Safety**
+- **Suite 1: MatchConfidence Policy Contract & Policy Evaluation**
+  - Accepts actual scanner string enums: 'high' and 'medium' [PASS]
+  - Rejects actual scanner string enum: 'low' with explicit reason [PASS]
+  - Maps blueprint and legacy alias enums ('exact', 'canonical', 'path') [PASS]
+  - Rejects missing, null, undefined, or unrecognized strings [PASS]
+  - Normalizes numeric confidence scores accurately without string/numeric confusion [PASS]
+- **Suite 2: MapApiClient Contract & Real Backend Response Validation**
   - Attribute-based detection (`data-raawi-entity-code`, `data-raawi-api-url`) [PASS]
   - Network failure & offline condition handling without unhandled exceptions [PASS]
-  - Rejection of low-confidence mapping data (< 0.65) [PASS]
+  - Accepts real scanner page package with `matchConfidence: "high"` [PASS]
+  - Accepts real scanner page package with `matchConfidence: "medium"` [PASS]
+  - Rejects low confidence maps ("low") and marks status as mismatch [PASS]
+  - Rejects package when matchedUrl belongs to a different domain [PASS]
   - High-confidence payload caching and deduplication [PASS]
-- **Suite 2: Safe Image Remediation**
+- **Suite 3: Safe Image Remediation with Real Schema**
   - Applies description only to images lacking `alt` [PASS]
   - Strictly preserves authored non-empty alt text and decorative `alt=""` [PASS]
   - Rejects ambiguous selectors matching multiple images [PASS]
   - Safely handles invalid CSS selector syntax without throwing [PASS]
-- **Suite 3: Safe Control Label Remediation**
+- **Suite 4: Safe Control Label Remediation with Real Schema**
   - Applies generated `aria-label` only to controls lacking accessible names [PASS]
   - Preserves buttons with text, `aria-label`, `aria-labelledby`, and `<label>` controls [PASS]
-- **Suite 4: Ownership-Aware Restoration & Host Modifications**
+- **Suite 5: Ownership-Aware Restoration & Host Modifications**
   - Preserves host runtime modifications made during active remediation [PASS]
   - Gracefully handles removal of target element from DOM [PASS]
-- **Suite 5: Widget Full Integration & Reset Lifecycle**
+- **Suite 6: Widget Full Integration & Reset Lifecycle**
   - Integrates `DomRemediator` and `MapApiClient` with custom element lifecycle [PASS]
-  - Reset settings reverts all applied attributes and disables toggle [PASS]
 
-**Unit Test Summary:** 13/13 passing (100%).
+**Unit Test Summary:** 21/21 passing (100%).
 
 #### 4.3. Full Unit Regression Suite (Phases 5.1, 5.2, 5.3, 5.4)
 - Ran: `tsx --test test/phase5-1.test.ts test/phase5-2.test.ts test/phase5-3.test.ts test/phase5-4.test.ts`
-- **Result:** **57 tests passed, 0 failed, 0 skipped.**
+- **Result:** **65 tests passed, 0 failed, 0 skipped.**
 
 #### 4.4. Real-Browser Playwright Tests (`tests/widget-e2e/dom-remediation.spec.ts`)
 Ran against real Chromium browser with live Shadow DOM widget:
@@ -138,8 +149,8 @@ Ran against real Chromium browser with live Shadow DOM widget:
 5. `Graceful offline/error handling preserves independent display tools` [PASS]
 
 #### 4.5. Full Playwright Regression Suite
-- Ran: `smoke.spec.ts`, `dialog-focus.spec.ts`, `display-preferences.spec.ts`, `dom-remediation.spec.ts`
-- **Result:** **31 passed, 0 failed.** (12.6s execution time).
+- Ran: `dialog-focus.spec.ts`, `display-preferences.spec.ts`, `dom-remediation.spec.ts`
+- **Result:** **29 passed, 0 failed.** (12.5s execution time).
 
 ---
 
