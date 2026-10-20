@@ -359,5 +359,50 @@
 - **Production Build:** Bundle compiled cleanly via Vite (`dist/widget.iife.js`: 93.38 kB / gzip: 23.01 kB, 198ms build time). Synchronized across test site public assets.
 - **Acceptance Verdict:** ACCEPTED. Phase 5 widget milestone complete and verified. Awaiting coordinator review before Phase 6.
 
+# Tasks - Phase 6: Complete the 20 DGA Requirements
+
+- [x] 1. Preflight and Requirements Traceability
+  - [x] Verify complete HEAD SHA (`4c9f8d60cf4beed30ffa17c7220c20fe7184b46a`), branch (`feature/semantic-core`), working tree clean, synced with origin
+  - [x] Review authoritative 20 DGA specification (`docs/DGA_RAAWI_X_REQUIREMENTS.md`) and historical remediation reports
+  - [x] Analyze all 20 requirements across classifications (Accessibility, Core Functional, Reporting, UI/UX)
+  - [x] Build requirement-by-requirement traceability and evidence matrix
+- [x] 2. Implementation & Code Inspection across all 20 DGA Requirements
+  - [x] DGA-01 (Platform accessibility): Evaluated `report-ui` dark mode contrast and modal accessibility -> PARTIAL
+  - [x] DGA-02 (Scan comparison): Evaluated backend diff API and UI comparison page -> BLOCKED / MISSING (Feature Gap)
+  - [x] DGA-03 (Screenshots/evidence): Verified screenshot capture in `page-capture.ts`, link in `FindingsPage.tsx`, and crop modal in `ScanDetailPage.tsx` -> PASS
+  - [x] DGA-04 (Homepage/logo presentation): Verified `OverviewPage.tsx` entity logo mapping from `domainToLogoMap` with `Globe` fallback -> PASS
+  - [x] DGA-05 (WCAG rule names/descriptions): Verified localized human-readable rule titles and descriptions in `FindingsPage.tsx` and `packages/rules` -> PASS
+  - [x] DGA-06 (Quick Actions): Verified `OverviewPage.tsx` Quick Actions grid and table actions -> PASS
+  - [x] DGA-07 (Entities search/filter/sort): Verified live search across `nameEn`/`nameAr`, status/type filters, and sort headers in `EntitiesPage.tsx` -> PASS
+  - [x] DGA-08 (Scan Name): Evaluated `Scan` model in `schema.prisma` (no name column; DB migrations prohibited by boundaries) -> BLOCKED (Requires DB Migration)
+  - [x] DGA-09 (Websites search/filter/sort): Verified live domain search and sortable headers in `SitesPage.tsx` -> PASS
+  - [x] DGA-10 (Multi-page crawling limits): Verified `BFSCrawler` `maxPages` and `maxDepth` boundaries in `bfs-crawler.ts` -> PASS
+  - [x] DGA-11 (Authentication-aware scanning): Evaluated `ScanAuthProfile` in `schema.prisma` and `job-queue.ts`; runtime execution deferred per operational boundaries -> PARTIAL / NOT TESTED (Runtime)
+  - [x] DGA-12 (Classic vs Raawi Agent distinction): Verified separation of `Finding` vs `AgentFinding`, UI tabs in `ScanDetailPage.tsx`, and deterministic scoring in `compliance-scoring.ts` -> PASS
+  - [x] DGA-13 (Duplicate PDF export options): Verified consolidated PDF and Excel export actions with loading spinner in `ScanDetailPage.tsx` and `EntityDetailPage.tsx` -> PASS
+  - [x] DGA-14 (Arabic/English result inconsistency): Verified `@raawi-x/core` shared localization module and dynamic locale rendering -> PASS
+  - [x] DGA-15 (Excel localization): Verified `excel-report-generator.ts` localized Arabic sheets, headers, and statuses with RTL layout -> PASS
+  - [x] DGA-16 (Add Entity accessibility/responsiveness): Verified responsive modal layout (`sm:max-w-md`), ARIA dialog attributes, autofocus, and Escape key listener in `EntitiesPage.tsx` -> PASS
+  - [x] DGA-17 (Direct Scan -> Results navigation): Verified direct deep link to `/findings?scanId=${scan.scanId}` in `ScansPage.tsx` and query consumption in `FindingsPage.tsx` -> PASS
+  - [x] DGA-18 (Severity-first findings sorting): Verified default client-side severity sorting (Critical/A -> Important/AA -> Moderate/AAA -> Low -> Passed) in `FindingsPage.tsx` -> PASS
+  - [x] DGA-19 (Trace failure inside scan): Verified React `ErrorBoundary` wrapper in `ScanDetailPage.tsx` and telemetry lifecycle mapping in `analysis-agent-summary.ts` -> PASS
+  - [x] DGA-20 (Not Applicable logic): Verified `status: 'na'` across rules engine, compliance scoring, report generator, export, and UI -> PASS
+- [x] 3. Verification & Testing
+  - [x] Run scanner test suite (`vitest run`: 100/100 tests passing across 22 test files)
+  - [x] Run widget test suites (Phases 5.1–5.6: 99/99 unit tests passing across 6 files)
+  - [x] Rebuild widget bundle (`vite build`: 93.38 kB / gzip 23.01 kB)
+  - [x] Document residual limitations and operational boundaries
+- [x] 4. Deliverables & Closure
+  - [x] Create authoritative `PHASE_6_DGA_REQUIREMENTS_COMPLETION_REPORT.md`
+  - [x] Update `tasks/todo.md` with Phase 6 execution review
+  - [x] Commit and push to `feature/semantic-core`
+  - [x] Stop condition: Deliver report and stop for coordinator review (no deployment, no Phase 7, no Basir rollout)
+
+## Execution Review (Phase 6)
+- **Status Summary:** 15 of 20 DGA Requirements marked **PASS** with concrete source code and automated test evidence; 2 requirements marked **PARTIAL** (DGA-01 platform accessibility audit, DGA-11 auth scanning); 2 requirements marked **BLOCKED** (DGA-02 scan comparison feature gap, DGA-08 scan name requiring database migration); 1 requirement marked **NOT TESTED (Runtime)** (DGA-11 live target execution deferred per strict operational boundaries).
+- **Core Stability:** Scanner test suite (100/100 tests passing across 22 test files), widget test suite (99/99 unit tests passing across 6 files), and widget Vite production build (`dist/widget.iife.js` 93.38 kB) verified with zero regressions.
+- **Strict Boundary Adherence:** Zero database mutations, zero remote deployments, zero new external scans, and zero synthetic findings generated. All documented limitations preserved.
+
+
 
 
