@@ -3,10 +3,12 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    extensions: ['.tsx', '.ts', '.jsx', '.js'],
+  },
   server: {
-    port: 4175,
+    port: 4173,
     host: true,
-    strictPort: true,
   },
   // Widget should be copied to public/widget.iife.js
   publicDir: 'public',

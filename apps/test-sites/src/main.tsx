@@ -1,11 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import App from './App';
-import GoodPage from './pages/GoodPage';
-import MessyPage from './pages/MessyPage';
-import BadExample from './pages/BadExample';
-import AccessibilityTest from './pages/AccessibilityTest';
+import App from './App.tsx';
+import GoodPage from './pages/GoodPage.tsx';
+import MessyPage from './pages/MessyPage.tsx';
+import BadExample from './pages/BadExample.tsx';
+import AccessibilityTest from './pages/AccessibilityTest.tsx';
 import './index.css';
 
 // Suppress React Router deprecation warnings

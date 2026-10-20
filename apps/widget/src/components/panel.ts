@@ -11,22 +11,32 @@ export class PanelComponent {
   private state: StateManager;
   private i18n: I18nManager;
 
+  private lastTab: TabId;
+
   constructor(state: StateManager, i18n: I18nManager) {
     this.state = state;
     this.i18n = i18n;
+    this.lastTab = this.state.getActiveTab();
 
     this.element = document.createElement('section');
     this.element.id = 'raawi-accessibility-panel';
     this.element.className = 'raawi-panel-container';
     this.element.setAttribute('data-testid', 'raawi-panel');
     this.element.setAttribute('role', 'dialog');
-    this.element.setAttribute('aria-modal', 'true');
     this.element.setAttribute('aria-labelledby', 'raawi-panel-title');
 
     this.render();
+    this.updateVisibility();
 
     // Subscribe to state and i18n updates
-    this.state.subscribe(() => this.updateVisibility());
+    this.state.subscribe(() => {
+      this.updateVisibility();
+      const currentTab = this.state.getActiveTab();
+      if (currentTab !== this.lastTab) {
+        this.lastTab = currentTab;
+        this.render();
+      }
+    });
     this.i18n.subscribe(() => this.render());
   }
 
@@ -34,12 +44,74 @@ export class PanelComponent {
     return this.element;
   }
 
+  /**
+   * Returns all currently visible, non-disabled focusable controls inside the dialog.
+   */
+  public getFocusableElements(): HTMLElement[] {
+    const selector = [
+      'a[href]',
+      'button:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(', ');
+
+    const candidates = Array.from(this.element.querySelectorAll<HTMLElement>(selector));
+
+    return candidates.filter((el) => {
+      if (el.hasAttribute('disabled')) return false;
+      if (el.getAttribute('aria-hidden') === 'true') return false;
+
+      // Filter out elements residing inside inactive/hidden tab panels
+      const parentPanel = el.closest('[role="tabpanel"]') as HTMLElement | null;
+      if (parentPanel && parentPanel.style.display === 'none') {
+        return false;
+      }
+
+      // Check offsetParent if available (in real browsers)
+      if (el.offsetParent === null && el.offsetWidth === 0 && el.offsetHeight === 0) {
+        if (parentPanel && parentPanel.style.display === 'none') return false;
+      }
+
+      return true;
+    });
+  }
+
+  /**
+   * Transfers focus to the dialog initial target (close button or first focusable element).
+   */
   public focusFirstElement(): void {
-    const closeBtn = this.element.querySelector('[data-testid="raawi-close"]') as HTMLElement | null;
-    if (closeBtn) {
+    const focusables = this.getFocusableElements();
+    const closeBtn = this.element.querySelector<HTMLElement>('[data-testid="raawi-close"]');
+    if (closeBtn && focusables.includes(closeBtn)) {
       closeBtn.focus();
+      return;
+    }
+
+    if (focusables.length > 0) {
+      focusables[0].focus();
+      return;
+    }
+
+    // Fallback: focus dialog heading
+    const title = this.element.querySelector<HTMLElement>('#raawi-panel-title');
+    if (title) {
+      title.focus();
     } else {
       this.element.focus();
+    }
+  }
+
+  /**
+   * Transfers focus to the last focusable element in the dialog (for Shift+Tab wrap).
+   */
+  public focusLastElement(): void {
+    const focusables = this.getFocusableElements();
+    if (focusables.length > 0) {
+      focusables[focusables.length - 1].focus();
+    } else {
+      this.focusFirstElement();
     }
   }
 
@@ -48,9 +120,11 @@ export class PanelComponent {
     if (isOpen) {
       this.element.classList.add('open');
       this.element.removeAttribute('hidden');
+      this.element.setAttribute('aria-modal', 'true');
     } else {
       this.element.classList.remove('open');
       this.element.setAttribute('hidden', '');
+      this.element.setAttribute('aria-modal', 'false');
     }
   }
 
@@ -72,7 +146,7 @@ export class PanelComponent {
             <path d="M12 16L8.5 21" stroke="#27ae60" stroke-width="2" stroke-linecap="round"/>
             <path d="M12 16L15.5 21" stroke="#27ae60" stroke-width="2" stroke-linecap="round"/>
           </svg>
-          <h2 id="raawi-panel-title" class="raawi-brand-title">${t.widgetTitle}</h2>
+          <h2 id="raawi-panel-title" class="raawi-brand-title" tabindex="-1">${t.widgetTitle}</h2>
         </div>
         
         <div class="raawi-header-actions">

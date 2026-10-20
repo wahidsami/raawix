@@ -100,6 +100,24 @@ export const WIDGET_CSS = `
     pointer-events: none;
   }
 
+  /* Backdrop Overlay for Modal Dialog */
+  .raawi-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.35);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 2147483641;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .raawi-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
   /* Panel Container */
   .raawi-panel-container {
     position: fixed;

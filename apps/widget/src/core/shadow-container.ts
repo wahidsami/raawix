@@ -1,11 +1,19 @@
 /**
  * RaawiAccessibilityWidget Custom Element with Shadow DOM Encapsulation
+ * 
+ * Implements complete WAI-ARIA Dialog (Modal) interaction pattern:
+ * - Proper modal semantics: aria-modal="true" while active
+ * - Strict focus containment: Tab forward wrap and Shift+Tab reverse wrap
+ * - Initial focus handoff and clean focus restoration on close
+ * - Backdrop dismissal without false triggers from inner clicks
+ * - Localized polite ARIA live announcements (zero unprompted TTS)
  */
 
 import { I18nManager } from './i18n';
 import { StateManager } from './state';
 import { LauncherComponent } from '../components/launcher';
 import { PanelComponent } from '../components/panel';
+import { LiveAnnouncerComponent } from '../components/live-announcer';
 import { WIDGET_CSS } from '../styles/widget-styles';
 import type { Locale } from './types';
 
@@ -17,9 +25,12 @@ export class RaawiAccessibilityWidget extends HTMLElement {
   private i18n: I18nManager;
   private launcher: LauncherComponent;
   private panel: PanelComponent;
+  private announcer: LiveAnnouncerComponent;
+  private backdrop: HTMLElement;
 
   private onDocumentKeyDown: (e: KeyboardEvent) => void;
-  private onDocumentClick: (e: MouseEvent) => void;
+  private onDocumentFocusIn: (e: FocusEvent) => void;
+  private wasOpen: boolean = false;
 
   constructor() {
     super();
@@ -38,7 +49,13 @@ export class RaawiAccessibilityWidget extends HTMLElement {
     styleEl.textContent = WIDGET_CSS;
     this.shadow.appendChild(styleEl);
 
-    // 4. Create root container inside Shadow Root
+    // 4. Create backdrop layer inside Shadow Root (intercepts clicks outside modal)
+    this.backdrop = document.createElement('div');
+    this.backdrop.className = 'raawi-backdrop';
+    this.backdrop.setAttribute('aria-hidden', 'true');
+    this.shadow.appendChild(this.backdrop);
+
+    // 5. Create root container inside Shadow Root
     const container = document.createElement('div');
     container.className = 'raawi-theme';
 
@@ -54,7 +71,11 @@ export class RaawiAccessibilityWidget extends HTMLElement {
     container.appendChild(this.panel.getElement());
     this.shadow.appendChild(container);
 
-    // 5. Subscribe to state changes
+    // 6. Create polite live announcer inside Shadow Root
+    this.announcer = new LiveAnnouncerComponent(this.i18n);
+    this.shadow.appendChild(this.announcer.getElement());
+
+    // 7. Subscribe to state and i18n changes
     this.state.subscribe(() => {
       if (this.isConnected) {
         this.updateHostDirection();
@@ -62,20 +83,31 @@ export class RaawiAccessibilityWidget extends HTMLElement {
       this.handleStateChange();
     });
 
-    // 6. Global event handlers
+    this.i18n.subscribe((locale) => {
+      this.announcer.announceLanguageChange(locale);
+    });
+
+    // 8. Event listener bindings
     this.onDocumentKeyDown = (e: KeyboardEvent) => this.handleKeyDown(e);
-    this.onDocumentClick = (e: MouseEvent) => this.handleOutsideClick(e);
+    this.onDocumentFocusIn = (e: FocusEvent) => this.handleFocusIn(e);
+
+    // 9. Backdrop click dismissal
+    this.backdrop.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.close();
+    });
   }
 
   public connectedCallback(): void {
-    document.addEventListener('keydown', this.onDocumentKeyDown);
-    document.addEventListener('click', this.onDocumentClick);
+    document.addEventListener('keydown', this.onDocumentKeyDown, true);
+    document.addEventListener('focusin', this.onDocumentFocusIn, true);
     this.updateHostDirection();
   }
 
   public disconnectedCallback(): void {
-    document.removeEventListener('keydown', this.onDocumentKeyDown);
-    document.removeEventListener('click', this.onDocumentClick);
+    document.removeEventListener('keydown', this.onDocumentKeyDown, true);
+    document.removeEventListener('focusin', this.onDocumentFocusIn, true);
   }
 
   public open(): void {
@@ -103,8 +135,20 @@ export class RaawiAccessibilityWidget extends HTMLElement {
     return this.i18n;
   }
 
+  public getAnnouncer(): LiveAnnouncerComponent {
+    return this.announcer;
+  }
+
   public getShadowRoot(): ShadowRoot {
     return this.shadow;
+  }
+
+  public getPanelComponent(): PanelComponent {
+    return this.panel;
+  }
+
+  public getLauncherComponent(): LauncherComponent {
+    return this.launcher;
   }
 
   private detectInitialLocale(): Locale {
@@ -122,34 +166,103 @@ export class RaawiAccessibilityWidget extends HTMLElement {
 
   private updateHostDirection(): void {
     const dir = this.state.getDirection();
+    const locale = this.state.getLocale();
     this.setAttribute('dir', dir);
+    this.setAttribute('lang', locale);
   }
 
   private handleStateChange(): void {
-    if (this.state.getIsOpen()) {
-      // Accessible handoff: focus into panel upon open
-      setTimeout(() => {
-        this.panel.focusFirstElement();
-      }, 50);
+    const isOpen = this.state.getIsOpen();
+
+    if (isOpen) {
+      // Backdrop activation
+      this.backdrop.classList.add('open');
+
+      if (!this.wasOpen) {
+        this.wasOpen = true;
+        this.announcer.announceOpen();
+
+        // Initial focus handoff into modal dialog
+        setTimeout(() => {
+          this.panel.focusFirstElement();
+        }, 50);
+      }
+    } else {
+      // Backdrop deactivation
+      this.backdrop.classList.remove('open');
+
+      if (this.wasOpen) {
+        this.wasOpen = false;
+        this.announcer.announceClose();
+
+        // Focus restoration to launcher button
+        if (this.launcher && this.launcher.getElement() && this.launcher.getElement().isConnected) {
+          this.launcher.focus();
+        }
+      }
     }
   }
 
   private handleKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Escape' && this.state.getIsOpen()) {
+    if (!this.state.getIsOpen()) return;
+
+    // 1. Escape key dismissal
+    if (e.key === 'Escape') {
       e.preventDefault();
-      this.state.setOpen(false);
-      // Clean focus return to launcher
-      this.launcher.focus();
+      e.stopPropagation();
+      this.close();
+      return;
+    }
+
+    // 2. Modal Keyboard Containment (Focus Trap)
+    if (e.key === 'Tab') {
+      this.trapTabKey(e);
     }
   }
 
-  private handleOutsideClick(e: MouseEvent): void {
+  /**
+   * Complete bidirectional Tab key focus containment
+   */
+  private trapTabKey(e: KeyboardEvent): void {
+    const focusables = this.panel.getFocusableElements();
+    if (focusables.length === 0) {
+      e.preventDefault();
+      this.panel.focusFirstElement();
+      return;
+    }
+
+    const firstElement = focusables[0];
+    const lastElement = focusables[focusables.length - 1];
+
+    // Determine currently focused element within Shadow Root or activeElement
+    const active = (this.shadow.activeElement || document.activeElement) as HTMLElement | null;
+
+    if (e.shiftKey) {
+      // Reverse Tab: Wrap from first to last
+      if (!active || active === firstElement || !focusables.includes(active)) {
+        e.preventDefault();
+        lastElement.focus();
+      }
+    } else {
+      // Forward Tab: Wrap from last to first
+      if (!active || active === lastElement || !focusables.includes(active)) {
+        e.preventDefault();
+        firstElement.focus();
+      }
+    }
+  }
+
+  /**
+   * Prevents focus from escaping to host page while modal is active
+   */
+  private handleFocusIn(e: FocusEvent): void {
     if (!this.state.getIsOpen()) return;
 
-    // Check if the click occurred inside the shadow root
-    const path = e.composedPath();
-    if (!path.includes(this)) {
-      this.state.setOpen(false);
+    // Check if target is outside this custom element (i.e. inside host document)
+    const target = e.target as HTMLElement | null;
+    if (target && target !== this && !this.contains(target)) {
+      // Bring focus back to dialog
+      this.panel.focusFirstElement();
     }
   }
 }
@@ -163,4 +276,3 @@ export function registerRaawiWidget(registry?: CustomElementRegistry): void {
 
 // Auto-register custom element in current global registry
 registerRaawiWidget();
-

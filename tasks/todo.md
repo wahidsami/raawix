@@ -125,7 +125,48 @@
 - [x] 6. Build, Validation & Report
   - [x] Run `pnpm --filter @raawi-x/widget build` and verify bundle generation (36.98 kB IIFE bundle)
   - [x] Run all automated tests (12/12 passing)
-  - [ ] Create `PHASE_5_1_IMPLEMENTATION_REPORT.md`
-  - [ ] Commit and push to `feature/semantic-core`
+  - [x] Create `PHASE_5_1_IMPLEMENTATION_REPORT.md`
+  - [x] Commit and push to `feature/semantic-core`
+
+# Tasks - Phase 5.2: Accessible Dialog, Focus Management and Live Announcements
+
+- [x] 1. Preflight & Architecture Inspection
+  - [x] Verify branch (`feature/semantic-core`), HEAD commit (`fb808c4`), and clean working tree
+  - [x] Evaluate native `<dialog>` vs custom ARIA dialog in Shadow DOM across browsers (custom ARIA dialog with Shadow backdrop chosen for full isolation and browser consistency)
+- [x] 2. Dialog Semantics & Backdrop Architecture
+  - [x] Ensure `aria-modal="true"` is dynamically set only when dialog is open and modal
+  - [x] Ensure persistent naming via `aria-labelledby="raawi-panel-title"`
+  - [x] Introduce accessible backdrop layer inside Shadow DOM for reliable dismissal
+  - [x] Synchronize `aria-expanded` and `aria-controls` on launcher
+- [x] 3. Opening, Initial Focus & Complete Keyboard Containment (Focus Trap)
+  - [x] Implement initial focus placement to close button (`[data-testid="raawi-close"]`) or dialog heading (`tabindex="-1"`) upon open
+  - [x] Implement robust bidirectional focus trap (Tab forward wrap, Shift+Tab reverse wrap)
+  - [x] Filter out disabled, hidden, inert, or display:none elements from tab sequence
+  - [x] Contain focus completely so it never escapes to host page while open (`focusin` capturing protection)
+  - [x] Escape key closes dialog and safely restores focus to launcher (with disconnected check)
+- [x] 4. Localized ARIA Live Announcer
+  - [x] Create `LiveAnnouncerComponent` (`role="status"`, `aria-live="polite"`, `aria-atomic="true"`)
+  - [x] Announce dialog open/close, language toggle, and reset events in active locale
+  - [x] Ensure zero automatic TTS narration is triggered
+- [x] 5. Testing & Verification
+  - [x] Add unit tests in `apps/widget/test/phase5-2.test.ts` for semantics, trap logic, and announcer (12/12 passing)
+  - [x] Create real-browser Playwright test in `tests/widget-e2e/dialog-focus.spec.ts` for actual tab traversal, wrap, containment, and restoration (10/10 passing)
+  - [x] Run existing Phase 5.1 regression tests (12/12 passing)
+- [x] 6. Production Build, Report & Push
+  - [x] Build production widget bundle (40.93 kB IIFE, gzip: 9.89 kB) and sync to test sites
+  - [x] Create `PHASE_5_2_IMPLEMENTATION_REPORT.md`
+  - [x] Commit on `feature/semantic-core` and push
+
+## Execution Review (Phase 5.2)
+- Accessible dialog semantics resolved: `role="dialog"`, `aria-labelledby="raawi-panel-title"`, `aria-modal="true"` dynamically present only when panel is open and visible (`aria-modal="false"` + `hidden` when closed).
+- Launcher `aria-expanded` ("false"/"true") and `aria-controls="raawi-accessibility-panel"` synchronized with panel state.
+- Bidirectional Tab focus trap implemented in `shadow-container.ts` and `panel.ts`: Tab wraps from last visible control to first; Shift+Tab wraps from first control to last; elements residing in inactive tabs (`display: none`) are strictly filtered out.
+- Host focus containment verified in real browser: external clicks or programmatic attempts to focus host page elements while modal is active are safely recaptured.
+- Escape key cleanly dismisses dialog and restores focus to launcher; if launcher is disconnected, no error is thrown.
+- Shadow DOM backdrop overlay (`.raawi-backdrop`) handles intentional outside clicks; inner clicks do not dismiss panel.
+- Localized ARIA live announcer (`LiveAnnouncerComponent`) provides polite, non-intrusive status updates; zero automatic TTS synthesis triggered.
+- Verification: 12/12 Phase 5.2 unit tests passed, 10/10 real-browser Playwright E2E tests passed, 12/12 Phase 5.1 regression tests passed. Production bundle compiled cleanly.
+
+
 
 
