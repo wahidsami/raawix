@@ -377,12 +377,12 @@
   - [x] DGA-08 (Scan Name): Evaluated `Scan` model in `schema.prisma` (no name column; DB migrations prohibited by boundaries) -> BLOCKED (Requires DB Migration)
   - [x] DGA-09 (Websites search/filter/sort): Verified live domain search and sortable headers in `SitesPage.tsx` -> PASS
   - [x] DGA-10 (Multi-page crawling limits): Verified `BFSCrawler` `maxPages` and `maxDepth` boundaries in `bfs-crawler.ts` -> PASS
-  - [x] DGA-11 (Authentication-aware scanning): Evaluated `ScanAuthProfile` in `schema.prisma` and `job-queue.ts`; runtime execution deferred per operational boundaries -> PARTIAL / NOT TESTED (Runtime)
+  - [x] DGA-11 (Authentication-aware scanning): Evaluated `ScanAuthProfile` in `schema.prisma` and `job-queue.ts`; runtime execution gated per operational boundaries -> PARTIAL
   - [x] DGA-12 (Classic vs Raawi Agent distinction): Verified separation of `Finding` vs `AgentFinding`, UI tabs in `ScanDetailPage.tsx`, and deterministic scoring in `compliance-scoring.ts` -> PASS
   - [x] DGA-13 (Duplicate PDF export options): Verified consolidated PDF and Excel export actions with loading spinner in `ScanDetailPage.tsx` and `EntityDetailPage.tsx` -> PASS
   - [x] DGA-14 (Arabic/English result inconsistency): Verified `@raawi-x/core` shared localization module and dynamic locale rendering -> PASS
   - [x] DGA-15 (Excel localization): Verified `excel-report-generator.ts` localized Arabic sheets, headers, and statuses with RTL layout -> PASS
-  - [x] DGA-16 (Add Entity accessibility/responsiveness): Verified responsive modal layout (`sm:max-w-md`), ARIA dialog attributes, autofocus, and Escape key listener in `EntitiesPage.tsx` -> PASS
+  - [x] DGA-16 (Add Entity accessibility/responsiveness): Modal layout and Escape handler present in `EntitiesPage.tsx`; qualified due to static-only evidence without component runner -> PARTIAL
   - [x] DGA-17 (Direct Scan -> Results navigation): Verified direct deep link to `/findings?scanId=${scan.scanId}` in `ScansPage.tsx` and query consumption in `FindingsPage.tsx` -> PASS
   - [x] DGA-18 (Severity-first findings sorting): Verified default client-side severity sorting (Critical/A -> Important/AA -> Moderate/AAA -> Low -> Passed) in `FindingsPage.tsx` -> PASS
   - [x] DGA-19 (Trace failure inside scan): Verified React `ErrorBoundary` wrapper in `ScanDetailPage.tsx` and telemetry lifecycle mapping in `analysis-agent-summary.ts` -> PASS
@@ -398,8 +398,9 @@
   - [x] Commit and push to `feature/semantic-core`
   - [x] Stop condition: Deliver report and stop for coordinator review (no deployment, no Phase 7, no Basir rollout)
 
-## Execution Review (Phase 6)
-- **Status Summary:** 15 of 20 DGA Requirements marked **PASS** with concrete source code and automated test evidence; 2 requirements marked **PARTIAL** (DGA-01 platform accessibility audit, DGA-11 auth scanning); 2 requirements marked **BLOCKED** (DGA-02 scan comparison feature gap, DGA-08 scan name requiring database migration); 1 requirement marked **NOT TESTED (Runtime)** (DGA-11 live target execution deferred per strict operational boundaries).
+## Execution Review (Phase 6 - Reconciled)
+- **Status Summary:** All 20 DGA Requirements assigned exactly one primary status summing to 20: 15 requirements marked **PASS** (75.0%), 3 requirements marked **PARTIAL** (15.0%: DGA-01, DGA-11, DGA-16), and 2 requirements marked **BLOCKED** (10.0%: DGA-02, DGA-08). Zero double counting.
+- **Evidentiary Integrity:** DGA-19 restored to the PASS list; DGA-11 represented under a single primary status (`PARTIAL`) with runtime execution limitation documented; DGA-16 reclassified to `PARTIAL` per verification rules prohibiting unverified runtime claims based solely on static code inspection.
 - **Core Stability:** Scanner test suite (100/100 tests passing across 22 test files), widget test suite (99/99 unit tests passing across 6 files), and widget Vite production build (`dist/widget.iife.js` 93.38 kB) verified with zero regressions.
 - **Strict Boundary Adherence:** Zero database mutations, zero remote deployments, zero new external scans, and zero synthetic findings generated. All documented limitations preserved.
 
