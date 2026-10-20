@@ -155,7 +155,7 @@ export class PanelComponent {
             <button type="button" class="raawi-lang-btn ${locale === 'en' ? 'active' : ''}" data-lang="en" data-testid="raawi-lang-switch" aria-label="English">EN</button>
           </div>
 
-          <button type="button" class="raawi-icon-btn" id="raawi-reset-btn" aria-label="${t.resetAll}" title="${t.resetAll}">↻</button>
+          <button type="button" class="raawi-icon-btn" id="raawi-reset-btn" data-testid="raawi-reset-all" aria-label="${t.resetAll}" title="${t.resetAll}">↻</button>
           <button type="button" class="raawi-icon-btn" id="raawi-close-btn" data-testid="raawi-close" aria-label="${t.closeOptions}" title="${t.closeOptions}">✕</button>
         </div>
       </header>
@@ -291,6 +291,14 @@ export class PanelComponent {
               <span class="raawi-toggle-slider"></span>
             </label>
           </div>
+          <div id="raawi-mask-height-container" style="display: ${settings.readingMask ? 'flex' : 'none'}; margin-top: 10px; justify-content: space-between; align-items: center;">
+            <span style="font-size: 12px; color: var(--text-secondary);">${t.maskWindowHeight}</span>
+            <div class="raawi-lang-switch">
+              <button type="button" class="raawi-lang-btn ${settings.readingMaskWindowHeight === 'small' ? 'active' : ''}" data-mask-height="small">${t.small}</button>
+              <button type="button" class="raawi-lang-btn ${settings.readingMaskWindowHeight === 'medium' ? 'active' : ''}" data-mask-height="medium">${t.medium}</button>
+              <button type="button" class="raawi-lang-btn ${settings.readingMaskWindowHeight === 'large' ? 'active' : ''}" data-mask-height="large">${t.large}</button>
+            </div>
+          </div>
         </div>
 
         <!-- Hide Images -->
@@ -344,6 +352,7 @@ export class PanelComponent {
     resetBtn?.addEventListener('click', (e) => {
       e.preventDefault();
       this.state.resetSettings();
+      this.render();
     });
 
     // Language buttons
@@ -445,6 +454,20 @@ export class PanelComponent {
     const readingMaskToggle = this.element.querySelector('#raawi-toggle-reading-mask') as HTMLInputElement | null;
     readingMaskToggle?.addEventListener('change', () => {
       this.state.updateSetting('readingMask', readingMaskToggle.checked);
+      this.render();
+    });
+
+    // Reading mask height buttons
+    const maskHeightBtns = this.element.querySelectorAll<HTMLButtonElement>('button[data-mask-height]');
+    maskHeightBtns.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const height = btn.getAttribute('data-mask-height') as 'small' | 'medium' | 'large';
+        if (height) {
+          this.state.updateSetting('readingMaskWindowHeight', height);
+          this.render();
+        }
+      });
     });
 
     // Hide images toggle

@@ -167,6 +167,44 @@
 - Localized ARIA live announcer (`LiveAnnouncerComponent`) provides polite, non-intrusive status updates; zero automatic TTS synthesis triggered.
 - Verification: 12/12 Phase 5.2 unit tests passed, 10/10 real-browser Playwright E2E tests passed, 12/12 Phase 5.1 regression tests passed. Production bundle compiled cleanly.
 
+# Tasks - Phase 5.3: Non-Destructive Display and Reading Preferences
+
+- [x] 1. Architecture & Preflight
+  - [x] Preflight git inspection (clean working tree, branch `feature/semantic-core`, HEAD `7af3a6b`)
+  - [x] Design and architect `DisplayManager` module (`apps/widget/src/core/display-manager.ts`)
+- [x] 2. Implementation of Display & Reading Preferences
+  - [x] Text scaling: Non-destructive proportional scaling preserving heading/body typography hierarchy (no `inherit !important`)
+  - [x] Line spacing: Proportional line spacing for content without breaking buttons, badges, table cells, or compact controls
+  - [x] High contrast: Curated dark high-contrast theme (21:1 ratio, yellow links, solid control borders) isolated from widget UI
+  - [x] Reading ruler & mask: Shadow DOM encapsulated fixed overlays (`pointer-events: none`), RAF mouse/focus tracking, mask height selector
+  - [x] Stop animations: Reversible CSS animation/transition suppression and video pause
+  - [x] High-visibility cursor: Crisp, reversible dark and light SVG cursors
+  - [x] Reversible lifecycle & cleanup: Clean reset and teardown with zero persistent host mutations
+- [x] 3. Panel UI & Localization Integration
+  - [x] Wire Reading Mask window height controls (`small`, `medium`, `large`) into panel UI
+  - [x] Ensure all settings and announcer messages are localized in Arabic and English
+  - [x] Maintain compliance disclaimer and ensure zero automatic TTS
+- [x] 4. Automated Testing & Verification
+  - [x] Create unit tests in `apps/widget/test/phase5-3.test.ts` for all preferences, calculations, and restoration (12/12 passing)
+  - [x] Create real-browser Playwright test in `tests/widget-e2e/display-preferences.spec.ts` for visual rendering, typography hierarchy, ruler tracking, and cleanup (10/10 passing)
+  - [x] Run Phase 5.1 and Phase 5.2 regression test suites (24/24 unit, 12/12 Playwright passing)
+  - [x] Validate TypeScript type-check and build production bundle (55.47 kB IIFE bundle)
+- [x] 5. Report & Git Delivery
+  - [x] Create `PHASE_5_3_IMPLEMENTATION_REPORT.md`
+  - [x] Commit on `feature/semantic-core`, push upstream, report commit SHA, and STOP
+
+## Execution Review (Phase 5.3)
+- Non-destructive display architecture established in `apps/widget/src/core/display-manager.ts` using a single managed `<style id="raawi-display-styles">` and discrete `data-raawi-*` attributes on `<html>`.
+- Typographic hierarchy strictly preserved: Font scaling modifies heading levels proportionally (`h1` by 1.25x, `h2` by 1.2x, `h3` by 1.15x, `p` by 1.1x, etc.) without flattening (`* { font-size: inherit !important; }` eliminated).
+- Content line-spacing targeting: Applied to readability blocks (`p`, `article`, `section`, `li`, `dd`) while preserving compact control heights (`button`, `input`, `badge`, `table` cells).
+- High-contrast dark theme: Curated pure black (`#000000`) background, `#ffffff` text (21:1 contrast ratio), `#ffff00` links, and distinct focus indicators. Scoped via `:not(raawi-accessibility-widget *)` to ensure widget UI is completely unaffected.
+- Reading ruler and reading mask: Rendered exclusively inside the widget's open Shadow Root with `pointer-events: none`, tracking mouse Y and keyboard focus position via `requestAnimationFrame`. Three aperture height choices (`small`, `medium`, `large`) integrated in Panel UI.
+- Reduced motion / stop animations: Reversibly freezes CSS transitions, keyframe animations, and pauses active `<video>` media without altering host video volume or source.
+- High-visibility cursors: Dark (black fill with white outline) and light (white fill with black outline) high-DPI inline SVG cursors applied reversibly to host body and interactive elements.
+- Complete reversibility: `reset()` clears all `data-raawi-*` attributes, resets display manager state, and restores host state. `destroy()` disconnects observers, removes listeners, tears down Shadow DOM overlays, and removes the managed style sheet.
+- Verification: 12/12 Phase 5.3 unit tests passing, 10/10 real-browser Playwright tests passing, 24/24 Phase 5.1 & 5.2 regression unit tests passing, 12/12 Phase 5.1 & 5.2 Playwright regression tests passing. Zero TypeScript errors. Production bundle: 55.47 kB (gzip: 12.65 kB).
+
+
 
 
 

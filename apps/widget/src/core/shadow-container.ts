@@ -11,6 +11,7 @@
 
 import { I18nManager } from './i18n';
 import { StateManager } from './state';
+import { DisplayManager } from './display-manager';
 import { LauncherComponent } from '../components/launcher';
 import { PanelComponent } from '../components/panel';
 import { LiveAnnouncerComponent } from '../components/live-announcer';
@@ -26,6 +27,7 @@ export class RaawiAccessibilityWidget extends HTMLElement {
   private launcher: LauncherComponent;
   private panel: PanelComponent;
   private announcer: LiveAnnouncerComponent;
+  private displayManager: DisplayManager;
   private backdrop: HTMLElement;
 
   private onDocumentKeyDown: (e: KeyboardEvent) => void;
@@ -75,7 +77,10 @@ export class RaawiAccessibilityWidget extends HTMLElement {
     this.announcer = new LiveAnnouncerComponent(this.i18n);
     this.shadow.appendChild(this.announcer.getElement());
 
-    // 7. Subscribe to state and i18n changes
+    // 7. Initialize Display Manager for non-destructive visual and reading preferences
+    this.displayManager = new DisplayManager(this.state, this.shadow);
+
+    // 8. Subscribe to state and i18n changes
     this.state.subscribe(() => {
       if (this.isConnected) {
         this.updateHostDirection();
@@ -87,11 +92,11 @@ export class RaawiAccessibilityWidget extends HTMLElement {
       this.announcer.announceLanguageChange(locale);
     });
 
-    // 8. Event listener bindings
+    // 9. Event listener bindings
     this.onDocumentKeyDown = (e: KeyboardEvent) => this.handleKeyDown(e);
     this.onDocumentFocusIn = (e: FocusEvent) => this.handleFocusIn(e);
 
-    // 9. Backdrop click dismissal
+    // 10. Backdrop click dismissal
     this.backdrop.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -108,6 +113,9 @@ export class RaawiAccessibilityWidget extends HTMLElement {
   public disconnectedCallback(): void {
     document.removeEventListener('keydown', this.onDocumentKeyDown, true);
     document.removeEventListener('focusin', this.onDocumentFocusIn, true);
+    if (this.displayManager) {
+      this.displayManager.destroy();
+    }
   }
 
   public open(): void {
@@ -137,6 +145,10 @@ export class RaawiAccessibilityWidget extends HTMLElement {
 
   public getAnnouncer(): LiveAnnouncerComponent {
     return this.announcer;
+  }
+
+  public getDisplayManager(): DisplayManager {
+    return this.displayManager;
   }
 
   public getShadowRoot(): ShadowRoot {

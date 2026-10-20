@@ -9,7 +9,7 @@ export const WIDGET_CSS = `
     all: initial;
     position: fixed;
     z-index: 2147483640;
-    pointer-events: auto;
+    pointer-events: none;
     font-family: 'Cairo', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     color: #1e293b;
     box-sizing: border-box;
@@ -48,6 +48,7 @@ export const WIDGET_CSS = `
     position: fixed;
     bottom: 24px;
     z-index: 2147483641;
+    pointer-events: auto;
   }
 
   :host([dir="rtl"]) .raawi-launcher-container {
@@ -118,6 +119,31 @@ export const WIDGET_CSS = `
     pointer-events: auto;
   }
 
+  /* Reading Guide Ruler (Shadow DOM Contained) */
+  .raawi-reading-ruler {
+    position: fixed;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: #3b82f6;
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
+    pointer-events: none !important;
+    z-index: 2147483640;
+    display: none;
+    transition: top 0.04s ease-out;
+  }
+
+  /* Reading Focus Mask Overlays (Shadow DOM Contained) */
+  .raawi-reading-mask-overlay {
+    position: fixed;
+    left: 0;
+    right: 0;
+    background: rgba(15, 23, 42, 0.65);
+    pointer-events: none !important;
+    z-index: 2147483640;
+    display: none;
+  }
+
   /* Panel Container */
   .raawi-panel-container {
     position: fixed;
@@ -133,6 +159,7 @@ export const WIDGET_CSS = `
     flex-direction: column;
     overflow: hidden;
     z-index: 2147483642;
+    pointer-events: auto;
     transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 

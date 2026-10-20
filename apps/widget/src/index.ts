@@ -5,6 +5,7 @@
 import { RaawiAccessibilityWidget, registerRaawiWidget } from './core/shadow-container';
 import { StateManager } from './core/state';
 import { I18nManager, translations } from './core/i18n';
+import { DisplayManager } from './core/display-manager';
 import { LiveAnnouncerComponent } from './components/live-announcer';
 import type { Locale, WidgetSettings, WidgetContext } from './core/types';
 
@@ -14,6 +15,7 @@ export {
   StateManager,
   I18nManager,
   translations,
+  DisplayManager,
   LiveAnnouncerComponent,
 };
 
