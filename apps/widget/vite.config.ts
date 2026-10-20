@@ -11,6 +11,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         extend: true,
+        exports: 'named',
       },
     },
     minify: true,
