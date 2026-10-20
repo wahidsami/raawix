@@ -7,6 +7,7 @@
  */
 
 import type { PagePackageResponse, MapFetchStatus } from './types';
+import { computeLivePageFingerprint, evaluateFreshness, type FreshnessEvaluation } from './freshness-engine';
 
 /**
  * MatchConfidence represents the URL/page resolution confidence returned by the scanner
@@ -152,6 +153,7 @@ export class MapApiClient {
   private currentStatus: MapFetchStatus = 'idle';
   private currentData: PagePackageResponse | null = null;
   private currentError: string | null = null;
+  private currentFreshness: FreshnessEvaluation | null = null;
 
   private cache: Map<string, PagePackageResponse> = new Map();
   private inFlightRequests: Map<string, Promise<PagePackageResponse | null>> = new Map();
@@ -182,6 +184,31 @@ export class MapApiClient {
 
   public getError(): string | null {
     return this.currentError;
+  }
+
+  public getFreshness(): FreshnessEvaluation | null {
+    return this.currentFreshness;
+  }
+
+  public abortAllRequests(): void {
+    this.abortControllers.forEach((controller) => {
+      try {
+        controller.abort();
+      } catch {
+        // Ignore already aborted controllers
+      }
+    });
+    this.abortControllers.clear();
+    this.inFlightRequests.clear();
+  }
+
+  public async refresh(targetUrl?: string): Promise<PagePackageResponse | null> {
+    const rawUrl = targetUrl ?? (typeof window !== 'undefined' ? window.location.href : '');
+    const canonicalUrl = this.canonicalizeUrl(rawUrl);
+    const cacheKey = `${this.entityCode}:${canonicalUrl}`;
+    this.cache.delete(cacheKey);
+    this.abortAllRequests();
+    return this.fetchPagePackage(rawUrl, true);
   }
 
   public subscribe(listener: StatusListener): () => void {
@@ -227,6 +254,18 @@ export class MapApiClient {
     // 1. Check in-memory cache unless forced
     if (!forceRefresh && this.cache.has(cacheKey)) {
       const cached = this.cache.get(cacheKey)!;
+      const liveFp = computeLivePageFingerprint();
+      const freshness = evaluateFreshness(cached.fingerprint, liveFp);
+      this.currentFreshness = freshness;
+
+      if (freshness.status === 'outdated') {
+        this.notify('outdated', cached, freshness.reason);
+        return cached;
+      } else if (freshness.status === 'unknown') {
+        this.notify('unknown', cached, freshness.reason);
+        return cached;
+      }
+
       this.notify('ready', cached);
       return cached;
     }
@@ -284,9 +323,22 @@ export class MapApiClient {
           return null;
         }
 
-        // 4. Cache valid payload
+        // 4. Evaluate Content Freshness against live page DOM
+        const liveFp = computeLivePageFingerprint();
+        const freshness = evaluateFreshness(validated.fingerprint, liveFp);
+        this.currentFreshness = freshness;
+
+        if (freshness.status === 'outdated') {
+          this.notify('outdated', validated, freshness.reason);
+          return validated;
+        } else if (freshness.status === 'unknown') {
+          this.notify('unknown', validated, freshness.reason);
+          return validated;
+        }
+
+        // 5. Cache valid payload
         this.cache.set(cacheKey, validated);
-        this.notify('ready', validated);
+        this.notify('ready', validated, freshness.reason);
         return validated;
       } catch (err: any) {
         clearTimeout(timeoutId);
@@ -310,8 +362,13 @@ export class MapApiClient {
    * Validates the schema and page URL match of the returned package
    */
   public validatePagePackage(payload: any, currentCanonicalUrl: string): PagePackageResponse | null {
-    if (!payload || typeof payload !== 'object') {
-      this.notify('error', null, 'Malformed API response: payload is not an object');
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      this.notify('invalid', null, 'Malformed API response: payload is not a valid package object');
+      return null;
+    }
+
+    if (!payload.url && !payload.targetUrl) {
+      this.notify('invalid', null, 'Incomplete package: missing target URL');
       return null;
     }
 
@@ -338,7 +395,7 @@ export class MapApiClient {
 
     // Assistive map structure check
     if (payload.assistiveMap && typeof payload.assistiveMap !== 'object') {
-      this.notify('error', null, 'Invalid assistiveMap structure in package');
+      this.notify('invalid', null, 'Invalid assistiveMap structure in package');
       return null;
     }
 

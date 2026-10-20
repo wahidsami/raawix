@@ -39,17 +39,43 @@ export interface ActionIntent {
   source?: string;
 }
 
+export interface PageFingerprint {
+  title?: string;
+  firstHeading?: string; // First H1 or H2 text
+  mainTextHash?: string; // SHA-256 hash of normalized main content (truncated)
+}
+
 export interface LandmarkItem {
-  role: string;
+  role?: string;
+  type?: string;
   label?: string;
+  selector: string;
+  description?: string;
+}
+
+export interface FormFieldInfo {
+  label?: string;
+  type?: string;
+  required?: boolean;
   selector?: string;
+  description?: string;
+}
+
+export interface FormStepInfo {
+  stepNumber?: number;
+  step?: number;
+  label?: string;
+  title?: string;
+  fields?: FormFieldInfo[] | string[];
+  description?: string;
+  purpose?: string;
 }
 
 export interface GuidanceData {
   summary?: string;
   landmarks?: LandmarkItem[];
-  formSteps?: Array<{ step: number; title: string; fields?: string[] }>;
-  keyActions?: Array<{ action: string; selector?: string }>;
+  formSteps?: FormStepInfo[];
+  keyActions?: Array<{ action?: string; label?: string; selector?: string; href?: string }>;
 }
 
 export interface AssistiveMap {
@@ -75,7 +101,7 @@ export interface PagePackageResponse {
   matchedUrl?: string | null;
   matchConfidence?: 'high' | 'medium' | 'low' | string | null;
   generatedAt?: string | null;
-  fingerprint?: any;
+  fingerprint?: PageFingerprint | null;
   assistiveMap?: AssistiveMap | null;
   confidenceSummary?: ConfidenceSummary | null;
   guidance?: GuidanceData | null;
@@ -83,7 +109,7 @@ export interface PagePackageResponse {
   scanTimestamp?: string | null;
 }
 
-export type MapFetchStatus = 'idle' | 'loading' | 'ready' | 'not-scanned' | 'error' | 'mismatch' | 'offline';
+export type MapFetchStatus = 'idle' | 'loading' | 'ready' | 'not-scanned' | 'error' | 'mismatch' | 'offline' | 'outdated' | 'invalid' | 'unknown';
 
 export interface WidgetSettings {
   textSize: number; // 0.8 to 2.0 (1.0 default)

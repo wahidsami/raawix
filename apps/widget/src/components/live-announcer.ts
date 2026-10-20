@@ -53,6 +53,10 @@ export class LiveAnnouncerComponent {
     }, 6000);
   }
 
+  public announcePolite(message: string): void {
+    this.announce(message);
+  }
+
   /**
    * Announce dialog open in active locale
    */

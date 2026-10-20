@@ -8,6 +8,15 @@ import { I18nManager, translations } from './core/i18n';
 import { DisplayManager } from './core/display-manager';
 import { MapApiClient, evaluateMatchConfidence, type MatchConfidenceLevel, type MatchConfidenceEvaluation } from './core/api-client';
 import { DomRemediator } from './core/dom-remediator';
+import { PageTracker, type PageTrackerOptions } from './core/page-tracker';
+import {
+  computeSha256,
+  computeLivePageFingerprint,
+  evaluateFreshness,
+  type FreshnessEvaluation,
+  type FreshnessStatus,
+} from './core/freshness-engine';
+import { LandmarkNavigator, type NavigationResult, type LandmarkNavigatorOptions } from './core/landmark-navigator';
 import { LiveAnnouncerComponent } from './components/live-announcer';
 import type {
   Locale,
@@ -16,6 +25,10 @@ import type {
   AssistiveMap,
   PagePackageResponse,
   MapFetchStatus,
+  PageFingerprint,
+  LandmarkItem,
+  FormStepInfo,
+  FormFieldInfo,
   ImageDescription,
   LabelOverride,
 } from './core/types';
@@ -30,6 +43,11 @@ export {
   MapApiClient,
   evaluateMatchConfidence,
   DomRemediator,
+  PageTracker,
+  LandmarkNavigator,
+  computeSha256,
+  computeLivePageFingerprint,
+  evaluateFreshness,
   LiveAnnouncerComponent,
 };
 
@@ -42,6 +60,15 @@ export type {
   MapFetchStatus,
   MatchConfidenceLevel,
   MatchConfidenceEvaluation,
+  PageFingerprint,
+  LandmarkItem,
+  FormStepInfo,
+  FormFieldInfo,
+  FreshnessEvaluation,
+  FreshnessStatus,
+  PageTrackerOptions,
+  NavigationResult,
+  LandmarkNavigatorOptions,
   ImageDescription,
   LabelOverride,
 };

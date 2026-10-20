@@ -335,6 +335,13 @@ export class DomRemediator {
   }
 
   /**
+   * Alias for revert()
+   */
+  public revertAll(): void {
+    this.revert();
+  }
+
+  /**
    * Full teardown on widget destruction or reset
    */
   public destroy(): void {

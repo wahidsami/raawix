@@ -7,6 +7,7 @@ import type { StateManager } from '../core/state';
 import type { TabId } from '../core/types';
 import type { MapApiClient } from '../core/api-client';
 import type { DomRemediator } from '../core/dom-remediator';
+import { LandmarkNavigator } from '../core/landmark-navigator';
 
 function escapeHtml(str: string): string {
   return str.replace(/[&<>"']/g, (m) => ({
@@ -160,6 +161,8 @@ export class PanelComponent {
     const locale = this.state.getLocale();
     const settings = this.state.getSettings();
     const activeTab = this.state.getActiveTab();
+
+    this.element.setAttribute('dir', this.state.getDirection());
 
     this.element.innerHTML = `
       <!-- Topbar Header -->
@@ -524,6 +527,88 @@ export class PanelComponent {
         }
       });
     });
+
+    // Refresh button
+    const refreshBtn = this.element.querySelector('#raawi-btn-refresh') as HTMLButtonElement | null;
+    refreshBtn?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (this.apiClient) {
+        refreshBtn.disabled = true;
+        await this.apiClient.refresh();
+        this.render();
+      }
+    });
+
+    // Landmark jump buttons
+    const jumpBtns = this.element.querySelectorAll<HTMLButtonElement>('.raawi-landmark-jump-btn');
+    jumpBtns.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const selector = btn.getAttribute('data-landmark-selector');
+        if (!selector) return;
+
+        const res = LandmarkNavigator.navigateToLandmark(
+          { selector },
+          { reduceMotion: this.state.getSettings().reduceMotion }
+        );
+
+        const t = this.i18n.t();
+        if (res.success) {
+          // 1. Close panel so modal focus trap releases before focusing host element
+          this.element.dispatchEvent(
+            new CustomEvent('raawi-close-dialog', {
+              bubbles: true,
+              composed: true,
+              detail: { skipFocusRestore: true },
+            })
+          );
+
+          // 2. Announce navigation
+          this.element.dispatchEvent(
+            new CustomEvent('raawi-announce', {
+              bubbles: true,
+              composed: true,
+              detail: { message: t.landmarkNavigated || 'Navigated to landmark', priority: 'polite' },
+            })
+          );
+
+          // 3. Ensure target retains focus now that modal is closed
+          const targetToFocus = res.target;
+          if (targetToFocus) {
+            setTimeout(() => {
+              if (!targetToFocus.hasAttribute('tabindex')) {
+                targetToFocus.setAttribute('tabindex', '-1');
+                targetToFocus.setAttribute('data-raawi-temp-focus', 'true');
+                targetToFocus.addEventListener(
+                  'blur',
+                  () => {
+                    targetToFocus.removeAttribute('data-raawi-temp-focus');
+                    targetToFocus.removeAttribute('tabindex');
+                  },
+                  { once: true }
+                );
+              }
+              try {
+                targetToFocus.focus({ preventScroll: true });
+              } catch {
+                targetToFocus.focus();
+              }
+            }, 0);
+          }
+        } else {
+          this.element.dispatchEvent(
+            new CustomEvent('raawi-announce', {
+              bubbles: true,
+              composed: true,
+              detail: {
+                message: res.message || t.landmarkNotFound || 'Landmark target not found on page',
+                priority: 'polite',
+              },
+            })
+          );
+        }
+      });
+    });
   }
 
   private getStatusBadgeType(status?: string): string {
@@ -532,9 +617,14 @@ export class PanelComponent {
         return 'success';
       case 'loading':
         return 'info';
+      case 'unknown':
+      case 'outdated':
       case 'mismatch':
-      case 'error':
         return 'warning';
+      case 'offline':
+      case 'invalid':
+      case 'error':
+        return 'danger';
       default:
         return 'neutral';
     }
@@ -550,12 +640,43 @@ export class PanelComponent {
         return t.mapStatusNotScanned || 'Not Scanned';
       case 'offline':
         return t.mapStatusOffline || 'Offline';
+      case 'outdated':
+        return t.mapStatusOutdated || 'Outdated (Page Changed)';
       case 'mismatch':
-        return t.mapStatusMismatch || 'Outdated';
+        return t.mapStatusMismatch || 'Outdated / Mismatched';
+      case 'invalid':
+        return t.mapStatusInvalid || 'Invalid Package';
+      case 'unknown':
+        return t.mapStatusUnknown || 'Unknown / Unverified';
       case 'error':
         return t.errorOccurred || 'Error';
       default:
         return t.statusReady || 'Ready';
+    }
+  }
+
+  private getLocalizedLandmarkRole(role: string | undefined, t: TranslationDictionary): string {
+    switch (role?.toLowerCase()) {
+      case 'main':
+        return t.landmarkRoleMain || 'Main Content';
+      case 'navigation':
+      case 'nav':
+        return t.landmarkRoleNav || 'Navigation';
+      case 'banner':
+      case 'header':
+        return t.landmarkRoleHeader || 'Header / Banner';
+      case 'contentinfo':
+      case 'footer':
+        return t.landmarkRoleFooter || 'Footer';
+      case 'complementary':
+      case 'aside':
+        return t.landmarkRoleAside || 'Aside';
+      case 'search':
+        return t.landmarkRoleSearch || 'Search';
+      case 'form':
+        return t.landmarkRoleForm || 'Form';
+      default:
+        return role || 'Landmark';
     }
   }
 
@@ -581,9 +702,14 @@ export class PanelComponent {
       <div class="raawi-control-card raawi-insights-card" data-testid="raawi-insights-card">
         <div class="raawi-control-header">
           <span class="raawi-control-title">${t.pageInsights || 'Page Insights'}</span>
-          <span class="raawi-badge raawi-badge-${this.getStatusBadgeType(status)}" data-testid="raawi-map-status-badge">
-            ${this.getStatusBadgeText(status, t)}
-          </span>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <button type="button" class="raawi-btn-refresh" id="raawi-btn-refresh" data-testid="raawi-btn-refresh" aria-label="${t.refreshStatus || 'Refresh'}" ${status === 'loading' ? 'disabled' : ''}>
+              ${status === 'loading' ? t.refreshing : `🔄 ${t.refresh || 'Refresh'}`}
+            </button>
+            <span class="raawi-badge raawi-badge-${this.getStatusBadgeType(status)}" data-testid="raawi-map-status-badge">
+              ${this.getStatusBadgeText(status, t)}
+            </span>
+          </div>
         </div>
 
         ${guidance?.summary ? `
@@ -593,9 +719,39 @@ export class PanelComponent {
         ` : ''}
 
         ${data ? `
-          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; font-size: 12px;">
             ${landmarksCount > 0 ? `<span class="raawi-badge raawi-badge-neutral">🏛️ ${landmarksCount} ${t.landmarksCount || 'Landmarks'}</span>` : ''}
             ${totalEnhancements > 0 ? `<span class="raawi-badge raawi-badge-neutral">✨ ${totalEnhancements} ${t.enhancementsAvailable || 'Enhancements'}</span>` : ''}
+          </div>
+        ` : ''}
+
+        <!-- Non-invasive Form Guidance Hints -->
+        ${guidance?.formSteps && guidance.formSteps.length > 0 ? `
+          <div class="raawi-form-guidance" data-testid="raawi-form-guidance">
+            <span>📋</span>
+            <span><strong>${t.formGuidanceTitle || 'Form Guidance'}:</strong> ${guidance.formSteps.length} ${t.formStepsCount || 'Steps'}${guidance.formSteps[0]?.purpose ? ` (${escapeHtml(guidance.formSteps[0].purpose)})` : ''}</span>
+          </div>
+        ` : ''}
+
+        <!-- Landmark Quick Navigation Drawer -->
+        ${isReady && guidance?.landmarks && guidance.landmarks.length > 0 ? `
+          <div class="raawi-landmarks-nav" data-testid="raawi-landmarks-nav">
+            <div class="raawi-landmarks-title">
+              <span>🏛️ ${t.landmarksNavTitle || 'Landmark Quick Navigation'}</span>
+            </div>
+            <div class="raawi-landmark-list">
+              ${guidance.landmarks.map((lm, idx) => `
+                <div class="raawi-landmark-item">
+                  <div class="raawi-landmark-info">
+                    <span class="raawi-badge raawi-badge-neutral" style="font-size: 10px;">${this.getLocalizedLandmarkRole(lm.role || lm.type, t)}</span>
+                    <span class="raawi-landmark-name" title="${escapeHtml(lm.label || lm.description || lm.selector)}">${escapeHtml(lm.label || lm.description || lm.selector)}</span>
+                  </div>
+                  <button type="button" class="raawi-landmark-jump-btn" data-landmark-selector="${escapeHtml(lm.selector)}" data-testid="raawi-jump-landmark-${idx}" aria-label="${t.jumpToLandmark || 'Jump to'} ${escapeHtml(lm.label || lm.selector)}">
+                    ${t.jumpToLandmark || 'Jump'} ↗
+                  </button>
+                </div>
+              `).join('')}
+            </div>
           </div>
         ` : ''}
 

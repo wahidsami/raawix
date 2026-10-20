@@ -375,9 +375,40 @@ export const WIDGET_CSS = `
     color: #b45309;
   }
 
+  .raawi-badge-danger {
+    background: #fee2e2;
+    color: #b91c1c;
+  }
+
   .raawi-badge-neutral {
     background: #f1f5f9;
     color: #475569;
+  }
+
+  .raawi-btn-refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface-elevated);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .raawi-btn-refresh:hover:not(:disabled) {
+    background: var(--surface);
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .raawi-btn-refresh:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .raawi-insights-card {
@@ -408,6 +439,91 @@ export const WIDGET_CSS = `
     flex-wrap: wrap;
     font-size: 11px;
     color: #64748b;
+  }
+
+  /* Landmark Navigation */
+  .raawi-landmarks-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+
+  .raawi-landmarks-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .raawi-landmark-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+
+  .raawi-landmark-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    gap: 8px;
+  }
+
+  .raawi-landmark-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .raawi-landmark-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .raawi-landmark-jump-btn {
+    border: none;
+    background: var(--primary);
+    color: #ffffff;
+    border-radius: var(--radius-sm);
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+  }
+
+  .raawi-landmark-jump-btn:hover {
+    background: var(--primary-hover);
+  }
+
+  .raawi-form-guidance {
+    margin-top: 6px;
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   /* Stepper Group */

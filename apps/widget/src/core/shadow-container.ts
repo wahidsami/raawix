@@ -14,6 +14,7 @@ import { StateManager } from './state';
 import { DisplayManager } from './display-manager';
 import { MapApiClient } from './api-client';
 import { DomRemediator } from './dom-remediator';
+import { PageTracker } from './page-tracker';
 import { LauncherComponent } from '../components/launcher';
 import { PanelComponent } from '../components/panel';
 import { LiveAnnouncerComponent } from '../components/live-announcer';
@@ -32,11 +33,13 @@ export class RaawiAccessibilityWidget extends HTMLElement {
   private displayManager: DisplayManager;
   private apiClient: MapApiClient;
   private remediator: DomRemediator;
+  private pageTracker: PageTracker;
   private backdrop: HTMLElement;
 
   private onDocumentKeyDown: (e: KeyboardEvent) => void;
   private onDocumentFocusIn: (e: FocusEvent) => void;
   private wasOpen: boolean = false;
+  private skipNextFocusRestore: boolean = false;
 
   constructor() {
     super();
@@ -100,7 +103,16 @@ export class RaawiAccessibilityWidget extends HTMLElement {
       }
     });
 
-    // 8. Subscribe to state and i18n changes
+    // 8. Initialize PageTracker for SPA navigation and DOM mutation tracking
+    this.pageTracker = new PageTracker({
+      apiClient: this.apiClient,
+      domRemediator: this.remediator,
+      onStaleDetected: () => {
+        this.announcer.announcePolite(this.i18n.t().statusStale || 'Page content changed since last scan');
+      },
+    });
+
+    // 9. Subscribe to state and i18n changes
     let wasRemediationEnabled = this.state.getSettings().remediationEnabled;
     this.state.subscribe(() => {
       if (this.isConnected) {
@@ -122,11 +134,26 @@ export class RaawiAccessibilityWidget extends HTMLElement {
       this.announcer.announceLanguageChange(locale);
     });
 
-    // 9. Event listener bindings
+    // 10. Event listener bindings
     this.onDocumentKeyDown = (e: KeyboardEvent) => this.handleKeyDown(e);
     this.onDocumentFocusIn = (e: FocusEvent) => this.handleFocusIn(e);
 
-    // 10. Backdrop click dismissal
+    // 11. Custom events inside Shadow Root
+    this.shadow.addEventListener('raawi-close-dialog', (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.skipFocusRestore) {
+        this.skipNextFocusRestore = true;
+      }
+      this.close();
+    });
+
+    this.shadow.addEventListener('raawi-announce', (e: any) => {
+      if (e.detail?.message) {
+        this.announcer.announcePolite(e.detail.message);
+      }
+    });
+
+    // 12. Backdrop click dismissal
     this.backdrop.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -146,6 +173,9 @@ export class RaawiAccessibilityWidget extends HTMLElement {
   public disconnectedCallback(): void {
     document.removeEventListener('keydown', this.onDocumentKeyDown, true);
     document.removeEventListener('focusin', this.onDocumentFocusIn, true);
+    if (this.pageTracker) {
+      this.pageTracker.destroy();
+    }
     if (this.displayManager) {
       this.displayManager.destroy();
     }
@@ -196,6 +226,14 @@ export class RaawiAccessibilityWidget extends HTMLElement {
 
   public getDomRemediator(): DomRemediator {
     return this.remediator;
+  }
+
+  public getRemediator(): DomRemediator {
+    return this.remediator;
+  }
+
+  public getPageTracker(): PageTracker {
+    return this.pageTracker;
   }
 
   public getShadowRoot(): ShadowRoot {
@@ -254,8 +292,10 @@ export class RaawiAccessibilityWidget extends HTMLElement {
         this.wasOpen = false;
         this.announcer.announceClose();
 
-        // Focus restoration to launcher button
-        if (this.launcher && this.launcher.getElement() && this.launcher.getElement().isConnected) {
+        // Focus restoration to launcher button (unless explicitly skipped for landmark navigation)
+        if (this.skipNextFocusRestore) {
+          this.skipNextFocusRestore = false;
+        } else if (this.launcher && this.launcher.getElement() && this.launcher.getElement().isConnected) {
           this.launcher.focus();
         }
       }

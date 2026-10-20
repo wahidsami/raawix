@@ -276,8 +276,48 @@
 - **Remediation Safety:** Opt-in only (`remediationEnabled: false` default), strict 1:1 selector uniqueness enforcement, preservation of authored and decorative `alt=""` images, preservation of existing accessible names, and ownership-aware restoration.
 - **Verification:** 100% test pass rate across Node unit tests (57/57) and Playwright real-browser tests (31/31). Zero regressions.
 
+# Tasks - Phase 5.5: Freshness Engine, Fingerprint Validation and Advanced Navigation
 
+- [x] 1. Preflight & Runtime Evidence Verification
+  - [x] Verify branch `feature/semantic-core`, HEAD `b532ade`, clean working tree
+  - [x] Verify exact scanner fingerprint schema (`PageFingerprint`: `title`, `firstHeading`, `mainTextHash` via SHA-256)
+  - [x] Verify scanner landmark schema (`type`/`role`, `label`, `selector`, `description`) and form guidance schema
+- [x] 2. Freshness Engine (`apps/widget/src/core/freshness-engine.ts`)
+  - [x] Implement live DOM fingerprint extraction (`computeLivePageFingerprint`) with normalized title, first heading (`h1`/`h2`), and SHA-256 main content hash
+  - [x] Implement `evaluateFreshness` with distinct signals: `ready` (matching), `outdated` (meaningful change), `unknown` (missing/incomplete fingerprint)
+  - [x] Account for transient content resilience (truncate main content, strip scripts/styles/tags)
+- [x] 3. Page Context & SPA Navigation Tracking
+  - [x] Detect SPA URL transitions (`popstate`, `hashchange`, `pushState`, `replaceState`)
+  - [x] Observe meaningful DOM mutations with debouncing (300ms)
+  - [x] Request cancellation on navigation: abort prior in-flight requests to prevent race conditions
+  - [x] Stale-map safety: immediately revert widget-owned remediation on `outdated` or `mismatch` while retaining display preferences
+  - [x] Proper teardown: unbind event listeners, disconnect observers, cancel timers
+- [x] 4. Accessible Landmark Navigation Drawer
+  - [x] Extract landmarks from verified package guidance with bilingual role labels (AR/EN)
+  - [x] Validate selector uniqueness (`matches.length === 1`) and connection
+  - [x] Predictable focus transfer with temporary `tabindex="-1"` for non-focusable elements
+  - [x] Smooth scrolling respecting `reduceMotion` preference
+  - [x] Handle missing, ambiguous, or invalid selectors safely without throwing
+- [x] 5. Offline Status & Manual Refresh Action
+  - [x] Support diagnostic statuses: `loading`, `ready`, `not-scanned`, `offline`, `outdated`, `mismatch`, `invalid`, `unknown`
+  - [x] Implement deliberate "Refresh" / "تحديث" button with duplicate-click protection and cache bypass
+  - [x] Non-invasive, read-only form guidance hints where scanner provides `formSteps`
+- [x] 6. Comprehensive Automated Testing & Verification
+  - [x] Unit tests in `apps/widget/test/phase5-5.test.ts` (fingerprint extraction, SHA-256, freshness evaluation, SPA transitions, stale remediation cleanup, landmark navigation, manual refresh)
+  - [x] Real-browser Playwright tests in `tests/widget-e2e/freshness-navigation.spec.ts` (all 13 real-browser scenarios passing)
+  - [x] Full Phase 5 regression tests passing (89/89 unit tests, 42/42 Playwright E2E tests passing 100%)
+  - [x] Clean TypeScript check (`tsc --noEmit`) and production widget build (`vite build` - 92.28 kB)
+- [x] 7. Documentation & Delivery
+  - [x] Produce `PHASE_5_5_IMPLEMENTATION_REPORT.md`
+  - [x] Commit and push to `feature/semantic-core`
+  - [x] Stop for coordinator review
 
-
-
+## Execution Review (Phase 5.5)
+- **Fingerprint Engine:** Bit-for-bit alignment with scanner `PageFingerprint` contract (`title`, `firstHeading`, `mainTextHash` via FIPS 180-2 SHA-256) with full exclusion of widget DOM elements and remediated attributes.
+- **Freshness Invalidation:** Conservative policy flagging missing fingerprints as `'unknown'`, content drift as `'outdated'`, and URL/origin mismatches as `'mismatch'`.
+- **Safe Remediation Rollback:** Stale detection immediately revokes widget-applied `alt` and `aria-label` attributes while maintaining independent visual display preferences (text size, line height, contrast, ruler, mask).
+- **SPA & DOM Mutation Tracking:** Automatic capture of `pushState`, `replaceState`, `popstate`, `hashchange` and 300ms debounced DOM mutations; aborts in-flight fetch operations to eliminate race conditions.
+- **Landmark Navigation:** Strictly verifies 1:1 selector uniqueness, injects temporary `tabindex="-1"` with blur cleanup, disables focus restoration to launcher upon landmark selection, and supports instant scroll under `reduceMotion`.
+- **Diagnostic Badges & Refresh:** 8 discrete localized statuses in Arabic and English, plus a cache-bypassing `#raawi-btn-refresh` button with in-flight duplicate-click protection.
+- **Verification:** 89/89 unit tests passing (Phases 5.1-5.5) and 42/42 real-browser Playwright tests passing across 4 suites. Bundle build: 92.28 kB IIFE (22.72 kB gzip). Exit code 0 on TypeScript check.
 

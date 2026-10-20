@@ -131,9 +131,8 @@ describe('Phase 5.4: AssistiveMap Integration & Safe DOM Remediation', () => {
       matchConfidence: 'high' as const, // Actual scanner enum
       generatedAt: new Date().toISOString(),
       fingerprint: {
-        title: 'بوابة الخدمات',
+        title: 'Phase 5.4 Remediation Test Page',
         firstHeading: 'بوابة الاختبار',
-        mainTextHash: 'sha256-abc',
       },
       assistiveMap: {
         imageDescriptions: {

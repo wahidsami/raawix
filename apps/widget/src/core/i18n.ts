@@ -89,6 +89,28 @@ export interface TranslationDictionary {
   enhancementsAvailable: string;
   remediationActiveBadge: string;
   errorOccurred: string;
+
+  // Phase 5.5: Freshness & Landmark Navigation
+  refresh: string;
+  refreshStatus: string;
+  refreshing: string;
+  mapStatusOutdated: string;
+  mapStatusInvalid: string;
+  mapStatusUnknown: string;
+  landmarksNavTitle: string;
+  jumpToLandmark: string;
+  landmarkNavigated: string;
+  landmarkNotFound: string;
+  landmarkRoleMain: string;
+  landmarkRoleNav: string;
+  landmarkRoleHeader: string;
+  landmarkRoleFooter: string;
+  landmarkRoleAside: string;
+  landmarkRoleSearch: string;
+  landmarkRoleForm: string;
+  formGuidanceTitle: string;
+  formStepsCount: string;
+  requiredFieldsCount: string;
 }
 
 export const translations: Record<Locale, TranslationDictionary> = {
@@ -169,6 +191,27 @@ export const translations: Record<Locale, TranslationDictionary> = {
     enhancementsAvailable: 'تحسينات وصول متاحة',
     remediationActiveBadge: 'تم تطبيق التحسينات',
     errorOccurred: 'حدث خطأ في تحميل البيانات',
+
+    refresh: 'تحديث',
+    refreshStatus: 'تحديث خريطة الصفحة',
+    refreshing: 'جاري التحديث...',
+    mapStatusOutdated: 'البيانات قديمة (تغير المحتوى)',
+    mapStatusInvalid: 'حزمة البيانات غير صالحة',
+    mapStatusUnknown: 'بصمة غير مؤكدة',
+    landmarksNavTitle: 'التنقل السريع بين معالم الصفحة',
+    jumpToLandmark: 'الانتقال إلى',
+    landmarkNavigated: 'تم الانتقال إلى المعلم',
+    landmarkNotFound: 'تعذر العثور على المعلم في الصفحة',
+    landmarkRoleMain: 'المحتوى الرئيسي',
+    landmarkRoleNav: 'شريط التنقل',
+    landmarkRoleHeader: 'الترويسة الرئيسية',
+    landmarkRoleFooter: 'تذييل الصفحة',
+    landmarkRoleAside: 'محتوى جانبي',
+    landmarkRoleSearch: 'البحث',
+    landmarkRoleForm: 'النموذج',
+    formGuidanceTitle: 'إرشادات النماذج',
+    formStepsCount: 'خطوات النموذج',
+    requiredFieldsCount: 'حقول مطلوبة',
   },
   en: {
     widgetTitle: 'Accessibility & Usability Options',
@@ -247,6 +290,27 @@ export const translations: Record<Locale, TranslationDictionary> = {
     enhancementsAvailable: 'Accessibility Enhancements Available',
     remediationActiveBadge: 'Enhancements Applied',
     errorOccurred: 'An error occurred loading map',
+
+    refresh: 'Refresh',
+    refreshStatus: 'Refresh page assistive map',
+    refreshing: 'Refreshing...',
+    mapStatusOutdated: 'Outdated (Page Content Changed)',
+    mapStatusInvalid: 'Invalid Map Package',
+    mapStatusUnknown: 'Unknown / Unverified',
+    landmarksNavTitle: 'Landmark Quick Navigation',
+    jumpToLandmark: 'Jump to',
+    landmarkNavigated: 'Navigated to landmark',
+    landmarkNotFound: 'Landmark target not found on page',
+    landmarkRoleMain: 'Main Content',
+    landmarkRoleNav: 'Navigation',
+    landmarkRoleHeader: 'Header / Banner',
+    landmarkRoleFooter: 'Footer / Content Info',
+    landmarkRoleAside: 'Aside / Complementary',
+    landmarkRoleSearch: 'Search',
+    landmarkRoleForm: 'Form',
+    formGuidanceTitle: 'Form Guidance',
+    formStepsCount: 'Form Steps',
+    requiredFieldsCount: 'Required Fields',
   },
 };
 

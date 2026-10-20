@@ -12,6 +12,10 @@ test.describe('Phase 5.4 Real-Browser AssistiveMap Integration & Safe Remediatio
         body: JSON.stringify({
           targetUrl: url.searchParams.get('url') || 'http://localhost:4173/good',
           matchConfidence: 'high',
+          fingerprint: {
+            title: 'Raawi X Test Sites',
+            firstHeading: 'Welcome to the Good Page',
+          },
           guidance: {
             summary: 'Unified Digital Government Portal for All Citizens and Residents',
             landmarks: [
