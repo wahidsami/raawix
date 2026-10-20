@@ -349,6 +349,67 @@ export const WIDGET_CSS = `
     color: var(--text-muted);
   }
 
+  /* Badges & Page Insights */
+  .raawi-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: var(--radius-full);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .raawi-badge-success {
+    background: #dcfce7;
+    color: #15803d;
+  }
+
+  .raawi-badge-info {
+    background: #e0f2fe;
+    color: #0369a1;
+  }
+
+  .raawi-badge-warning {
+    background: #fef3c7;
+    color: #b45309;
+  }
+
+  .raawi-badge-neutral {
+    background: #f1f5f9;
+    color: #475569;
+  }
+
+  .raawi-insights-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: var(--radius-md);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .raawi-insights-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .raawi-insights-summary {
+    font-size: 12px;
+    color: #334155;
+    line-height: 1.5;
+  }
+
+  .raawi-insights-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    color: #64748b;
+  }
+
   /* Stepper Group */
   .raawi-stepper-group {
     display: flex;

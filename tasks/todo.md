@@ -238,6 +238,45 @@
 - Video playback preservation verified: Actively playing videos are paused and resumed; already-paused videos remain paused; zero stale references remain after repeated toggles; dynamically inserted videos are handled cleanly.
 - Full verification: 44/44 unit tests passing, 26/26 Playwright real-browser tests passing (70/70 total suite, 100% pass rate). Production bundle: 58.51 kB minified (13.39 kB gzip). Zero TypeScript errors.
 
+# Tasks - Phase 5.4: AssistiveMap Integration and Safe DOM Remediation
+
+- [x] 1. Preflight & API Contract Establishment
+  - [x] Verify branch (`feature/semantic-core`), HEAD (`49ef4ce`), clean working tree
+  - [x] Audit scanner endpoints (`GET /api/widget/page-package` vs `GET /api/assistive-maps/:id`)
+  - [x] Document endpoint selection rationale: `GET /api/widget/page-package` is the public, unauthenticated widget endpoint keyed by URL/entityCode; `/api/assistive-maps/:id` is an internal admin endpoint requiring JWT auth and database UUIDs
+  - [x] Inspect AssistiveMap schema: `labelOverrides`, `imageDescriptions`, `actionIntents`, `forms`, `guidance`
+- [x] 2. Dedicated API Client Module (`apps/widget/src/core/api-client.ts`)
+  - [x] Implement `MapApiClient` with canonical URL resolution, entity code extraction, timeout support (5s), and in-flight deduplication
+  - [x] Implement schema validation and match confidence check (accept 'high' / 'medium', reject 'low' or mismatched URL)
+  - [x] Provide caching by URL+entityCode and AbortController cancellation on teardown/navigation
+  - [x] Handle 404 (not scanned), 500/offline gracefully without uncaught exceptions
+- [x] 3. Safe DOM Remediation Engine (`apps/widget/src/core/dom-remediator.ts`)
+  - [x] Implement `DomRemediator` with explicit ownership tracking and opt-in activation
+  - [x] Image alt remediation: high confidence only, unambiguous unique selector check (`matches.length === 1`), preserve meaningful authored alt and intentional decorative `alt=""`
+  - [x] Control label remediation: high confidence only, unambiguous unique selector, accessible-name check (check `aria-label`, `aria-labelledby`, `<label>`, button text), never overwrite existing accessible names
+  - [x] Selector safety: catch invalid selectors without throwing, reject ambiguous selectors
+  - [x] Ownership-aware restoration: restore original missing/present state on opt-out/reset/teardown; preserve host modifications made during remediation
+- [x] 4. Page Insights & Panel UI Integration
+  - [x] Add `remediationEnabled` to `WidgetSettings` (opt-in toggle)
+  - [x] Update `apps/widget/src/core/i18n.ts` with bilingual AR/EN strings for Page Insights, status messages, landmarks, and remediation toggle
+  - [x] Render Page Insights view in Assist tab (`apps/widget/src/components/panel.ts`): match status, summary, landmarks list, available enhancements count, opt-in toggle
+  - [x] Wire `MapApiClient` and `DomRemediator` into `RaawiAccessibilityWidget` (`apps/widget/src/core/shadow-container.ts`)
+- [x] 5. Automated Testing & Verification
+  - [x] Unit tests in `apps/widget/test/phase5-4.test.ts` (API client, schema validation, safe alt/aria-label remediation, selector safety, collision preservation, reversibility, offline fallback) - 13/13 passing
+  - [x] Real-browser Playwright tests in `tests/widget-e2e/dom-remediation.spec.ts` (real host DOM remediation, preserved empty alt, preserved accessible name, opt-out restoration, Page Insights UI) - 5/5 passing
+  - [x] Run full regression suite (5.1, 5.2, 5.3 unit + Playwright) - 57 unit tests + 31 Playwright tests passing (100%)
+  - [x] TypeScript type-check (`tsc --noEmit`) and production build (`vite build` - 73.63 kB)
+- [x] 6. Documentation & Delivery
+  - [x] Create `PHASE_5_4_IMPLEMENTATION_REPORT.md`
+  - [x] Commit and push to `feature/semantic-core` and STOP
+
+## Phase 5.4 Review Summary
+- **API Contract:** Confirmed and implemented `GET /api/widget/page-package` contract without backend mutations.
+- **Client Resilience:** 5-second timeout, in-flight request deduplication, memory caching, URL canonicalization, and graceful offline fallback.
+- **Remediation Safety:** Opt-in only (`remediationEnabled: false` default), strict 1:1 selector uniqueness enforcement, preservation of authored and decorative `alt=""` images, preservation of existing accessible names, and ownership-aware restoration.
+- **Verification:** 100% test pass rate across Node unit tests (57/57) and Playwright real-browser tests (31/31). Zero regressions.
+
+
 
 
 

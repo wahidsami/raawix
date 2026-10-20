@@ -6,8 +6,19 @@ import { RaawiAccessibilityWidget, registerRaawiWidget } from './core/shadow-con
 import { StateManager } from './core/state';
 import { I18nManager, translations } from './core/i18n';
 import { DisplayManager } from './core/display-manager';
+import { MapApiClient } from './core/api-client';
+import { DomRemediator } from './core/dom-remediator';
 import { LiveAnnouncerComponent } from './components/live-announcer';
-import type { Locale, WidgetSettings, WidgetContext } from './core/types';
+import type {
+  Locale,
+  WidgetSettings,
+  WidgetContext,
+  AssistiveMap,
+  PagePackageResponse,
+  MapFetchStatus,
+  ImageDescription,
+  LabelOverride,
+} from './core/types';
 
 export {
   RaawiAccessibilityWidget,
@@ -16,6 +27,8 @@ export {
   I18nManager,
   translations,
   DisplayManager,
+  MapApiClient,
+  DomRemediator,
   LiveAnnouncerComponent,
 };
 
@@ -23,6 +36,11 @@ export type {
   Locale,
   WidgetSettings,
   WidgetContext,
+  AssistiveMap,
+  PagePackageResponse,
+  MapFetchStatus,
+  ImageDescription,
+  LabelOverride,
 };
 
 /**

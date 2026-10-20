@@ -12,6 +12,8 @@
 import { I18nManager } from './i18n';
 import { StateManager } from './state';
 import { DisplayManager } from './display-manager';
+import { MapApiClient } from './api-client';
+import { DomRemediator } from './dom-remediator';
 import { LauncherComponent } from '../components/launcher';
 import { PanelComponent } from '../components/panel';
 import { LiveAnnouncerComponent } from '../components/live-announcer';
@@ -28,6 +30,8 @@ export class RaawiAccessibilityWidget extends HTMLElement {
   private panel: PanelComponent;
   private announcer: LiveAnnouncerComponent;
   private displayManager: DisplayManager;
+  private apiClient: MapApiClient;
+  private remediator: DomRemediator;
   private backdrop: HTMLElement;
 
   private onDocumentKeyDown: (e: KeyboardEvent) => void;
@@ -42,6 +46,10 @@ export class RaawiAccessibilityWidget extends HTMLElement {
 
     this.state = new StateManager(initialLocale);
     this.i18n = new I18nManager(this.state.getLocale());
+
+    // Initialize MapApiClient and DomRemediator
+    this.apiClient = new MapApiClient();
+    this.remediator = new DomRemediator(this.state);
 
     // 2. Attach open Shadow Root for complete CSS and DOM isolation
     this.shadow = this.attachShadow({ mode: 'open' });
@@ -67,7 +75,7 @@ export class RaawiAccessibilityWidget extends HTMLElement {
     this.launcher = new LauncherComponent(this.state, this.i18n);
     launcherWrapper.appendChild(this.launcher.getElement());
 
-    this.panel = new PanelComponent(this.state, this.i18n);
+    this.panel = new PanelComponent(this.state, this.i18n, this.apiClient, this.remediator);
 
     container.appendChild(launcherWrapper);
     container.appendChild(this.panel.getElement());
@@ -80,10 +88,32 @@ export class RaawiAccessibilityWidget extends HTMLElement {
     // 7. Initialize Display Manager for non-destructive visual and reading preferences
     this.displayManager = new DisplayManager(this.state, this.shadow);
 
+    // Wire MapApiClient changes to remediator
+    this.apiClient.subscribe((status, data) => {
+      if (status === 'ready' && data?.assistiveMap) {
+        this.remediator.setAssistiveMap(data.assistiveMap);
+        if (this.state.getSettings().remediationEnabled) {
+          this.remediator.apply();
+        }
+      } else {
+        this.remediator.setAssistiveMap(null);
+      }
+    });
+
     // 8. Subscribe to state and i18n changes
+    let wasRemediationEnabled = this.state.getSettings().remediationEnabled;
     this.state.subscribe(() => {
       if (this.isConnected) {
         this.updateHostDirection();
+      }
+      const isRemediationEnabled = this.state.getSettings().remediationEnabled;
+      if (isRemediationEnabled !== wasRemediationEnabled) {
+        wasRemediationEnabled = isRemediationEnabled;
+        if (isRemediationEnabled) {
+          this.remediator.apply();
+        } else {
+          this.remediator.revert();
+        }
       }
       this.handleStateChange();
     });
@@ -108,6 +138,9 @@ export class RaawiAccessibilityWidget extends HTMLElement {
     document.addEventListener('keydown', this.onDocumentKeyDown, true);
     document.addEventListener('focusin', this.onDocumentFocusIn, true);
     this.updateHostDirection();
+    this.apiClient.fetchPagePackage().catch(() => {
+      // Graceful error fallback
+    });
   }
 
   public disconnectedCallback(): void {
@@ -115,6 +148,12 @@ export class RaawiAccessibilityWidget extends HTMLElement {
     document.removeEventListener('focusin', this.onDocumentFocusIn, true);
     if (this.displayManager) {
       this.displayManager.destroy();
+    }
+    if (this.remediator) {
+      this.remediator.destroy();
+    }
+    if (this.apiClient) {
+      this.apiClient.destroy();
     }
   }
 
@@ -149,6 +188,14 @@ export class RaawiAccessibilityWidget extends HTMLElement {
 
   public getDisplayManager(): DisplayManager {
     return this.displayManager;
+  }
+
+  public getApiClient(): MapApiClient {
+    return this.apiClient;
+  }
+
+  public getDomRemediator(): DomRemediator {
+    return this.remediator;
   }
 
   public getShadowRoot(): ShadowRoot {

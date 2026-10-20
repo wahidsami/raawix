@@ -2,20 +2,41 @@
  * Accessible Panel Dialog Component for Raawi X Widget
  */
 
-import type { I18nManager } from '../core/i18n';
+import type { I18nManager, TranslationDictionary } from '../core/i18n';
 import type { StateManager } from '../core/state';
 import type { TabId } from '../core/types';
+import type { MapApiClient } from '../core/api-client';
+import type { DomRemediator } from '../core/dom-remediator';
+
+function escapeHtml(str: string): string {
+  return str.replace(/[&<>"']/g, (m) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[m] || m));
+}
 
 export class PanelComponent {
   private element: HTMLElement;
   private state: StateManager;
   private i18n: I18nManager;
+  private apiClient?: MapApiClient;
+  private remediator?: DomRemediator;
 
   private lastTab: TabId;
 
-  constructor(state: StateManager, i18n: I18nManager) {
+  constructor(
+    state: StateManager,
+    i18n: I18nManager,
+    apiClient?: MapApiClient,
+    remediator?: DomRemediator
+  ) {
     this.state = state;
     this.i18n = i18n;
+    this.apiClient = apiClient;
+    this.remediator = remediator;
     this.lastTab = this.state.getActiveTab();
 
     this.element = document.createElement('section');
@@ -38,6 +59,12 @@ export class PanelComponent {
       }
     });
     this.i18n.subscribe(() => this.render());
+
+    if (this.apiClient) {
+      this.apiClient.subscribe(() => {
+        this.render();
+      });
+    }
   }
 
   public getElement(): HTMLElement {
@@ -170,6 +197,8 @@ export class PanelComponent {
 
       <!-- Tab Content: Assist -->
       <div id="raawi-tabpanel-assist" class="raawi-tab-body" role="tabpanel" style="display: ${activeTab === 'assist' ? 'flex' : 'none'};">
+        ${this.renderPageInsightsCard(t, settings)}
+
         <!-- Presets -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
@@ -470,6 +499,13 @@ export class PanelComponent {
       });
     });
 
+    // Remediation toggle
+    const remediationToggle = this.element.querySelector('#raawi-toggle-remediation') as HTMLInputElement | null;
+    remediationToggle?.addEventListener('change', () => {
+      this.state.updateSetting('remediationEnabled', remediationToggle.checked);
+      this.render();
+    });
+
     // Hide images toggle
     const hideImagesToggle = this.element.querySelector('#raawi-toggle-hide-images') as HTMLInputElement | null;
     hideImagesToggle?.addEventListener('change', () => {
@@ -489,4 +525,100 @@ export class PanelComponent {
       });
     });
   }
+
+  private getStatusBadgeType(status?: string): string {
+    switch (status) {
+      case 'ready':
+        return 'success';
+      case 'loading':
+        return 'info';
+      case 'mismatch':
+      case 'error':
+        return 'warning';
+      default:
+        return 'neutral';
+    }
+  }
+
+  private getStatusBadgeText(status: string | undefined, t: TranslationDictionary): string {
+    switch (status) {
+      case 'ready':
+        return t.mapStatusReady || 'Ready';
+      case 'loading':
+        return t.mapStatusLoading || 'Loading...';
+      case 'not-scanned':
+        return t.mapStatusNotScanned || 'Not Scanned';
+      case 'offline':
+        return t.mapStatusOffline || 'Offline';
+      case 'mismatch':
+        return t.mapStatusMismatch || 'Outdated';
+      case 'error':
+        return t.errorOccurred || 'Error';
+      default:
+        return t.statusReady || 'Ready';
+    }
+  }
+
+  private renderPageInsightsCard(t: TranslationDictionary, settings: any): string {
+    const status = this.apiClient?.getStatus() || 'idle';
+    const data = this.apiClient?.getData();
+    const map = data?.assistiveMap;
+    const guidance = data?.guidance;
+    const activeChanges = this.remediator?.getActiveChangesCount() ?? 0;
+    const isReady = status === 'ready';
+
+    const landmarksCount = guidance?.landmarks?.length || 0;
+    const imgCount = Array.isArray(map?.imageDescriptions)
+      ? map.imageDescriptions.length
+      : Object.keys(map?.imageDescriptions || {}).length;
+    const labelCount = Array.isArray(map?.labelOverrides)
+      ? map.labelOverrides.length
+      : Object.keys(map?.labelOverrides || {}).length;
+    const totalEnhancements = imgCount + labelCount;
+
+    return `
+      <!-- Page Insights Card -->
+      <div class="raawi-control-card raawi-insights-card" data-testid="raawi-insights-card">
+        <div class="raawi-control-header">
+          <span class="raawi-control-title">${t.pageInsights || 'Page Insights'}</span>
+          <span class="raawi-badge raawi-badge-${this.getStatusBadgeType(status)}" data-testid="raawi-map-status-badge">
+            ${this.getStatusBadgeText(status, t)}
+          </span>
+        </div>
+
+        ${guidance?.summary ? `
+          <div class="raawi-insights-summary" style="font-size: 13px; line-height: 1.4; color: var(--raawi-text-muted, #64748b); margin: 6px 0 10px;">
+            ${escapeHtml(guidance.summary)}
+          </div>
+        ` : ''}
+
+        ${data ? `
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px;">
+            ${landmarksCount > 0 ? `<span class="raawi-badge raawi-badge-neutral">🏛️ ${landmarksCount} ${t.landmarksCount || 'Landmarks'}</span>` : ''}
+            ${totalEnhancements > 0 ? `<span class="raawi-badge raawi-badge-neutral">✨ ${totalEnhancements} ${t.enhancementsAvailable || 'Enhancements'}</span>` : ''}
+          </div>
+        ` : ''}
+
+        <!-- Safe DOM Remediation Toggle -->
+        <div style="border-top: 1px solid var(--raawi-border, #e2e8f0); padding-top: 10px; margin-top: 6px;">
+          <div class="raawi-control-header" style="align-items: flex-start;">
+            <div style="flex: 1; padding-inline-end: 8px;">
+              <div class="raawi-control-title" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                ${t.enableRemediation || 'Safe Auto-Remediation'}
+                ${settings.remediationEnabled && activeChanges > 0 ? `<span class="raawi-badge raawi-badge-success" style="font-size: 10px;">${t.remediationActiveBadge || 'Active'} (${activeChanges})</span>` : ''}
+              </div>
+              <div class="raawi-control-desc" style="font-size: 12px; color: var(--raawi-text-muted, #64748b); margin-top: 2px;">
+                ${t.remediationDesc || 'Opt-in accessible labels without overwriting author intent'}
+              </div>
+            </div>
+            <label class="raawi-toggle" style="margin-top: 2px;">
+              <input type="checkbox" id="raawi-toggle-remediation" data-testid="raawi-tool-remediation" ${settings.remediationEnabled ? 'checked' : ''} ${!isReady ? 'disabled' : ''} aria-label="${t.enableRemediation || 'Enable Remediation'}">
+              <span class="raawi-toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    `;
+  }
 }
+

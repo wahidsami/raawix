@@ -74,6 +74,21 @@ export interface TranslationDictionary {
   statusStale: string;
   statusRemediated: string;
   poweredBy: string;
+
+  // Phase 5.4: Page Insights & Safe Remediation
+  pageInsights: string;
+  mapStatusReady: string;
+  mapStatusNotScanned: string;
+  mapStatusLoading: string;
+  mapStatusOffline: string;
+  mapStatusMismatch: string;
+  enableRemediation: string;
+  remediationDesc: string;
+  landmarksCount: string;
+  pageSummary: string;
+  enhancementsAvailable: string;
+  remediationActiveBadge: string;
+  errorOccurred: string;
 }
 
 export const translations: Record<Locale, TranslationDictionary> = {
@@ -140,6 +155,20 @@ export const translations: Record<Locale, TranslationDictionary> = {
     statusStale: 'تنبيه: تغير محتوى الصفحة منذ آخر مسح',
     statusRemediated: 'تمت معالجة العناصر بدقة عالية',
     poweredBy: 'منصة راوي إكس الرقمية',
+
+    pageInsights: 'معلومات الصفحة وخريطة الوصول',
+    mapStatusReady: 'خريطة الوصول مفعلة',
+    mapStatusNotScanned: 'الصفحة غير ممسوحة بعد',
+    mapStatusLoading: 'جاري تحميل خريطة الوصول...',
+    mapStatusOffline: 'الخدمة غير متوفرة حالياً',
+    mapStatusMismatch: 'بيانات الخريطة غير مطابقة',
+    enableRemediation: 'تفعيل معالجة الوصول التلقائية',
+    remediationDesc: 'إضافة نصوص بديلة للصور وتسميات للأزرار المفقودة استناداً إلى خريطة الوصول',
+    landmarksCount: 'المعالم الهيكلية المتوفرة',
+    pageSummary: 'ملخص الصفحة',
+    enhancementsAvailable: 'تحسينات وصول متاحة',
+    remediationActiveBadge: 'تم تطبيق التحسينات',
+    errorOccurred: 'حدث خطأ في تحميل البيانات',
   },
   en: {
     widgetTitle: 'Accessibility & Usability Options',
@@ -204,6 +233,20 @@ export const translations: Record<Locale, TranslationDictionary> = {
     statusStale: 'Notice: Page content changed since last scan',
     statusRemediated: 'High-confidence remediations applied',
     poweredBy: 'Raawi X Platform',
+
+    pageInsights: 'Page Insights & Assistive Map',
+    mapStatusReady: 'Assistive Map Active',
+    mapStatusNotScanned: 'Page not scanned yet',
+    mapStatusLoading: 'Loading assistive map...',
+    mapStatusOffline: 'Service temporarily unavailable',
+    mapStatusMismatch: 'Map data mismatched or stale',
+    enableRemediation: 'Enable DOM Auto-Remediation',
+    remediationDesc: 'Safely add missing image alt descriptions and button labels based on verified scanner map',
+    landmarksCount: 'Available Landmarks',
+    pageSummary: 'Page Summary',
+    enhancementsAvailable: 'Accessibility Enhancements Available',
+    remediationActiveBadge: 'Enhancements Applied',
+    errorOccurred: 'An error occurred loading map',
   },
 };
 
