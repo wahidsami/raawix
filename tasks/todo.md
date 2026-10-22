@@ -1159,7 +1159,91 @@
 - **Process-Wide Quota Circuit Breaker:** When confirmed quota exhaustion (`quota_exhausted`) occurs, a bounded 60s global circuit breaker trips, halting futile outbound calls from all other scans in the process.
 - **Scan-State Lifecycle & Ephemeral Isolation:** Removed the `'default'` scan state key; un-keyed requests use unique ephemeral IDs. Added `pendingRequests` guard so in-flight calls are not orphaned by premature cleanup, plus 15-minute TTL eviction. Hooked `geminiBudgetTracker.cleanup(scanId)` into `job-queue.ts` `finally` block.
 - **Zero Real-Time Waiting in Tests:** Added injectable clock and sleep hooks (`setCustomTimer`) so tests simulate rolling-window pacing deterministically in < 200ms.
-- **Verification Results:** 38/38 focused regression tests passed; 183/183 scanner suite tests passed; `tsc -b` build clean.
 
+# Tasks - Phase 7B.5N.4: Single Post-Fix Runtime Verification
+
+- [x] 1. Preflight Verification
+  - [x] Verify `GET /health` returns healthy response (`status: ok`)
+  - [x] Verify `GET /api/scanner/config` retains safety bounds (`allowedPorts: [80, 443]`, `allowLocalhost: false`, `allowAllPorts: false`)
+  - [x] Verify expected deployment and architecture invariants from deployed source
+- [x] 2. Single Bounded Scan Execution
+  - [x] Submit exactly one authorized scan request against `https://broken-workshop.dequelabs.com/` (`maxPages: 1`, `maxDepth: 0`, `agentMaxSteps: 25`, `agentMaxMs: 10000`, viewport screenshot mode)
+  - [x] Capture scan ID: `scan_1792670069699_0wduemv`
+  - [x] Monitor to terminal status (`completed` in 285.5 seconds)
+- [x] 3. Persisted Evidence Inspection
+  - [x] Inspect Layer 1, Layer 2 findings, and Layer 3 AssistiveMap
+  - [x] Verify physical request accounting, quota circuit breaker activation, and pre-dispatch halting
+  - [x] Verify thought part and secret sanitization
+  - [x] Verify blind agent bounds and fallback to DOM-derived output
+- [x] 4. Deliverable
+  - [x] Author `PHASE_7B_5N_4_RUNTIME_VERIFICATION_REPORT.md`
+  - [x] Stop and await coordinator review (zero second scans, zero live mutations)
+
+## Execution Review (Phase 7B.5N.4)
+- **Single Authorized Scan:** Submitted exactly ONE scan `scan_1792670069699_0wduemv` against `https://broken-workshop.dequelabs.com/`. Lifecycle completed cleanly in 285.5 seconds.
+- **Quota Circuit Breaker in Action:** In Layer 2, Finding 0 encountered `quota_exhausted` on description generation. The circuit breaker activated immediately, halting all subsequent 7 findings in Layer 2 (14 operations) and all 8 image description operations in Layer 3 prior to network dispatch.
+- **Pre-Dispatch Halting:** Rapid execution of subsequent operations (1.3s for 14 Layer 2 checks) confirmed that futile outbound network calls were blocked by the scheduler.
+- **Graceful DOM Fallback:** When AI calls were halted by the circuit breaker, the scanner completed gracefully, producing 9 high-confidence DOM-derived action intents with 0 crashes or hangs.
+- **Sanitization & Safety:** Zero thought parts, secrets, or raw provider error payloads leaked in any persisted evidence.
+
+# Tasks - Phase 7B.5N.5: Scan Duration Anomaly Review
+
+- [x] 1. Timestamp & Lifecycle Trace
+  - [x] Extract exact component timings from `page.json` and `report.json`
+  - [x] Dissect `totalMs: 283,812 ms` (`stabilizationMs: 30,829 ms`, `visionMs: 250,090 ms`, `agentMs: 1,485 ms`)
+- [x] 2. 247-Second Interval Investigation
+  - [x] Correlate Finding 0 crop (`11:55:03.100Z`) with Finding 1 crop (`11:59:10.362Z`)
+  - [x] Identify lack of client-side `AbortSignal.timeout` in `doFetch` and Google 240s API Gateway queueing
+- [x] 3. Circuit Breaker Responsiveness Verification
+  - [x] Confirm that once circuit breaker opened, all 14 remaining L2 operations completed in 1.306s (< 1ms per check)
+  - [x] Confirm all 8 L3 operations completed in ~3.5s with zero hidden retries or delays
+- [x] 4. Deliverable & Recommendations
+  - [x] Author `PHASE_7B_5N_5_DURATION_ANOMALY_REPORT.md`
+  - [x] Formulate concrete instrumentation recommendations (request timeout, latency telemetry, scanId passing)
+  - [x] Stop and await coordinator review
+
+## Execution Review (Phase 7B.5N.5)
+- **Circuit Breaker Confirmed Instant:** Proved that once open, the circuit breaker halts operations immediately without delay (14 Layer 2 checks in 1.3s, 8 Layer 3 checks in 3.5s).
+- **Delay Isolated to Finding 0 Outbound Dispatch:** 247.262 of the 250 seconds in `visionMs` was spent waiting on the single outbound call to Google Gemini during Finding 0 before the circuit breaker tripped.
+- **Root Cause Identified:** Lack of client-side request timeout in `doFetch()` combined with Google API Gateway's 240-second server-side admission hold on quota-throttled accounts. Page stabilization contributed an additional 30.8 seconds.
+- **Future Improvements Proposed:** Client-side `AbortSignal.timeout(15000)`, explicit per-request `latencyMs` telemetry, and passing `scanId` directly to `VisionAnalyzer`.
+
+# Tasks - Phase 7B.5N.6: Bounded Gemini Request Timeouts
+
+- [x] 1. Config & Telemetry Updates
+  - [x] Add `requestTimeoutMs: parseInt(process.env.GEMINI_REQUEST_TIMEOUT_MS || '15000', 10)` in `apps/scanner/src/config.ts`
+  - [x] Add `'timeout'` to `DiagnosticStatus` and `'request_timeout'` to `ErrorCategory` in `provider-telemetry.ts`
+  - [x] Add `latencyMs?: number` to `SanitizedProviderDiagnostics` and `AssistiveMapProviderTelemetry.failures` in `provider-telemetry.ts`
+  - [x] Update `createProviderDiagnostics()` in `provider-telemetry.ts` to detect timeout (`status: 'timeout'`, `errorCategory: 'request_timeout'`, `httpStatus: 408`) and propagate `latencyMs`
+- [x] 2. Bounded Gemini Request Timeout & Latency Tracking
+  - [x] Update `GeminiVisionProvider.doFetch()` to abort stalled requests using `AbortSignal.timeout(config.gemini.requestTimeoutMs || 15000)`
+  - [x] Measure per-attempt `latencyMs` and propagate to `rawResponse`
+  - [x] Catch timeout errors (`TimeoutError` / `AbortError` / timeout message), allow bounded retry if budget permits, and return sanitized 408 diagnostics
+  - [x] Guarantee `finally { slot.release?.(); }` releases dispatch slot on timeouts
+- [x] 3. Layer 2 Scan-ID Propagation
+  - [x] Update `apps/scanner/src/crawler/page-capture.ts:525` to `new VisionAnalyzer(this.scanId)`
+  - [x] Ensure missing scan IDs continue to generate safe ephemeral IDs without leaking shared state
+- [x] 4. AssistiveMap Telemetry Propagation
+  - [x] Forward `diag.latencyMs` into `map.providerTelemetry.failures` in `assistive-map-generator.ts`
+- [x] 5. Deterministic Regression Tests (Scenarios 39-44)
+  - [x] Scenario 39: Fetch timeout aborts at configured `requestTimeoutMs` without hanging
+  - [x] Scenario 40: Timeout telemetry records sanitized `status: 'timeout'`, `errorCategory: 'request_timeout'`, `httpStatus: 408`, and `latencyMs`
+  - [x] Scenario 41: Timeout releases dispatch slot and does not hang subsequent dispatches
+  - [x] Scenario 42: Retries remain bounded and each physical attempt consumes a dispatch slot
+  - [x] Scenario 43: PageCapture / Layer 2 passes real scan ID into `VisionAnalyzer` and budget tracker
+  - [x] Scenario 44: Existing quota circuit-breaker behavior remains intact with timeout support
+- [x] 6. Verification, Build & Git Push
+  - [x] Run focused regression suite (`gemini-telemetry-regression.test.ts` - 44/44 tests passed)
+  - [x] Run full scanner tests once (26/26 files, 189/189 tests passed)
+  - [x] Run scanner build once (`tsc -b` succeeded)
+  - [x] Commit and push to `feature/semantic-core`, report 40-character commit SHA
+
+## Execution Review (Phase 7B.5N.6)
+- **Bounded Request Timeout:** Implemented `GEMINI_REQUEST_TIMEOUT_MS` (default 15,000 ms) via native `AbortSignal.timeout(...)` in `GeminiVisionProvider.doFetch()`, preventing stalled gateway calls from blocking scans.
+- **Explicit Timeout Diagnostics & Sanitized Latency:** Added `'timeout'` status, `'request_timeout'` error category, and HTTP 408 mapping in `provider-telemetry.ts`. Attached sanitized `latencyMs` across all provider dispatches without leaking secrets, headers, or payloads.
+- **Dispatch Slot Lifecycle Guarantee:** Ensured `finally { slot.release?.(); }` always runs upon timeout, keeping `pendingRequests` strictly accurate and preventing resource leaks or deadlocks.
+- **Layer 2 Scan-ID Unification:** Fixed `apps/scanner/src/crawler/page-capture.ts:525` to instantiate `new VisionAnalyzer(this.scanId)`, unifying Layer 2 and Layer 3 under the same scan-scoped budget tracker.
+- **Bounded Retries with Physical Slot Accounting:** Confirmed that retries on timeouts consume physical dispatch slots, abide by per-scan limits and rolling-window pacing, and do not produce unbounded retry loops.
+- **Deterministic Test Coverage:** Added Scenarios 39–44 to `gemini-telemetry-regression.test.ts`. Full regression suite (44 tests) and full scanner package suite (189 tests across 26 files) passed with 100% success.
 
 

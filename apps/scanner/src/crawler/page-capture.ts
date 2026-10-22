@@ -522,7 +522,7 @@ export class PageCapture {
         } else {
           try {
             const visionStartedAt = Date.now();
-            const visionAnalyzer = new VisionAnalyzer();
+            const visionAnalyzer = new VisionAnalyzer(this.scanId);
             const visionFindings = await visionAnalyzer.analyzePage(page, pageNumber, finalUrl, outputDir);
             timings.visionMs = Date.now() - visionStartedAt;
             visionCount = visionFindings.length;

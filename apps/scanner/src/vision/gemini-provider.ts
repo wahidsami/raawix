@@ -44,12 +44,19 @@ export class GeminiVisionProvider {
    * Performs the underlying fetch call. Can be spied or overridden in tests.
    */
   protected async doFetch(payload: any): Promise<Response> {
+    const timeoutMs = Math.max(1, config.gemini.requestTimeoutMs || 15000);
+    const signal =
+      typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+        ? AbortSignal.timeout(timeoutMs)
+        : undefined;
+
     return fetch(`${this.apiUrl}?key=${this.apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      ...(signal ? { signal } : {}),
     });
   }
 
@@ -108,16 +115,22 @@ export class GeminiVisionProvider {
                       ? 'Service unavailable'
                       : 'Rate limit exceeded')),
             category: slot.reason,
+            latencyMs: 0,
           },
         };
       }
 
+      const attemptStartedAt = Date.now();
       try {
         const response = await this.doFetch(payload);
+        const attemptLatencyMs = Math.max(0, Date.now() - attemptStartedAt);
 
         if (response.ok) {
           const data = await response.json();
           const rawResponse = this.sanitizeRawResponse(data);
+          if (rawResponse && typeof rawResponse === 'object') {
+            rawResponse.latencyMs = attemptLatencyMs;
+          }
           return { data, rawResponse };
         }
 
@@ -135,6 +148,7 @@ export class GeminiVisionProvider {
                 status: 429,
                 error: 'Google Gemini quota exhausted',
                 category: 'quota_exhausted',
+                latencyMs: attemptLatencyMs,
               },
             };
           }
@@ -157,6 +171,7 @@ export class GeminiVisionProvider {
                 scanId: this.scanId,
                 attempt: attempt + 1,
                 delay,
+                latencyMs: attemptLatencyMs,
               });
               await this.sleep(delay);
               continue;
@@ -170,6 +185,7 @@ export class GeminiVisionProvider {
               status: 429,
               error: 'Rate limit exceeded',
               category: 'rate_limit_exceeded',
+              latencyMs: attemptLatencyMs,
             },
           };
         }
@@ -187,6 +203,7 @@ export class GeminiVisionProvider {
                 scanId: this.scanId,
                 attempt: attempt + 1,
                 delay,
+                latencyMs: attemptLatencyMs,
               });
               await this.sleep(delay);
               continue;
@@ -199,6 +216,7 @@ export class GeminiVisionProvider {
               status: 503,
               error: 'Service unavailable',
               category: 'service_unavailable',
+              latencyMs: attemptLatencyMs,
             },
           };
         }
@@ -210,9 +228,17 @@ export class GeminiVisionProvider {
             status,
             error: errorText.substring(0, 200),
             category: 'http_error',
+            latencyMs: attemptLatencyMs,
           },
         };
       } catch (error) {
+        const attemptLatencyMs = Math.max(0, Date.now() - attemptStartedAt);
+        const isTimeout =
+          error instanceof Error &&
+          (error.name === 'TimeoutError' ||
+            error.name === 'AbortError' ||
+            /timeout|timed out|abort/i.test(error.message));
+
         if (attempt < maxRetries) {
           const delay = Math.min(
             config.gemini.maxDelayMs,
@@ -220,15 +246,31 @@ export class GeminiVisionProvider {
           );
           const canRetry = geminiBudgetTracker.recordRetryDelay(this.scanId, delay);
           if (canRetry) {
-            this.logger.warn('Gemini network error; retrying', {
-              scanId: this.scanId,
-              attempt: attempt + 1,
-              delay,
-              error: error instanceof Error ? error.message : 'Unknown error',
-            });
+            this.logger.warn(
+              isTimeout ? 'Gemini request timeout; retrying' : 'Gemini network error; retrying',
+              {
+                scanId: this.scanId,
+                attempt: attempt + 1,
+                delay,
+                error: isTimeout ? 'Request timeout' : (error instanceof Error ? error.message : 'Unknown error'),
+                latencyMs: attemptLatencyMs,
+              }
+            );
             await this.sleep(delay);
             continue;
           }
+        }
+
+        if (isTimeout) {
+          return {
+            data: null,
+            rawResponse: {
+              status: 408,
+              error: 'Request timeout',
+              category: 'request_timeout',
+              latencyMs: attemptLatencyMs,
+            },
+          };
         }
 
         return {
@@ -237,6 +279,7 @@ export class GeminiVisionProvider {
             status: 0,
             error: error instanceof Error ? error.message : 'Unknown network error',
             category: 'network_error',
+            latencyMs: attemptLatencyMs,
           },
         };
       } finally {
@@ -250,6 +293,7 @@ export class GeminiVisionProvider {
         status: 429,
         error: 'Retry budget exhausted',
         category: 'rate_limit_exceeded',
+        latencyMs: 0,
       },
     };
   }

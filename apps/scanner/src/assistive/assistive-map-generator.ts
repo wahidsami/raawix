@@ -231,6 +231,7 @@ export class AssistiveMapGenerator {
                 status: diag.status,
                 httpStatus: diag.httpStatus,
                 errorCategory: diag.errorCategory,
+                ...(diag.latencyMs !== undefined ? { latencyMs: diag.latencyMs } : {}),
               });
             }
           } catch (error) {
@@ -368,6 +369,7 @@ export class AssistiveMapGenerator {
                 status: diag.status,
                 httpStatus: diag.httpStatus,
                 errorCategory: diag.errorCategory,
+                ...(diag.latencyMs !== undefined ? { latencyMs: diag.latencyMs } : {}),
               });
             }
           }

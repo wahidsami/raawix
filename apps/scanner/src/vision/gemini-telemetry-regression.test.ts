@@ -1436,6 +1436,200 @@ describe('Phase 7B.5K & 7B.5N — Gemini-Compatible Image Processing, Rate-Limit
     // Evict stale states check
     geminiBudgetTracker.evictStaleStates(0); // Evict all idle states
   });
+
+  // Scenario 39: Fetch timeout aborts at configured requestTimeoutMs without hanging
+  it('Scenario 39: aborts stalled fetch at configured requestTimeoutMs', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-timeout-key';
+    config.gemini.requestTimeoutMs = 60; // 60ms timeout
+
+    const provider = new GeminiVisionProvider('scan-sc39-timeout');
+
+    // Spy on global fetch to verify signal abort behavior
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((_url: any, init: any) => {
+      return new Promise((resolve, reject) => {
+        if (init?.signal) {
+          init.signal.addEventListener('abort', () => {
+            const err = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+            reject(err);
+          });
+        }
+      });
+    });
+
+    const start = Date.now();
+    await expect((provider as any).doFetch({})).rejects.toThrow(/timeout|aborted/i);
+    const elapsed = Date.now() - start;
+
+    expect(fetchSpy).toHaveBeenCalled();
+    expect(elapsed).toBeGreaterThanOrEqual(40);
+    expect(elapsed).toBeLessThan(1500); // Must abort quickly, not hang
+  });
+
+  // Scenario 40: Timeout telemetry records sanitized diagnostics without leaking secrets
+  it('Scenario 40: records sanitized timeout diagnostics with latencyMs and zero secret leakage', () => {
+    const rawTimeoutResponse = {
+      status: 408,
+      error: 'Request timeout',
+      category: 'request_timeout',
+      latencyMs: 15002,
+      secretPayload: 'AIzaSy-do-not-leak-this-key',
+    };
+
+    const diag = createProviderDiagnostics(
+      'gemini',
+      'describe_element',
+      null,
+      rawTimeoutResponse,
+      false
+    );
+
+    expect(diag.status).toBe('timeout');
+    expect(diag.httpStatus).toBe(408);
+    expect(diag.errorCategory).toBe('request_timeout');
+    expect(diag.latencyMs).toBe(15002);
+    expect(diag.incorporated).toBe(false);
+
+    // Verify zero secret leakage
+    const serialized = JSON.stringify(diag);
+    expect(serialized).not.toContain('AIzaSy');
+    expect(serialized).not.toContain('secretPayload');
+    expect(serialized).not.toContain('headers');
+  });
+
+  // Scenario 41: Timeout releases dispatch slot and does not hang the scan
+  it('Scenario 41: releases dispatch slot upon timeout so subsequent dispatches proceed', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+    config.gemini.maxRetries = 0; // No retries for immediate timeout check
+    config.gemini.requestTimeoutMs = 20;
+
+    const provider = new GeminiVisionProvider('scan-slot-release');
+    vi.spyOn(provider as any, 'doFetch').mockRejectedValue(
+      new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+    );
+
+    const cropPath = join(testOutputDir, 'crop-sc41.png');
+    await writeFile(cropPath, Buffer.from('mock-bytes-41'));
+
+    const result = await provider.describeElement(cropPath, 'button');
+    expect(result.description).toBeNull();
+    expect(result.rawResponse.status).toBe(408);
+    expect(result.rawResponse.category).toBe('request_timeout');
+    expect(result.rawResponse.latencyMs).toBeDefined();
+
+    // Verify dispatch slot was released in finally block
+    const state = geminiBudgetTracker.getState('scan-slot-release');
+    expect(state.pendingRequests).toBe(0);
+    expect(state.requestsAttempted).toBe(1);
+
+    // Next request immediately succeeds without hanging
+    vi.spyOn(provider as any, 'doFetch').mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: 'Recovered button description.' }] } }],
+      }),
+      headers: new Headers(),
+    });
+
+    const recovered = await provider.describeElement(cropPath, 'button');
+    expect(recovered.description).toBe('Recovered button description.');
+    expect(state.pendingRequests).toBe(0);
+    expect(state.requestsAttempted).toBe(2);
+  });
+
+  // Scenario 42: Retries remain bounded and each actual dispatch consumes a physical request slot
+  it('Scenario 42: bounds retries on timeout, consuming a physical dispatch slot per attempt', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+    config.gemini.maxRetries = 2; // Initial + 2 retries = 3 attempts
+    config.gemini.baseDelayMs = 5;
+
+    const provider = new GeminiVisionProvider('scan-bounded-retry');
+    const doFetchSpy = vi.spyOn(provider as any, 'doFetch').mockRejectedValue(
+      new DOMException('The operation was aborted due to timeout', 'TimeoutError')
+    );
+    const sleepSpy = vi.spyOn(provider as any, 'sleep').mockResolvedValue(undefined);
+
+    const cropPath = join(testOutputDir, 'crop-sc42.png');
+    await writeFile(cropPath, Buffer.from('mock-bytes-42'));
+
+    const result = await provider.describeElement(cropPath, 'img');
+    expect(result.description).toBeNull();
+    expect(result.rawResponse.status).toBe(408);
+    expect(result.rawResponse.category).toBe('request_timeout');
+
+    // Exactly 3 physical attempts: 1 initial + 2 retries
+    expect(doFetchSpy).toHaveBeenCalledTimes(3);
+    expect(sleepSpy).toHaveBeenCalledTimes(2);
+
+    // State accounting: exactly 3 physical dispatches consumed, 0 pending
+    const state = geminiBudgetTracker.getState('scan-bounded-retry');
+    expect(state.requestsAttempted).toBe(3);
+    expect(state.pendingRequests).toBe(0);
+  });
+
+  // Scenario 43: Layer 2 passes the real scan ID into VisionAnalyzer and the Gemini budget tracker
+  it('Scenario 43: propagates scanId from PageCapture through VisionAnalyzer to Gemini provider', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+
+    const testScanId = 'scan_test_propagation_123';
+    const analyzer = new VisionAnalyzer(testScanId);
+
+    // Analyzer has scanId and geminiProvider has matching scanId
+    expect((analyzer as any).scanId).toBe(testScanId);
+    expect((analyzer as any).geminiProvider).toBeDefined();
+    expect((analyzer as any).geminiProvider.scanId).toBe(testScanId);
+
+    // PageCapture propagates scanId to VisionAnalyzer
+    const { PageCapture } = await import('../crawler/page-capture.js');
+    const capture = new PageCapture(testScanId);
+    expect((capture as any).scanId).toBe(testScanId);
+
+    // When scanId is missing or empty, unique ephemeral ID is generated (no 'default' leak)
+    const emptyAnalyzer = new VisionAnalyzer();
+    expect((emptyAnalyzer as any).scanId).toBeUndefined();
+    const ephemeralState = geminiBudgetTracker.getState((emptyAnalyzer as any).geminiProvider.scanId);
+    expect(ephemeralState.scanId).toMatch(/^_ephemeral_/);
+    expect(ephemeralState.scanId).not.toBe('default');
+  });
+
+  // Scenario 44: Existing quota circuit-breaker behavior remains intact with timeout support
+  it('Scenario 44: maintains instant quota circuit breaker tripping and blocks subsequent calls without timeout delay', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+    config.gemini.requestTimeoutMs = 15000;
+
+    const provider = new GeminiVisionProvider('scan-quota-cb-intact');
+    const doFetchSpy = vi.spyOn(provider as any, 'doFetch').mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      text: async () => 'Resource has been exhausted (e.g. check quota). RESOURCE_EXHAUSTED',
+      headers: new Headers(),
+    });
+
+    const cropPath = join(testOutputDir, 'crop-sc44.png');
+    await writeFile(cropPath, Buffer.from('mock-bytes-44'));
+
+    // First call encounters quota exhaustion and trips circuit breaker
+    const res1 = await provider.describeElement(cropPath, 'div');
+    expect(res1.description).toBeNull();
+    expect(res1.rawResponse.category).toBe('quota_exhausted');
+    expect(geminiBudgetTracker.isGlobalCircuitOpen()).toBe(true);
+
+    // Second call is immediately halted before network dispatch (< 1ms, zero timeout delay)
+    const start2 = Date.now();
+    const res2 = await provider.describeElement(cropPath, 'div');
+    const elapsed2 = Date.now() - start2;
+
+    expect(res2.description).toBeNull();
+    expect(res2.rawResponse.category).toBe('quota_exhausted');
+    expect(elapsed2).toBeLessThan(100);
+    // doFetch must NOT have been called for request 2
+    expect(doFetchSpy).toHaveBeenCalledTimes(1);
+  });
 });
 
 

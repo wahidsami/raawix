@@ -17,7 +17,8 @@ export type DiagnosticStatus =
   | 'rate_limit_exceeded'
   | 'quota_exhausted'
   | 'service_unavailable'
-  | 'request_budget_exhausted';
+  | 'request_budget_exhausted'
+  | 'timeout';
 
 export type ErrorCategory =
   | 'http_error'
@@ -28,7 +29,8 @@ export type ErrorCategory =
   | 'rate_limit_exceeded'
   | 'quota_exhausted'
   | 'service_unavailable'
-  | 'request_budget_exhausted';
+  | 'request_budget_exhausted'
+  | 'request_timeout';
 
 export interface SanitizedProviderDiagnostics {
   provider: ProviderName;
@@ -37,6 +39,7 @@ export interface SanitizedProviderDiagnostics {
   httpStatus?: number;
   errorCategory?: ErrorCategory;
   incorporated?: boolean;
+  latencyMs?: number;
 }
 
 export interface AssistiveMapProviderTelemetry {
@@ -52,6 +55,7 @@ export interface AssistiveMapProviderTelemetry {
     status: DiagnosticStatus;
     httpStatus?: number;
     errorCategory?: ErrorCategory;
+    latencyMs?: number;
   }>;
 }
 
@@ -75,6 +79,11 @@ export function createProviderDiagnostics(
     };
   }
 
+  const latencyMs =
+    rawResponse && typeof rawResponse.latencyMs === 'number' && Number.isFinite(rawResponse.latencyMs)
+      ? Math.max(0, Math.round(rawResponse.latencyMs))
+      : undefined;
+
   // 1. Success: Text or description was obtained
   if (resultTextOrDescription && resultTextOrDescription.trim().length > 0) {
     return {
@@ -83,6 +92,7 @@ export function createProviderDiagnostics(
       status: 'success',
       httpStatus: 200,
       incorporated,
+      ...(latencyMs !== undefined ? { latencyMs } : {}),
     };
   }
 
@@ -99,6 +109,7 @@ export function createProviderDiagnostics(
       httpStatus: statusNumber || 429,
       errorCategory: 'request_budget_exhausted',
       incorporated: false,
+      ...(latencyMs !== undefined ? { latencyMs } : {}),
     };
   }
 
@@ -114,6 +125,7 @@ export function createProviderDiagnostics(
       httpStatus: 429,
       errorCategory: 'quota_exhausted',
       incorporated: false,
+      ...(latencyMs !== undefined ? { latencyMs } : {}),
     };
   }
 
@@ -129,10 +141,28 @@ export function createProviderDiagnostics(
       httpStatus: 429,
       errorCategory: 'rate_limit_exceeded',
       incorporated: false,
+      ...(latencyMs !== undefined ? { latencyMs } : {}),
     };
   }
 
-  // 4. Service unavailable (HTTP 503)
+  // 4. Request timeout (HTTP 408 or category/error string)
+  if (
+    explicitCategory === 'request_timeout' ||
+    statusNumber === 408 ||
+    /request timeout|timed out|abort/i.test(errorStr)
+  ) {
+    return {
+      provider,
+      operation,
+      status: 'timeout',
+      httpStatus: statusNumber || 408,
+      errorCategory: 'request_timeout',
+      incorporated: false,
+      ...(latencyMs !== undefined ? { latencyMs } : {}),
+    };
+  }
+
+  // 5. Service unavailable (HTTP 503)
   if (
     explicitCategory === 'service_unavailable' ||
     statusNumber === 503 ||
@@ -145,10 +175,11 @@ export function createProviderDiagnostics(
       httpStatus: 503,
       errorCategory: 'service_unavailable',
       incorporated: false,
+      ...(latencyMs !== undefined ? { latencyMs } : {}),
     };
   }
 
-  // 5. Size limit exceeded
+  // 6. Size limit exceeded
   if (explicitCategory === 'size_limit_exceeded' || /size limit|too large/i.test(errorStr)) {
     return {
       provider,
@@ -156,10 +187,11 @@ export function createProviderDiagnostics(
       status: 'size_limit_exceeded',
       errorCategory: 'size_limit_exceeded',
       incorporated: false,
+      ...(latencyMs !== undefined ? { latencyMs } : {}),
     };
   }
 
-  // 6. Generic HTTP Error: rawResponse contains numeric status code >= 400
+  // 7. Generic HTTP Error: rawResponse contains numeric status code >= 400
   if (statusNumber && statusNumber >= 400) {
     return {
       provider,
@@ -168,13 +200,14 @@ export function createProviderDiagnostics(
       httpStatus: statusNumber,
       errorCategory: 'http_error',
       incorporated: false,
+      ...(latencyMs !== undefined ? { latencyMs } : {}),
     };
   }
 
-  // 7. Network error
+  // 8. Network error (connection refused, DNS, socket)
   if (
     explicitCategory === 'network_error' ||
-    /network|fetch|timeout|econnrefused|enotfound|socket/i.test(errorStr)
+    /network|fetch|econnrefused|enotfound|socket/i.test(errorStr)
   ) {
     return {
       provider,
@@ -182,10 +215,11 @@ export function createProviderDiagnostics(
       status: 'network_error',
       errorCategory: 'network_error',
       incorporated: false,
+      ...(latencyMs !== undefined ? { latencyMs } : {}),
     };
   }
 
-  // 8. Empty Response: Provider returned response without text/description
+  // 9. Empty Response: Provider returned response without text/description
   if (!errorStr) {
     return {
       provider,
@@ -194,15 +228,17 @@ export function createProviderDiagnostics(
       httpStatus: 200,
       errorCategory: 'empty_response',
       incorporated: false,
+      ...(latencyMs !== undefined ? { latencyMs } : {}),
     };
   }
 
-  // 9. Unknown Error
+  // 10. Unknown Error
   return {
     provider,
     operation,
     status: 'unknown_error',
     errorCategory: 'unknown_error',
     incorporated: false,
+    ...(latencyMs !== undefined ? { latencyMs } : {}),
   };
 }
