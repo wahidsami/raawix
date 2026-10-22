@@ -748,7 +748,40 @@
 - **Effective Limits Proven:** Non-mutating diagnostic harness proves request-level tightening (25 steps), server ceiling clamping (10000 ms / 50 steps), server defaults preservation, and HTTP 400 rejection on invalid/negative inputs.
 - **Safety Gates Active:** SSRF port/host restrictions active, autonomous goal execution disabled, and zero scans created.
 - **Deliverables:** `PHASE_7B_5D_POST_DEPLOYMENT_VALIDATION_REPORT.md` produced.
-- **Status:** HALTED. Awaiting coordinator review and authorization before launching runtime acceptance scan.
+- **Status:** Complete. Explicit authorization received for Phase 7B.5E.
+
+# Tasks - Phase 7B.5E: Authorized Runtime Acceptance — Blind Agent & Widget Pipeline
+
+- [x] 1. Part A: Final Preflight
+  - [x] Confirm deployed scanner revision (`f1588cf`) and API health
+  - [x] Confirm target `https://broken-workshop.dequelabs.com/` is reachable and does not present bot challenge
+  - [x] Verify SSRF protections and autonomous execution disabled
+- [x] 2. Part B: Execute Exactly ONE Authorized Scan
+  - [x] Prepare exact scan start payload matching API schema with `agentMaxSteps: 25`, `agentMaxMs: 10000`, `auditMode: 'classic'`
+  - [x] Launch scan via authorized API endpoint on test VPS (Scan ID: `scan_1792646398336_ukv6vlm`)
+  - [x] Capture and monitor scan ID through lifecycle to completion (completed in 37.4s)
+- [x] 3. Part C: Inspect Real Scan Evidence
+  - [x] Verify target page was reached (Deque Broken Workshop, `<title>[INSERT TITLE HERE]</title>`)
+  - [x] Verify Layer 1 WCAG findings and selectors (7 Pass, 2 Fail, 1 Needs Review)
+  - [x] Verify Layer 2 heuristic vision execution / findings (8 `clickable_unlabeled` edit buttons)
+  - [x] Verify Layer 3 Blind Agent keyboard traversal (exactly 25 steps executed; 1,471 ms; budget respected)
+  - [x] Inspect interaction telemetry and outcome status (focus trap `RA-001-019`, missing focus indicators `RA-001-021`)
+- [x] 4. Part D: Verify AssistiveMap and Widget Consumption
+  - [x] Query `/api/widget/page-package` for `https://broken-workshop.dequelabs.com/` (HTTP 200, `matchConfidence: high`)
+  - [x] Verify AssistiveMap provenance, fingerprint, and separation from stale Cloudflare map
+  - [x] In isolated test session, test widget consuming map, safe remediation, and restoration (3/3 unit tests passing)
+- [x] 5. Part E: Final Evidence Report & Delivery
+  - [x] Author `PHASE_7B_5E_RUNTIME_ACCEPTANCE_REPORT.md`
+  - [x] Commit and push to `feature/semantic-core`
+  - [x] Stop and await coordinator review
+
+## Execution Review (Phase 7B.5E)
+- **Single Authorized Scan:** Executed `scan_1792646398336_ukv6vlm` against `https://broken-workshop.dequelabs.com/` with zero retries and zero environment mutations.
+- **Enforceable Safe Limits Verified Live:** Scanner applied requested limits `agentMaxSteps: 25` and `agentMaxMs: 10000`; execution logged exactly 25 steps in 1,471 ms (`hitStepLimit: true`, `hitTimeLimit: false`).
+- **Multilayer Findings:** Layer 1 (8 missing recipe alts, 3 contrast failures), Layer 2 (8 unlabeled clickable container buttons), Layer 3 (focus trap repeated 3x in 15 steps, 13 steps without visible focus indicator, missing alt during task).
+- **AssistiveMap & Widget Pipeline:** Fresh AssistiveMap generated with 9 action intents and 3 landmarks. Query to `GET /api/widget/page-package` verified with `matchConfidence: high`. Freshness rejection of stale/mismatched packages, safe non-destructive DOM remediation, and complete ownership-aware restoration verified (3/3 automated tests passing).
+- **Status:** Complete. Awaiting coordinator review.
+
 
 
 
