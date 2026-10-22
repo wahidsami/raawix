@@ -692,4 +692,33 @@
 - **Action Plan:** Patch `validation.ts` (2 lines), commit/push, and redeploy `raawi-x-phase2-test-scanner` in Coolify.
 - **Status:** HALTED. Awaiting coordinator authorization.
 
+# Tasks - Phase 7B.5C: Request Validation Fix & Regression Tests
+
+- [x] 1. Validation Schema Patch
+  - [x] Inspect `apps/scanner/src/middleware/validation.ts`
+  - [x] Add `agentMaxSteps: z.number().int().positive().optional()` and `agentMaxMs: z.number().int().positive().optional()` to `scanPipelineSchema`
+- [x] 2. Request Validation Regression Tests
+  - [x] Create/update regression tests in `apps/scanner/src/middleware/validation.test.ts`
+  - [x] Test that `agentMaxSteps: 25` and `agentMaxMs: 5000` survive validation parsing
+  - [x] Test invalid values: negative, zero, float/fractional, and string types rejected with HTTP 400
+  - [x] Test pipeline resolver integration: tightened values (25 steps) preserved, values above ceiling (15000 ms) clamped to 10000 ms
+  - [x] Test omitted values default to server configuration
+- [x] 3. Monorepo Verification
+  - [x] Run scanner test suite (`pnpm --filter @raawi-x/scanner test` - 24/24 files, 140/140 passing)
+  - [x] Run widget test suite (`pnpm --filter @raawi-x/widget test` - 6/6 files, 99/99 passing)
+  - [x] Run monorepo type-check and build (`pnpm -r build` - 11/11 workspace projects passing)
+- [x] 4. Documentation & Delivery
+  - [x] Author `PHASE_7B_5C_REQUEST_VALIDATION_FIX_REPORT.md`
+  - [x] Commit and push to `feature/semantic-core`
+  - [x] STOP and await coordinator deployment authorization
+
+## Execution Review (Phase 7B.5C)
+- **Validation Schema Fixed:** `agentMaxSteps` and `agentMaxMs` declared as `z.number().int().positive().optional()` in `scanPipelineSchema` (`apps/scanner/src/middleware/validation.ts`), ensuring these fields survive request body parsing and reach `resolveScanPipeline`.
+- **Regression Tests Authored:** 15 regression tests in `apps/scanner/src/middleware/validation.test.ts` passing 100%, covering field preservation, rejection of negative/zero/float/string inputs, limit tightening (25 steps), and ceiling clamping (15000 ms clamped to 10000 ms).
+- **Monorepo Green:** 140/140 scanner tests passing, 99/99 widget tests passing, and monorepo production build (`pnpm -r build`) exiting with code 0 across all 11 packages.
+- **Deliverables:** `PHASE_7B_5C_REQUEST_VALIDATION_FIX_REPORT.md` produced.
+- **Status:** HALTED. Awaiting coordinator deployment authorization for `raawi-x-phase2-test-scanner`.
+
+
+
 

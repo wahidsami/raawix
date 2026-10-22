@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { config } from '../config.js';
 import { sanitizePatterns } from '../utils/regex-sanitizer.js';
 
-const scanPipelineSchema = z
+export const scanPipelineSchema = z
   .object({
     layer1: z.boolean().optional(),
     layer2: z.boolean().optional(),
@@ -11,10 +11,12 @@ const scanPipelineSchema = z
     analysisAgent: z.boolean().optional(),
     screenshotMode: z.enum(['none', 'viewport', 'full']).optional(),
     scanPreset: z.enum(['full', 'fast']).optional(),
+    agentMaxSteps: z.number().int().positive().optional(),
+    agentMaxMs: z.number().int().positive().optional(),
   })
   .optional();
 
-const scanRequestSchema = z.object({
+export const scanRequestSchema = z.object({
   // New format
   seedUrl: z.string().url('Invalid seedUrl format').optional(),
   maxPages: z.number().int().positive().max(config.quotas.maxPagesHardLimit).optional(),
