@@ -73,10 +73,9 @@ export class GeminiVisionProvider {
                     error: errorText.substring(0, 200),
                 });
                 return { text: null, rawResponse: { error: errorText, status: response.status } };
-            }
             const data = await response.json();
-            const rawResponse = data;
-            // Extract text from Gemini response
+            const rawResponse = this.sanitizeRawResponse(data);
+            // Extract text from Gemini response (excluding thought parts)
             const text = this.extractTextFromResponse(data);
             return { text, rawResponse };
         }
@@ -152,8 +151,8 @@ export class GeminiVisionProvider {
                 return { description: null, rawResponse: { error: errorText, status: response.status } };
             }
             const data = await response.json();
-            const rawResponse = data;
-            // Extract description from Gemini response
+            const rawResponse = this.sanitizeRawResponse(data);
+            // Extract description from Gemini response (excluding thought parts)
             let description = this.extractTextFromResponse(data);
             // Constrain to 1 sentence max
             if (description) {
@@ -178,18 +177,61 @@ export class GeminiVisionProvider {
         }
     }
     /**
-     * Extract text content from Gemini API response
+     * Sanitizes raw provider response before returning.
+     * Strips out parts marked thought: true, raw error dumps, or sensitive internal data.
+     */
+    sanitizeRawResponse(response) {
+        if (!response || typeof response !== 'object') {
+            return response;
+        }
+        try {
+            const sanitized = {};
+            if (response.candidates && Array.isArray(response.candidates)) {
+                sanitized.candidates = response.candidates.map((cand) => {
+                    if (!cand || typeof cand !== 'object') return cand;
+                    const cleanCand = { ...cand };
+                    if (cand.content?.parts && Array.isArray(cand.content.parts)) {
+                        cleanCand.content = {
+                            ...cand.content,
+                            parts: cand.content.parts
+                                .filter((part) => part && !part.thought && typeof part.text === 'string')
+                                .map((part) => ({
+                                    text: part.text,
+                                })),
+                        };
+                    }
+                    return cleanCand;
+                });
+            }
+            if (response.usageMetadata && typeof response.usageMetadata === 'object') {
+                sanitized.usageMetadata = response.usageMetadata;
+            }
+            return sanitized;
+        }
+        catch {
+            return null;
+        }
+    }
+    /**
+     * Extract text content from Gemini API response.
+     * Excludes any parts explicitly marked thought: true, non-text, or empty parts.
      */
     extractTextFromResponse(response) {
         try {
-            if (response.candidates && response.candidates.length > 0) {
+            if (response && Array.isArray(response.candidates) && response.candidates.length > 0) {
                 const candidate = response.candidates[0];
-                if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
-                    const text = candidate.content.parts
-                        .map((part) => part.text || '')
+                if (candidate?.content?.parts && Array.isArray(candidate.content.parts)) {
+                    // Filter out parts marked thought: true, missing, empty, or non-text parts
+                    const nonThoughtParts = candidate.content.parts.filter((part) => part && !part.thought && typeof part.text === 'string');
+                    if (nonThoughtParts.length === 0) {
+                        return null;
+                    }
+                    const text = nonThoughtParts
+                        .map((part) => part.text.trim())
+                        .filter((t) => t.length > 0)
                         .join(' ')
                         .trim();
-                    return text || null;
+                    return text.length > 0 ? text : null;
                 }
             }
             return null;

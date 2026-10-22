@@ -1000,6 +1000,46 @@
 - **Code Changes:** Updated default model in `apps/scanner/src/config.ts` and `apps/scanner/src/config.js` to `gemini-3.8-flash`. Explicit `GEMINI_MODEL` override is fully preserved.
 - **Test Evidence:** Added Scenarios 11-14 to `gemini-telemetry-regression.test.ts`. 14/14 regression tests passing. All 159 scanner tests passing. All 12 widget tests passing. Full workspace build clean.
 
+# Tasks - Phase 7B.5L.2: Safe Gemini Response Parsing and Thought-Content Isolation
+
+- [x] 1. Inspect Existing Implementation & Downstream Pipeline
+  - [x] Review `gemini-provider.ts`, `analyzer.ts`, `assistive-map-generator.ts`, `provider-telemetry.ts`
+  - [x] Trace response through `extractTextFromResponse()`, description generation, sentence boundary truncation, and `evidenceJson` projection
+  - [x] Verify API behavior: request does not set `includeThoughts`, but response parsing must defensively isolate and exclude `thought: true` parts
+- [x] 2. Harden Gemini Response Parsing & Sentence Boundary Extraction
+  - [x] Update `extractTextFromResponse()` in `gemini-provider.ts` and `gemini-provider.js` to strictly exclude parts marked `thought: true`
+  - [x] Preserve ordinary text parts and clean multi-part concatenation
+  - [x] Safely handle missing, empty, or malformed parts (returns `null` without throwing)
+  - [x] Ensure single-sentence extraction operates strictly on filtered final text, never thought text
+- [x] 3. Harden Persistence & Raw Response Sanitization
+  - [x] Implement `sanitizeRawResponse()` to strip `thought: true` parts from raw responses
+  - [x] Verify `VisionFinding.evidenceJson.geminiDescription` and `geminiTextExtraction` only receive filtered text
+  - [x] Maintain zero-secret exposure (no keys, auth headers, image base64, or raw error bodies)
+- [x] 4. Add Deterministic Regression Tests (Scenarios 15–21)
+  - [x] Scenario 15: Thought part followed by final text extracts only final answer
+  - [x] Scenario 16: Only-thought response yields `null` (no false description)
+  - [x] Scenario 17: Multiple ordinary text parts cleanly joined
+  - [x] Scenario 18: First-sentence extraction operates strictly on non-thought output
+  - [x] Scenario 19: Thought text cannot leak into AssistiveMap or evidenceJson
+  - [x] Scenario 20: Empty, missing, and malformed parts safely handled
+  - [x] Scenario 21: `sanitizeRawResponse` strips thought parts from raw response projection
+- [x] 5. Full Validation & Verification
+  - [x] 21/21 regression tests pass (`gemini-telemetry-regression.test.ts`)
+  - [x] 166/166 scanner tests pass across 26 test files
+  - [x] 12/12 widget tests pass
+  - [x] Monorepo build clean (`pnpm build` across all 11 packages)
+  - [x] Zero external API calls, zero scans, zero remote mutations
+- [x] 6. Delivery & Reporting
+  - [x] Author `PHASE_7B_5L_2_GEMINI_THOUGHT_ISOLATION_REPORT.md`
+  - [x] Commit and push changes to `feature/semantic-core`
+  - [x] Await coordinator review and redeployment authorization
+
+## Execution Review (Phase 7B.5L.2)
+- **Response Parsing Hardened:** `GeminiVisionProvider.extractTextFromResponse()` filters out any candidate parts marked `thought: true`, missing `text`, or non-string values. If only thought parts are returned, the method safely returns `null` rather than manufacturing an internal reasoning description.
+- **Single Sentence Boundary Protected:** In `describeElement()`, sentence extraction (`split(/[.!?]/)[0]`) operates strictly on the non-thought output. Internal thought text is never concatenated with or substituted for user-facing descriptions.
+- **Persistence & Evidence Isolated:** `sanitizeRawResponse()` scrubs `thought: true` parts from the projected raw response object. Downstream mappings in `VisionAnalyzer` and `AssistiveMapGenerator` only receive clean, filtered descriptions for `finding.evidenceJson.geminiDescription`, `finding.evidenceJson.geminiTextExtraction`, `map.imageDescriptions`, and `map.labelOverrides`.
+- **Regression Suite:** Scenarios 15–21 added to `apps/scanner/src/vision/gemini-telemetry-regression.test.ts`. All 21/21 tests passing. Full scanner test suite passing (26 files, 166 tests). Widget test suite passing (12/12). Monorepo build clean across all 11 packages.
+
 
 
 

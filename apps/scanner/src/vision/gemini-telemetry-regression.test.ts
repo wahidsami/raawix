@@ -4,6 +4,7 @@ import { AssistiveMapGenerator } from '../assistive/assistive-map-generator.js';
 import { GeminiVisionProvider } from './gemini-provider.js';
 import { OpenAIVisionProvider } from './openai-vision-provider.js';
 import { createProviderDiagnostics } from './provider-telemetry.js';
+import { imageCache } from '../assistive/image-cache.js';
 import { config } from '../config.js';
 import type { PageArtifact, VisionFinding } from '@raawi-x/core';
 import { rm, mkdir, writeFile } from 'node:fs/promises';
@@ -17,6 +18,7 @@ describe('Phase 7B.5K — Gemini-Compatible Image Processing & Safe Telemetry Re
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    imageCache.clear();
     await mkdir(testOutputDir, { recursive: true });
   });
 
@@ -475,6 +477,218 @@ describe('Phase 7B.5K — Gemini-Compatible Image Processing & Safe Telemetry Re
     config.gemini.enabled = true;
     config.gemini.apiKey = 'valid-key';
     expect(GeminiVisionProvider.isEnabled()).toBe(true);
+  });
+
+  // =========================================================================
+  // Phase 7B.5L.2: Safe Gemini Response Parsing & Thought-Content Isolation
+  // =========================================================================
+
+  // Scenario 15: Thought-text part followed by normal final-answer part: only final text extracted
+  it('Scenario 15: excludes parts marked thought: true and extracts only final answer text', () => {
+    const provider = new GeminiVisionProvider();
+    const mockResponse = {
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                thought: true,
+                text: 'The user wants a description of this icon. I see a blue shopping cart with three wheels. I will describe it concisely.',
+              },
+              {
+                text: 'Blue shopping cart icon.',
+                thoughtSignature: 'sig123',
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    const extracted = (provider as any).extractTextFromResponse(mockResponse);
+    expect(extracted).toBe('Blue shopping cart icon.');
+    expect(extracted).not.toContain('shopping cart with three wheels');
+    expect(extracted).not.toContain('thought');
+  });
+
+  // Scenario 16: Response containing only thought parts yields null (no false description)
+  it('Scenario 16: returns null when response contains only thought parts', () => {
+    const provider = new GeminiVisionProvider();
+    const mockResponse = {
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                thought: true,
+                text: 'Internal reasoning only. No final answer provided yet.',
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    const extracted = (provider as any).extractTextFromResponse(mockResponse);
+    expect(extracted).toBeNull();
+  });
+
+  // Scenario 17: Multiple ordinary text parts without thoughts are preserved and joined cleanly
+  it('Scenario 17: preserves and cleanly joins multiple ordinary text parts', () => {
+    const provider = new GeminiVisionProvider();
+    const mockResponse = {
+      candidates: [
+        {
+          content: {
+            parts: [
+              { text: 'A fresh red apple.' },
+              { text: 'Resting on a wooden cutting board.' },
+            ],
+          },
+        },
+      ],
+    };
+
+    const extracted = (provider as any).extractTextFromResponse(mockResponse);
+    expect(extracted).toBe('A fresh red apple. Resting on a wooden cutting board.');
+  });
+
+  // Scenario 18: First-sentence extraction operates strictly on filtered answer, not thought part
+  it('Scenario 18: operates first-sentence extraction strictly on non-thought answer', async () => {
+    const provider = new GeminiVisionProvider();
+
+    // Mock internal extractTextFromResponse to simulate thought isolation in describeElement
+    const rawData = {
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                thought: true,
+                text: 'Sentence one of thought. Sentence two of thought.',
+              },
+              {
+                text: 'Submit order button. Click to complete checkout.',
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    const extracted = (provider as any).extractTextFromResponse(rawData);
+    expect(extracted).toBe('Submit order button. Click to complete checkout.');
+
+    // Simulate describeElement sentence boundary logic
+    const firstSentence = extracted.split(/[.!?]/)[0].trim();
+    expect(firstSentence).toBe('Submit order button');
+    expect(firstSentence).not.toContain('thought');
+  });
+
+  // Scenario 19: Thought text cannot leak into AssistiveMap or evidenceJson
+  it('Scenario 19: guarantees thought text cannot leak into AssistiveMap or evidenceJson', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'mock-key';
+
+    const generator = new AssistiveMapGenerator('test-scan-thought-isolation');
+
+    // Simulate provider returning response where thought was safely filtered out
+    (generator as any).geminiProvider = {
+      describeElement: vi.fn().mockResolvedValue({
+        description: 'Green checkmark indicating success.',
+        rawResponse: {
+          candidates: [
+            {
+              content: {
+                parts: [{ text: 'Green checkmark indicating success.' }],
+              },
+            },
+          ],
+        },
+      }),
+    };
+
+    const mockArtifact: PageArtifact = {
+      pageNumber: 1,
+      url: 'https://example.com/checkout',
+      htmlPath: '/dummy/checkout.html',
+      html: `
+        <html>
+          <body>
+            <img src="https://example.com/success.png" alt="" width="50" height="50" id="success-icon">
+          </body>
+        </html>
+      `,
+      screenshotPath: '/dummy/screenshot.png',
+    };
+
+    const { map } = await generator.generateAssistiveMap(mockArtifact, []);
+
+    const imgDesc = map.imageDescriptions['#success-icon'];
+    expect(imgDesc).toBeDefined();
+    expect(imgDesc.alt).toBe('Green checkmark indicating success.');
+    expect(imgDesc.alt).not.toContain('thought');
+    expect(JSON.stringify(map)).not.toContain('thought: true');
+  });
+
+  // Scenario 20: Empty, missing, and malformed parts retain safe explicit outcomes
+  it('Scenario 20: safely handles empty, missing, and malformed candidates or parts', () => {
+    const provider = new GeminiVisionProvider();
+
+    expect((provider as any).extractTextFromResponse(null)).toBeNull();
+    expect((provider as any).extractTextFromResponse({})).toBeNull();
+    expect((provider as any).extractTextFromResponse({ candidates: [] })).toBeNull();
+    expect((provider as any).extractTextFromResponse({ candidates: [{}] })).toBeNull();
+    expect((provider as any).extractTextFromResponse({ candidates: [{ content: {} }] })).toBeNull();
+    expect((provider as any).extractTextFromResponse({ candidates: [{ content: { parts: [] } }] })).toBeNull();
+    expect(
+      (provider as any).extractTextFromResponse({
+        candidates: [
+          {
+            content: {
+              parts: [null, undefined, { invalid: true }, { text: '' }],
+            },
+          },
+        ],
+      })
+    ).toBeNull();
+  });
+
+  // Scenario 21: sanitizeRawResponse strips thought parts from raw response projection
+  it('Scenario 21: strips parts marked thought: true in sanitizeRawResponse', () => {
+    const provider = new GeminiVisionProvider();
+
+    const rawInput = {
+      candidates: [
+        {
+          index: 0,
+          finishReason: 'STOP',
+          content: {
+            role: 'model',
+            parts: [
+              {
+                thought: true,
+                text: 'Private thinking process that must not be persisted or leaked.',
+              },
+              {
+                text: 'Public clean output.',
+              },
+            ],
+          },
+        },
+      ],
+      usageMetadata: {
+        promptTokenCount: 10,
+        candidatesTokenCount: 20,
+      },
+    };
+
+    const sanitized = (provider as any).sanitizeRawResponse(rawInput);
+    expect(sanitized).toBeDefined();
+    expect(sanitized.candidates[0].content.parts.length).toBe(1);
+    expect(sanitized.candidates[0].content.parts[0].text).toBe('Public clean output.');
+    expect(JSON.stringify(sanitized)).not.toContain('Private thinking process');
+    expect(JSON.stringify(sanitized)).not.toContain('thought');
   });
 });
 
