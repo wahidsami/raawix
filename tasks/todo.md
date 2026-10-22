@@ -610,14 +610,31 @@
 - **Regression Status:** 125/125 scanner tests passing (23 test files), 99/99 widget tests passing, and monorepo production build (`pnpm -r build`) exiting with code 0.
 - **Deliverables:** `PHASE_7B_4_PIPELINE_INTEGRATION_VERIFICATION_REPORT.md` produced. Ready for commit and push.
 
+# Tasks - Phase 7B.5A: Post-Deployment Verification — Test VPS
 
+- [x] 1. Pre-Verification & Environment Health
+  - [x] Verify API health (`GET https://test-api.unifinitylab.com/health` returns HTTP 200 `status: "ok"`)
+  - [x] Verify Report UI loads successfully in browser (`https://test-report.unifinitylab.com`) with 0 console errors
+- [x] 2. Establish Deployed Versions & Interface Compatibility
+  - [x] Establish deployed Report UI bundle version from HTTP headers (`Last-Modified: Thu, 22 Oct 2026 04:02:03 GMT`, post-`7caf193`)
+  - [x] Inspect bundle contents for Phase 7B.3/7B.4 signatures (`scanMonitor.blocked`, `ring-rose-500/20`)
+  - [x] Verify Scanner API interface stability and compatibility across `742879c` and `7caf193` (zero API schema changes)
+- [x] 3. Safe Limits, Gates & Vision Provider Availability
+  - [x] Check effective scanner limits via `/api/scanner/config` (ports [80, 443], SSRF active, loopback blocked)
+  - [x] Check interaction agent limits and execution boundaries (default max 50 steps / 10s)
+  - [x] Confirm autonomous goal execution agent is disabled (`RAAWI_EXECUTION_AGENT_ENABLED=false`)
+  - [x] Verify vision provider configuration (external LLM vision disabled; heuristic detection operational)
+- [x] 4. Isolation & Widget Contract Verification
+  - [x] Confirm test database and artifact storage remain isolated from production
+  - [x] Verify public page-package API contract (`GET /api/widget/page-package`) against `@raawi-x/widget` schema
+- [x] 5. Deliverable & Handoff
+  - [x] Produce `PHASE_7B_5A_POST_DEPLOYMENT_VERIFICATION_REPORT.md`
+  - [x] Stop after verification; await coordinator authorization before runtime acceptance scans
 
-
-
-
-
-
-
-
-
-
+## Execution Review (Phase 7B.5A)
+- **Deployment Status:** Both `https://test-api.unifinitylab.com` and `https://test-report.unifinitylab.com` are healthy, online, and rendering live test data.
+- **Version Provenance:** Report UI static assets (`index-BHPGOhh3.js`) were re-compiled at `04:02:03 GMT` following commit `7caf193` (`03:37:23 GMT`). Scanner API maintains zero interface drift and 100% contract compatibility.
+- **Security & Limits:** SSRF protection is active (ports 80/443 only), external vision LLM keys unset, interaction bounds enforced, and autonomous execution disabled.
+- **Widget Integration:** `/api/widget/page-package` successfully returns structured assistive maps conforming to widget data contracts.
+- **Deliverables:** `PHASE_7B_5A_POST_DEPLOYMENT_VERIFICATION_REPORT.md` written and committed.
+- **Next Step:** HALTED. Awaiting explicit coordinator authorization before launching runtime acceptance scans.
