@@ -5,8 +5,11 @@ import { createHash } from 'node:crypto';
 import type { VisionFinding, EvidenceItem } from '@raawi-x/core';
 import { config } from '../config.js';
 import { StructuredLogger } from '../utils/logger.js';
+import { GeminiVisionProvider } from './gemini-provider.js';
 import { OpenAIVisionProvider } from './openai-vision-provider.js';
 import { ImageCandidateSelector } from '../assistive/image-candidate-selector.js';
+
+export type VisionModelProvider = GeminiVisionProvider | OpenAIVisionProvider;
 
 /**
  * Vision analyzer: Detects potentially inaccessible UI elements using visual analysis
@@ -14,15 +17,17 @@ import { ImageCandidateSelector } from '../assistive/image-candidate-selector.js
 export class VisionAnalyzer {
   private logger: StructuredLogger;
   private scanId?: string;
-  private geminiProvider?: OpenAIVisionProvider;
+  private geminiProvider?: VisionModelProvider;
 
   constructor(scanId?: string) {
     this.scanId = scanId;
     this.logger = new StructuredLogger(scanId);
 
-    // Optional per-element AI vision enrichment. Keep off by default because it can
-    // turn large pages into many sequential external model calls.
-    if (OpenAIVisionProvider.isEnabled() && config.openai.visionElementEnrichment) {
+    // Optional per-element AI vision enrichment.
+    if (GeminiVisionProvider.isEnabled()) {
+      this.geminiProvider = new GeminiVisionProvider();
+      this.logger.info('Gemini Vision provider enabled');
+    } else if (OpenAIVisionProvider.isEnabled() && config.openai.visionElementEnrichment) {
       this.geminiProvider = new OpenAIVisionProvider();
       this.logger.info('OpenAI Vision provider enabled');
     }

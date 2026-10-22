@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { AssistiveMapGenerator } from './assistive-map-generator.js';
+import { config } from '../config.js';
+import { GeminiVisionProvider } from '../vision/gemini-provider.js';
+import { OpenAIVisionProvider } from '../vision/openai-vision-provider.js';
 import dashboardRouter from '../api/dashboard.js';
 import * as dbClient from '../db/client.js';
 import type { Request, Response } from 'express';
@@ -217,3 +220,72 @@ describe('Assistive Map API Endpoint (GET /api/assistive-maps/:id)', () => {
     expect(responseData.map.confidenceSummary.totals.high).toBe(1);
   });
 });
+
+describe('Vision AI Provider Selection & Provenance in AssistiveMapGenerator', () => {
+  it('instantiates GeminiVisionProvider when GEMINI_ENABLED=true and GEMINI_API_KEY is configured', () => {
+    const origGemini = { ...config.gemini };
+    const origOpenai = { ...config.openai };
+
+    try {
+      config.gemini.enabled = true;
+      config.gemini.apiKey = 'ai-test-key-mock';
+      config.openai.enabled = false;
+      config.openai.apiKey = '';
+
+      const generator = new AssistiveMapGenerator('test-scan-gemini');
+      const provider = (generator as any).geminiProvider;
+
+      expect(provider).toBeInstanceOf(GeminiVisionProvider);
+    } finally {
+      config.gemini.enabled = origGemini.enabled;
+      config.gemini.apiKey = origGemini.apiKey;
+      config.openai.enabled = origOpenai.enabled;
+      config.openai.apiKey = origOpenai.apiKey;
+    }
+  });
+
+  it('falls back to OpenAIVisionProvider when Gemini is disabled but OpenAI is enabled', () => {
+    const origGemini = { ...config.gemini };
+    const origOpenai = { ...config.openai };
+
+    try {
+      config.gemini.enabled = false;
+      config.gemini.apiKey = '';
+      config.openai.enabled = true;
+      config.openai.apiKey = 'sk-mock-key';
+
+      const generator = new AssistiveMapGenerator('test-scan-openai');
+      const provider = (generator as any).geminiProvider;
+
+      expect(provider).toBeInstanceOf(OpenAIVisionProvider);
+    } finally {
+      config.gemini.enabled = origGemini.enabled;
+      config.gemini.apiKey = origGemini.apiKey;
+      config.openai.enabled = origOpenai.enabled;
+      config.openai.apiKey = origOpenai.apiKey;
+    }
+  });
+
+  it('leaves provider undefined when neither provider is configured', () => {
+    const origGemini = { ...config.gemini };
+    const origOpenai = { ...config.openai };
+
+    try {
+      config.gemini.enabled = false;
+      config.gemini.apiKey = '';
+      config.openai.enabled = false;
+      config.openai.apiKey = '';
+
+      const generator = new AssistiveMapGenerator('test-scan-none');
+      const provider = (generator as any).geminiProvider;
+
+      expect(provider).toBeUndefined();
+    } finally {
+      config.gemini.enabled = origGemini.enabled;
+      config.gemini.apiKey = origGemini.apiKey;
+      config.openai.enabled = origOpenai.enabled;
+      config.openai.apiKey = origOpenai.apiKey;
+    }
+  });
+});
+

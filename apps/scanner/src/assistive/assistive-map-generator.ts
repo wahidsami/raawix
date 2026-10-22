@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import type { PageArtifact, VisionFinding } from '@raawi-x/core';
 import { config } from '../config.js';
 import { StructuredLogger } from '../utils/logger.js';
+import { GeminiVisionProvider } from '../vision/gemini-provider.js';
 import { OpenAIVisionProvider } from '../vision/openai-vision-provider.js';
 import { createHash } from 'node:crypto';
 import { ImageCandidateSelector } from './image-candidate-selector.js';
@@ -55,9 +56,11 @@ export interface ConfidenceSummary {
 /**
  * Generate Third Layer Assistive Map from Layer 1 (DOM) + Layer 2 (Vision + optional Gemini)
  */
+export type VisionModelProvider = GeminiVisionProvider | OpenAIVisionProvider;
+
 export class AssistiveMapGenerator {
   private logger: StructuredLogger;
-  private geminiProvider?: OpenAIVisionProvider;
+  private geminiProvider?: VisionModelProvider;
   private scanId?: string;
   private geminiImageCount: number = 0; // Track images processed per scan for rate limiting
 
@@ -65,7 +68,9 @@ export class AssistiveMapGenerator {
     this.logger = new StructuredLogger(scanId);
     this.scanId = scanId;
 
-    if (OpenAIVisionProvider.isEnabled()) {
+    if (GeminiVisionProvider.isEnabled()) {
+      this.geminiProvider = new GeminiVisionProvider();
+    } else if (OpenAIVisionProvider.isEnabled()) {
       this.geminiProvider = new OpenAIVisionProvider();
     }
   }
@@ -208,13 +213,17 @@ export class AssistiveMapGenerator {
       const selector = this.generateSelector(img);
       const src = img.getAttribute('src') || '';
 
-      // If Gemini enabled, generate alt text
+      // If Gemini or OpenAI enabled, generate alt text
       if (this.geminiProvider && artifact.screenshotPath) {
+        const maxImages = GeminiVisionProvider.isEnabled()
+          ? config.gemini.maxImagesPerScan
+          : config.openai.maxImagesPerScan;
+
         // E) Safety controls: Rate limit per scan
-        if (this.geminiImageCount >= config.openai.maxImagesPerScan) {
-          this.logger.warn('Gemini image processing rate limit reached', {
+        if (this.geminiImageCount >= maxImages) {
+          this.logger.warn('Vision AI image processing rate limit reached', {
             scanId,
-            maxImages: config.openai.maxImagesPerScan,
+            maxImages,
           });
           continue;
         }
