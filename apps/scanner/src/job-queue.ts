@@ -1634,6 +1634,10 @@ export class JobQueue {
       }
       // Clean up pageCapture reference
       this.activePageCaptures.delete(scanId);
+      try {
+        const { geminiBudgetTracker } = await import('./vision/gemini-budget.js');
+        geminiBudgetTracker.cleanup(scanId);
+      } catch {}
       this.running.delete(job.id);
       this.processQueue(); // Process next job
     }

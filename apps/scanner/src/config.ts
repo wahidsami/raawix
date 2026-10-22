@@ -104,6 +104,7 @@ export const config = {
     maxImageBytes: parseInt(process.env.GEMINI_MAX_IMAGE_BYTES || '10485760', 10), // 10MB default
     maxImagesPerScan: parseInt(process.env.GEMINI_MAX_IMAGES_PER_SCAN || '50', 10), // Rate limit per scan
     maxRequestsPerScan: parseInt(process.env.GEMINI_MAX_REQUESTS_PER_SCAN || '15', 10), // Hard ceiling on total Gemini calls per scan
+    maxRequestsPerMinute: parseInt(process.env.GEMINI_MAX_REQUESTS_PER_MINUTE || '15', 10), // Process-wide rolling 60s request limit
     maxRetries: parseInt(process.env.GEMINI_MAX_RETRIES || '2', 10), // Max retry attempts for retryable errors
     baseDelayMs: parseInt(process.env.GEMINI_BASE_DELAY_MS || '1000', 10), // Base backoff in ms
     maxDelayMs: parseInt(process.env.GEMINI_MAX_DELAY_MS || '5000', 10), // Max single backoff delay

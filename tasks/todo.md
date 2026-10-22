@@ -1120,3 +1120,46 @@
 - **Diagnostic Granularity & Sanitization:** Extended `createProviderDiagnostics` to categorize errors into `rate_limit_exceeded`, `quota_exhausted`, `service_unavailable`, and `request_budget_exhausted` while guaranteeing zero credentials, headers, base64 data, or raw provider bodies are exposed.
 - **Regression Suite:** Added Scenarios 22–31 to `gemini-telemetry-regression.test.ts` (31/31 passing). All 176 scanner tests across 26 test files pass cleanly with zero regressions. Production build succeeds cleanly.
 
+# Tasks - Phase 7B.5N.2: Enforce Physical Request Limits
+
+- [x] 1. Configuration & Global Rate-Limiter Settings
+  - [x] Add `GEMINI_MAX_REQUESTS_PER_MINUTE` (`maxRequestsPerMinute: 15`) in `apps/scanner/src/config.ts`
+- [x] 2. Concurrency-Safe Request Scheduler & Rolling-Window Limiter
+  - [x] Implement mutex-serialized dispatch queue in `GeminiBudgetTracker` (`apps/scanner/src/vision/gemini-budget.ts`)
+  - [x] Track rolling 60-second timestamps for actual physical HTTP dispatches across all scans
+  - [x] Account every outbound attempt (including retries) against per-scan and global budgets
+  - [x] Ensure rejected/budget-exhausted calls do not consume dispatch slots
+  - [x] Implement process-wide circuit breaker for confirmed `quota_exhausted` errors
+- [x] 3. Scan-State Lifecycle & Isolation
+  - [x] Eliminate shared `'default'` key; generate unique ephemeral IDs for un-keyed operations
+  - [x] Add tracking of `pendingRequests` to prevent premature cleanup while requests are in-flight
+  - [x] Implement `cleanup(scanId)` and 15-minute TTL eviction for finished scans
+  - [x] Hook `geminiBudgetTracker.cleanup(scanId)` into `job-queue.ts` finally block
+- [x] 4. Update GeminiVisionProvider Integration
+  - [x] Update `executeWithRetry` in `apps/scanner/src/vision/gemini-provider.ts` to acquire and release dispatch slots per attempt
+  - [x] Ensure retries consume dispatch slots and obey the rolling 60-second window
+  - [x] Trip global circuit breaker upon confirmed quota exhaustion
+- [x] 5. Comprehensive Regression Test Suite (Scenarios 32–38)
+  - [x] Scenario 32: Physical request accounting includes retries
+  - [x] Scenario 33: Rolling-window pacing with concurrent requests
+  - [x] Scenario 34: Concurrent scans share process-level limit
+  - [x] Scenario 35: Confirmed quota exhaustion halts other scans process-wide
+  - [x] Scenario 36: HTTP 503 retry behavior remains bounded
+  - [x] Scenario 37: Per-scan budget exhaustion stops dispatches without consuming global slots
+  - [x] Scenario 38: Cleanup without cross-scan state leakage or premature deletion
+- [x] 6. Verification, Build & Git Push
+  - [x] Run focused regression suite (all 38 scenarios passing)
+  - [x] Run full scanner tests once (all 26 test files passing, 183 tests)
+  - [x] Run scanner build once (`tsc -b`)
+  - [x] Commit and push to `feature/semantic-core`
+
+## Execution Review (Phase 7B.5N.2)
+- **Rolling-Window Pacing & Scheduler:** Implemented a serialized promise-chain scheduler in `GeminiBudgetTracker` enforcing `GEMINI_MAX_REQUESTS_PER_MINUTE` (default 15) across all concurrent scans in the process without race conditions.
+- **Physical Dispatch Accounting:** Outbound HTTP dispatches (including retries) acquire a `DispatchSlot`, incrementing `requestsAttempted` and recording timestamps. Pre-rejected calls (e.g. budget exhaustion) do not claim slots or count against physical usage.
+- **Process-Wide Quota Circuit Breaker:** When confirmed quota exhaustion (`quota_exhausted`) occurs, a bounded 60s global circuit breaker trips, halting futile outbound calls from all other scans in the process.
+- **Scan-State Lifecycle & Ephemeral Isolation:** Removed the `'default'` scan state key; un-keyed requests use unique ephemeral IDs. Added `pendingRequests` guard so in-flight calls are not orphaned by premature cleanup, plus 15-minute TTL eviction. Hooked `geminiBudgetTracker.cleanup(scanId)` into `job-queue.ts` `finally` block.
+- **Zero Real-Time Waiting in Tests:** Added injectable clock and sleep hooks (`setCustomTimer`) so tests simulate rolling-window pacing deterministically in < 200ms.
+- **Verification Results:** 38/38 focused regression tests passed; 183/183 scanner suite tests passed; `tsc -b` build clean.
+
+
+

@@ -1154,6 +1154,288 @@ describe('Phase 7B.5K & 7B.5N — Gemini-Compatible Image Processing, Rate-Limit
     expect(serialized).not.toContain('stack trace');
     expect(serialized).not.toContain('authorization');
   });
+
+  // Scenario 32: Physical request accounting includes retries
+  it('Scenario 32: records every outbound dispatch including retries against scan and process budgets', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+    config.gemini.maxRetries = 2;
+    config.gemini.maxRequestsPerScan = 15;
+    config.gemini.maxRequestsPerMinute = 15;
+
+    const provider = new GeminiVisionProvider('scan-sc32');
+    vi.spyOn(provider as any, 'sleep').mockResolvedValue(undefined);
+
+    let attempts = 0;
+    const doFetchSpy = vi.spyOn(provider as any, 'doFetch').mockImplementation(async () => {
+      attempts++;
+      if (attempts < 3) {
+        return {
+          ok: false,
+          status: 503,
+          text: async () => 'Service Unavailable',
+          headers: new Headers(),
+        } as any;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: 'Visual description succeeded on retry 2.' }] } }],
+        }),
+        headers: new Headers(),
+      } as any;
+    });
+
+    const cropPath = join(testOutputDir, 'crop-sc32.png');
+    await writeFile(cropPath, Buffer.from('mock-bytes-32'));
+
+    const result = await provider.describeElement(cropPath, 'icon');
+    expect(result.description).toBe('Visual description succeeded on retry 2.');
+    expect(doFetchSpy).toHaveBeenCalledTimes(3);
+
+    // Physical request accounting must show all 3 physical attempts
+    const state = geminiBudgetTracker.getState('scan-sc32');
+    expect(state.requestsAttempted).toBe(3);
+    expect(geminiBudgetTracker.getDispatchedCountInLastMinute()).toBe(3);
+    expect(state.pendingRequests).toBe(0);
+  });
+
+  // Scenario 33: Rolling-window pacing with concurrent requests
+  it('Scenario 33: paces concurrent requests without race conditions using a rolling 60s window', async () => {
+    config.gemini.maxRequestsPerMinute = 3;
+    config.gemini.maxRequestsPerScan = 15;
+
+    let virtualClock = 1000000;
+    const sleepCalls: number[] = [];
+    geminiBudgetTracker.setCustomTimer(
+      () => virtualClock,
+      async (ms: number) => {
+        sleepCalls.push(ms);
+        virtualClock += ms;
+      }
+    );
+
+    // Launch 5 concurrent requests simultaneously
+    const acquisitions = [
+      geminiBudgetTracker.acquireDispatchSlot('scan-pace'),
+      geminiBudgetTracker.acquireDispatchSlot('scan-pace'),
+      geminiBudgetTracker.acquireDispatchSlot('scan-pace'),
+      geminiBudgetTracker.acquireDispatchSlot('scan-pace'),
+      geminiBudgetTracker.acquireDispatchSlot('scan-pace'),
+    ];
+
+    const slots = await Promise.all(acquisitions);
+
+    // All 5 requests must eventually be permitted
+    expect(slots.every((s) => s.allowed)).toBe(true);
+
+    // Because maxRequestsPerMinute = 3 and 5 requests arrived simultaneously,
+    // requests beyond capacity must trigger rolling-window pacing delays
+    expect(sleepCalls.length).toBeGreaterThanOrEqual(1);
+    expect(sleepCalls[0]).toBeGreaterThanOrEqual(60000);
+    expect(virtualClock).toBeGreaterThanOrEqual(1000000 + 60000);
+
+    // Clean up slots
+    for (const s of slots) {
+      s.release?.();
+    }
+
+    const state = geminiBudgetTracker.getState('scan-pace');
+    expect(state.requestsAttempted).toBe(5);
+    expect(state.pendingRequests).toBe(0);
+  });
+
+  // Scenario 34: Concurrent scans sharing the process-level limit
+  it('Scenario 34: shares the process-level limit across multiple concurrent scans', async () => {
+    config.gemini.maxRequestsPerMinute = 2;
+
+    let virtualClock = 2000000;
+    const sleepCalls: number[] = [];
+    geminiBudgetTracker.setCustomTimer(
+      () => virtualClock,
+      async (ms: number) => {
+        sleepCalls.push(ms);
+        virtualClock += ms;
+      }
+    );
+
+    // Scan A and Scan B claim 1 slot each, filling the process-wide limit of 2
+    const slotA = await geminiBudgetTracker.acquireDispatchSlot('scan-A');
+    const slotB = await geminiBudgetTracker.acquireDispatchSlot('scan-B');
+
+    expect(slotA.allowed).toBe(true);
+    expect(slotB.allowed).toBe(true);
+    expect(sleepCalls.length).toBe(0);
+
+    // Scan C now attempts to acquire a slot; process limit is full, so it must be paced
+    const slotCPromise = geminiBudgetTracker.acquireDispatchSlot('scan-C');
+    const slotC = await slotCPromise;
+
+    expect(slotC.allowed).toBe(true);
+    expect(sleepCalls.length).toBe(1);
+    expect(sleepCalls[0]).toBeGreaterThanOrEqual(60000);
+
+    // Release all slots
+    slotA.release?.();
+    slotB.release?.();
+    slotC.release?.();
+
+    expect(geminiBudgetTracker.getState('scan-A').requestsAttempted).toBe(1);
+    expect(geminiBudgetTracker.getState('scan-B').requestsAttempted).toBe(1);
+    expect(geminiBudgetTracker.getState('scan-C').requestsAttempted).toBe(1);
+  });
+
+  // Scenario 35: Confirmed quota exhaustion stopping subsequent requests
+  it('Scenario 35: stops subsequent requests process-wide upon confirmed quota exhaustion', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+
+    const providerA = new GeminiVisionProvider('scan-quota-A');
+    const providerB = new GeminiVisionProvider('scan-quota-B');
+
+    const doFetchA = vi.spyOn(providerA as any, 'doFetch').mockResolvedValue({
+      ok: false,
+      status: 429,
+      text: async () => 'RESOURCE_EXHAUSTED: Quota exceeded for project 99999',
+      headers: new Headers(),
+    });
+
+    const doFetchB = vi.spyOn(providerB as any, 'doFetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ candidates: [] }),
+      headers: new Headers(),
+    });
+
+    const cropPath = join(testOutputDir, 'crop-sc35.png');
+    await writeFile(cropPath, Buffer.from('mock-bytes-35'));
+
+    // Scan A encounters quota exhaustion
+    const resA = await providerA.describeElement(cropPath, 'link');
+    expect(resA.description).toBeNull();
+    expect(resA.rawResponse.status).toBe(429);
+    expect(resA.rawResponse.category).toBe('quota_exhausted');
+    expect(doFetchA).toHaveBeenCalledTimes(1);
+
+    // Process circuit breaker must be open
+    expect(geminiBudgetTracker.isGlobalCircuitOpen()).toBe(true);
+    expect(geminiBudgetTracker.getGlobalCircuitReason()).toBe('quota_exhausted');
+
+    // Scan B now attempts a request; it MUST be blocked before network dispatch
+    const resB = await providerB.describeElement(cropPath, 'button');
+    expect(resB.description).toBeNull();
+    expect(resB.rawResponse.category).toBe('quota_exhausted');
+    expect(doFetchB).not.toHaveBeenCalled();
+
+    // Verify scan B did not increment requestsAttempted for pre-rejected call
+    expect(geminiBudgetTracker.getState('scan-quota-B').requestsAttempted).toBe(0);
+  });
+
+  // Scenario 36: HTTP 503 retry behavior remaining bounded
+  it('Scenario 36: bounds HTTP 503 retries and records physical attempts', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+    config.gemini.maxRetries = 2;
+    config.gemini.baseDelayMs = 10;
+    config.gemini.maxDelayMs = 50;
+
+    const provider = new GeminiVisionProvider('scan-503-bound');
+    const sleepSpy = vi.spyOn(provider as any, 'sleep').mockResolvedValue(undefined);
+    const doFetchSpy = vi.spyOn(provider as any, 'doFetch').mockResolvedValue({
+      ok: false,
+      status: 503,
+      text: async () => 'Service Unavailable',
+      headers: new Headers(),
+    });
+
+    const cropPath = join(testOutputDir, 'crop-sc36.png');
+    await writeFile(cropPath, Buffer.from('mock-bytes-36'));
+
+    const result = await provider.describeElement(cropPath, 'table');
+    expect(result.description).toBeNull();
+    expect(result.rawResponse.status).toBe(503);
+    expect(result.rawResponse.category).toBe('service_unavailable');
+
+    // Exactly 1 initial + 2 retries = 3 physical attempts
+    expect(doFetchSpy).toHaveBeenCalledTimes(3);
+    expect(sleepSpy).toHaveBeenCalledTimes(2);
+
+    const state = geminiBudgetTracker.getState('scan-503-bound');
+    expect(state.requestsAttempted).toBe(3);
+    expect(state.pendingRequests).toBe(0);
+  });
+
+  // Scenario 37: Per-scan budget exhaustion stopping dispatches
+  it('Scenario 37: stops outbound dispatches when per-scan budget is exhausted', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+    config.gemini.maxRequestsPerScan = 2;
+
+    const provider = new GeminiVisionProvider('scan-scan-exhaust');
+    const doFetchSpy = vi.spyOn(provider as any, 'doFetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: 'Element description.' }] } }],
+      }),
+      headers: new Headers(),
+    });
+
+    const cropPath = join(testOutputDir, 'crop-sc37.png');
+    await writeFile(cropPath, Buffer.from('mock-bytes-37'));
+
+    // Request 1: succeeds
+    const res1 = await provider.describeElement(cropPath, 'img');
+    expect(res1.description).toBe('Element description.');
+
+    // Request 2: succeeds
+    const res2 = await provider.describeElement(cropPath, 'img');
+    expect(res2.description).toBe('Element description.');
+
+    expect(doFetchSpy).toHaveBeenCalledTimes(2);
+    expect(geminiBudgetTracker.getState('scan-scan-exhaust').requestsAttempted).toBe(2);
+
+    // Request 3: must be stopped by per-scan budget limiter
+    const res3 = await provider.describeElement(cropPath, 'img');
+    expect(res3.description).toBeNull();
+    expect(res3.rawResponse.category).toBe('request_budget_exhausted');
+
+    // doFetch must NOT have been called for request 3
+    expect(doFetchSpy).toHaveBeenCalledTimes(2);
+    expect(geminiBudgetTracker.getState('scan-scan-exhaust').requestsAttempted).toBe(2);
+  });
+
+  // Scenario 38: Cleanup without cross-scan state leakage
+  it('Scenario 38: isolates un-keyed scans and defers cleanup safely while requests are in-flight', async () => {
+    // 1. Un-keyed callers receive unique ephemeral IDs (no shared 'default' state)
+    const stateEphemeral1 = geminiBudgetTracker.getState();
+    const stateEphemeral2 = geminiBudgetTracker.getState('');
+    expect(stateEphemeral1.scanId).toMatch(/^_ephemeral_1_/);
+    expect(stateEphemeral2.scanId).toMatch(/^_ephemeral_2_/);
+    expect(stateEphemeral1.scanId).not.toBe(stateEphemeral2.scanId);
+
+    // 2. Idle scan cleanup removes state immediately
+    geminiBudgetTracker.getState('scan-idle');
+    expect(geminiBudgetTracker.cleanup('scan-idle')).toBe(true);
+
+    // 3. Scan with pending requests defers cleanup until slot is released
+    const slot = await geminiBudgetTracker.acquireDispatchSlot('scan-in-flight');
+    const inFlightState = geminiBudgetTracker.getState('scan-in-flight');
+    expect(inFlightState.pendingRequests).toBe(1);
+
+    // Attempting cleanup while request is in-flight must NOT delete state
+    const cleaned = geminiBudgetTracker.cleanup('scan-in-flight');
+    expect(cleaned).toBe(false);
+    expect(inFlightState.markedForCleanup).toBe(true);
+
+    // Releasing the slot completes deferred cleanup
+    slot.release?.();
+    expect(inFlightState.pendingRequests).toBe(0);
+
+    // Evict stale states check
+    geminiBudgetTracker.evictStaleStates(0); // Evict all idle states
+  });
 });
 
 

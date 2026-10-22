@@ -84,33 +84,34 @@ export class GeminiVisionProvider {
     payload: any,
     operation: 'extract_text' | 'describe_element'
   ): Promise<{ data: any | null; rawResponse: any }> {
-    const budget = geminiBudgetTracker.canMakeRequest(this.scanId);
-    if (!budget.allowed) {
-      this.logger.warn('Gemini request halted by budget tracker or circuit breaker', {
-        scanId: this.scanId,
-        reason: budget.reason,
-        operation,
-      });
-      return {
-        data: null,
-        rawResponse: {
-          status: budget.reason === 'service_unavailable' ? 503 : 429,
-          error: budget.reason === 'request_budget_exhausted'
-            ? 'Request budget exhausted'
-            : (budget.reason === 'quota_exhausted'
-                ? 'Google Gemini quota exhausted'
-                : (budget.reason === 'service_unavailable'
-                    ? 'Service unavailable'
-                    : 'Rate limit exceeded')),
-          category: budget.reason,
-        },
-      };
-    }
-
-    geminiBudgetTracker.recordAttempt(this.scanId);
     const maxRetries = config.gemini.maxRetries;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      // Acquire dispatch slot enforcing per-scan budget and process-wide rolling 60s window
+      const slot = await geminiBudgetTracker.acquireDispatchSlot(this.scanId);
+      if (!slot.allowed) {
+        this.logger.warn('Gemini dispatch halted by scheduler or circuit breaker', {
+          scanId: this.scanId,
+          reason: slot.reason,
+          attempt,
+          operation,
+        });
+        return {
+          data: null,
+          rawResponse: {
+            status: slot.reason === 'service_unavailable' ? 503 : 429,
+            error: slot.reason === 'request_budget_exhausted'
+              ? 'Request budget exhausted'
+              : (slot.reason === 'quota_exhausted'
+                  ? 'Google Gemini quota exhausted'
+                  : (slot.reason === 'service_unavailable'
+                      ? 'Service unavailable'
+                      : 'Rate limit exceeded')),
+            category: slot.reason,
+          },
+        };
+      }
+
       try {
         const response = await this.doFetch(payload);
 
@@ -238,6 +239,8 @@ export class GeminiVisionProvider {
             category: 'network_error',
           },
         };
+      } finally {
+        slot.release?.();
       }
     }
 
