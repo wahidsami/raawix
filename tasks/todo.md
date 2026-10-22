@@ -430,6 +430,43 @@
   - [x] Commit and push documentation to `feature/semantic-core`
   - [x] Stop for coordinator review (no scans, no migrations, no deployments)
 
+# Tasks - Phase 7B.0: Controlled Test Environment Readiness Check
+
+- [x] 1. Baseline and Git Integrity Verification
+  - [x] Verify branch (`feature/semantic-core`), HEAD SHA (`3404336431d1ec4ef42df85407e7cfce0a7b30bd`), clean working tree, and origin synchronization
+- [x] 2. Fixture Route Verification & Startability
+  - [x] Audit route trees in `test-sites/portal-good` (clean portal) and `test-sites/gov-sim` (defect simulation)
+  - [x] Test fixture startup via Vite (`portal-good:4173`, `gov-sim:4174`); identify Blocker 1 (esbuild crashes due to committed `.js` build files shadowing `.tsx` in `src/`)
+- [x] 3. Execution Topology Determination
+  - [x] Confirm scanner execution locus (local Node.js process with local PostgreSQL on 5432; isolated from remote Coolify VPS)
+- [x] 4. Read-Only Fixture Reachability
+  - [x] Verify loopback network path from scanner execution environment to fixture ports
+- [x] 5. SSRF and Network Security Boundary Verification
+  - [x] Inspect `apps/scanner/src/security/ssrf.ts` and `config.ts`
+  - [x] Identify Blocker 2: `allowedPorts` defaults to `[80, 443]` while `ALLOWED_PORTS` is unset in `.env`, causing immediate rejection of fixture ports 4173 and 4174
+  - [x] Formulate safe isolated networking arrangements (explicit dev port whitelist vs reverse proxy) without weakening security rules
+- [x] 6. Persistence, Storage, and UI Isolation
+  - [x] Verify local PostgreSQL database `raawi_x`, local artifact storage (`apps/scanner/output`), and local report UI (`apps/report-ui`) without accessing production resources
+- [x] 7. Configuration and Schema Compatibility
+  - [x] Verify `scanRequestSchema` and `scanPipelineSchema` support for proposed RUN-01, RUN-02, RUN-03 parameters
+  - [x] Differentiate per-scan request flags from process-level environment gates (`AGENT_ENABLED`, `AGENT_MAX_MS`, `AGENT_PROBES_ENABLED`)
+- [x] 8. Fixture Behavioral Fidelity & Data Privacy
+  - [x] Inspect expected defects in `EXPECTED_SCANNER_FINDINGS.md`
+  - [x] Verify mock credentials and client-side simulation (zero sensitive data or external services)
+- [x] 9. Comprehensive Verification Protocol
+  - [x] Establish step-by-step verification methodology for findings, keyboard traces, probes, artifacts, and UI
+- [x] 10. Deliverable and Final Stop
+  - [x] Create `PHASE_7B_0_TEST_ENVIRONMENT_READINESS_REPORT.md` with final NOT READY verdict
+  - [x] Halt and await coordinator authorization before executing any scan
+
+## Execution Review (Phase 7B.0)
+- **Git Baseline:** Verified at commit `3404336431d1ec4ef42df85407e7cfce0a7b30bd` on `feature/semantic-core` with clean working tree.
+- **Fixture Audit:** All expected routes verified in source code for both `portal-good` and `gov-sim`. However, runtime startup fails because stale transpiled `.js` build files committed in `src/` shadow `.tsx` and cause esbuild JSX syntax parse errors (Blocker 1).
+- **SSRF Policy:** Strict SSRF port enforcement permits only `[80, 443]` by default (`ALLOWED_PORTS` unset in `.env`). Requests to `localhost:4173` or `4174` are rejected with HTTP 400 (Blocker 2).
+- **Schema Compatibility:** All parameters for RUN-01, RUN-02, and RUN-03 are fully supported by `scanRequestSchema`.
+- **Verdict:** **NOT READY FOR EXECUTION (BLOCKED)**. Awaiting coordinator authorization to clean stale fixture build files and approve an isolated development port configuration. Zero scans launched.
+
+
 
 
 
