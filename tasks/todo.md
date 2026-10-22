@@ -638,3 +638,31 @@
 - **Widget Integration:** `/api/widget/page-package` successfully returns structured assistive maps conforming to widget data contracts.
 - **Deliverables:** `PHASE_7B_5A_POST_DEPLOYMENT_VERIFICATION_REPORT.md` written and committed.
 - **Next Step:** HALTED. Awaiting explicit coordinator authorization before launching runtime acceptance scans.
+
+# Tasks - Phase 7B.5B: Final Runtime Acceptance Readiness Gate
+
+- [x] 1. Check 1: Verify Actual Deployed Scanner Revision & Limits
+  - [x] Establish actual deployed scanner image/build from deployment metadata (`742879c`)
+  - [x] Trace `agentMaxSteps` and `agentMaxMs` support through HTTP request validation chain
+  - [x] Discover and document schema stripping defect in `apps/scanner/src/middleware/validation.ts` (`scanPipelineSchema` omits fields; Zod strips them before reaching `resolveScanPipeline`)
+  - [x] Confirm internal clamping logic correctly enforces ceilings (50 steps / 10s) when reached
+  - [x] Report effective server limits (`allowedPorts: [80, 443]`, SSRF active, autonomous execution disabled)
+  - [x] Document verdict (FAIL), remaining risk, and required correction
+- [x] 2. Check 2: Investigate AssistiveMap Page Matching & Freshness Safety
+  - [x] Inspect existing page-package response for `https://www.w3.org/WAI/demos/bad/` (`siteId: 989007d4...`, `matchedUrl` with `__cf_chl_rt_tk`, `matchConfidence: "medium"`, `fingerprint: null`)
+  - [x] Identify root cause: map was generated from historical Phase 2 scan `scan_1792479482089_scvi6r1` against Cloudflare challenge redirect
+  - [x] Trace server association: `assistiveMapRepository.findPageVersionByUrl` matches via Strategy 3 (queryless prefix match)
+  - [x] Trace widget live freshness validation: `evaluateFreshness` flags title/heading mismatches as `outdated` and missing fingerprints as `unknown`
+  - [x] Prove architectural remediation safety: `shadow-container.ts` strictly gates `remediator.setAssistiveMap` to `status === 'ready'`; non-ready statuses trigger `setAssistiveMap(null)` and `revert()`; `actionIntents` are never applied to DOM
+  - [x] Document verdict (PASS), zero mutation risk, and runtime recommendations
+- [x] 3. Deliverables & Handoff
+  - [x] Produce `PHASE_7B_5B_FINAL_RUNTIME_READINESS_REPORT.md`
+  - [x] Commit and push to `feature/semantic-core`
+  - [x] STOP and await explicit coordinator authorization before launching final runtime acceptance test
+
+## Execution Review (Phase 7B.5B)
+- **Gate 1 (Scanner Limits):** Deployed container is at `742879c`. A code defect was uncovered in `apps/scanner/src/middleware/validation.ts` where `scanPipelineSchema` omits `agentMaxSteps` and `agentMaxMs`, causing Zod to strip these fields on HTTP requests before they can reach `resolveScanPipeline`. Clamping logic is correct internally, but HTTP requests cannot customize limits until the schema is patched and redeployed.
+- **Gate 2 (AssistiveMap Safety):** The Cloudflare action intents returned by `/api/widget/page-package` originate from the historical Phase 2 scan challenge redirect. Server matches via Strategy 3 queryless prefix. Remediator safety is architecturally verified: `DomRemediator` only applies when status is `'ready'`, reverts on `'outdated'`/`'unknown'`, and only acts on `imageDescriptions`/`labelOverrides` (both are empty `{}`).
+- **Deliverables:** `PHASE_7B_5B_FINAL_RUNTIME_READINESS_REPORT.md` produced.
+- **Status:** HALTED. Awaiting explicit coordinator authorization before any scanner modifications or runtime tests.
+
