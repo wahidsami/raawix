@@ -320,7 +320,13 @@ export async function buildRaawiExportData(params: {
           ? 'نجح'
           : summary.status === 'fail'
             ? 'لم ينجح'
-            : 'لم يعمل'
+            : summary.status === 'blocked'
+              ? 'محظور'
+              : summary.status === 'inconclusive'
+                ? 'غير حاسم'
+                : summary.status === 'incomplete'
+                  ? 'غير مكتمل'
+                  : 'لم يعمل'
         : formatAnalysisAgentPageStatus(summary.status),
     stepCount: summary.stepCount,
     probesText:
@@ -378,7 +384,13 @@ export async function buildRaawiExportData(params: {
                 ? 'نجح'
                 : trace.status === 'fail'
                   ? 'لم ينجح'
-                  : 'لم يعمل'
+                  : trace.status === 'blocked'
+                    ? 'محظور'
+                    : trace.status === 'inconclusive'
+                      ? 'غير حاسم'
+                      : trace.status === 'incomplete'
+                        ? 'غير مكتمل'
+                        : 'لم يعمل'
               : formatAnalysisAgentPageStatus(trace.status),
             locale === 'ar'
               ? `${pageAgentFindings.length} نتائج`

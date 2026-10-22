@@ -959,9 +959,13 @@ export class ExcelReportGenerator {
               ? 'نجح'
               : summary.status === 'fail'
                 ? 'لم ينجح'
-                : summary.status === 'incomplete'
-                  ? 'غير مكتمل'
-                  : 'لم يعمل'
+                : summary.status === 'blocked'
+                  ? 'محظور'
+                  : summary.status === 'inconclusive'
+                    ? 'غير حاسم'
+                    : summary.status === 'incomplete'
+                      ? 'غير مكتمل'
+                      : 'لم يعمل'
             : formatAnalysisAgentPageStatus(summary.status),
           summary.stepCount,
           summary.probeAttemptCount,

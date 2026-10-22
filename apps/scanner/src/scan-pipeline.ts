@@ -1,4 +1,10 @@
 import type { ScanRequest, ResolvedScanPipeline, ScreenshotCaptureMode } from '@raawi-x/core';
+import { config } from './config.js';
+
+export interface ScanPipelineServerLimits {
+  maxSteps: number;
+  maxMs: number;
+}
 
 const FULL: ResolvedScanPipeline = {
   layer1: true,
@@ -14,8 +20,14 @@ const FULL: ResolvedScanPipeline = {
  *
  * `scanPreset: 'fast'` ⇒ L1 on, L2/L3/agent off (DOM + rules path only).
  * `screenshotMode: 'none'` ⇒ Layer 2 off (no screenshot, no vision).
+ *
+ * Safe interaction limits (agentMaxSteps, agentMaxMs):
+ * A request may tighten (lower) the server-configured maximum, but must NEVER exceed it.
  */
-export function resolveScanPipeline(request: ScanRequest): ResolvedScanPipeline {
+export function resolveScanPipeline(
+  request: ScanRequest,
+  serverLimits?: Partial<ScanPipelineServerLimits>
+): ResolvedScanPipeline {
   const p = request.scanPipeline;
   const isSequential = !!(request.selectedUrls && request.selectedUrls.length > 0);
 
@@ -54,9 +66,32 @@ export function resolveScanPipeline(request: ScanRequest): ResolvedScanPipeline 
     screenshotMode = 'none';
   }
 
-  return { layer1, layer2, layer3, analysisAgent, screenshotMode };
+  // Safe interaction limits: request can only tighten server limits, never increase them
+  const serverMaxSteps = serverLimits?.maxSteps ?? config.agent.maxSteps;
+  const serverMaxMs = serverLimits?.maxMs ?? config.agent.maxMs;
+
+  let agentMaxSteps: number | undefined;
+  if (typeof p?.agentMaxSteps === 'number' && Number.isFinite(p.agentMaxSteps)) {
+    agentMaxSteps = Math.max(1, Math.min(Math.floor(p.agentMaxSteps), serverMaxSteps));
+  } else {
+    agentMaxSteps = serverMaxSteps;
+  }
+
+  let agentMaxMs: number | undefined;
+  if (typeof p?.agentMaxMs === 'number' && Number.isFinite(p.agentMaxMs)) {
+    agentMaxMs = Math.max(100, Math.min(Math.floor(p.agentMaxMs), serverMaxMs));
+  } else {
+    agentMaxMs = serverMaxMs;
+  }
+
+  return { layer1, layer2, layer3, analysisAgent, agentMaxSteps, agentMaxMs, screenshotMode };
 }
 
 export function defaultScanPipeline(): ResolvedScanPipeline {
-  return { ...FULL };
+  return {
+    ...FULL,
+    agentMaxSteps: config.agent.maxSteps,
+    agentMaxMs: config.agent.maxMs,
+  };
 }
+

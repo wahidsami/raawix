@@ -3,11 +3,12 @@ import { readFile } from 'node:fs/promises';
 import {
   validateAgentArtifact,
   type InteractionArtifact,
+  type InteractionExecutionOutcome,
   type RaawiJourneyRun,
 } from '../agent/interaction-agent.js';
 import type { RaawiTaskAssessment, RaawiTaskIntent } from '../agent/page-understanding.js';
 
-export type AnalysisAgentPageStatus = 'pass' | 'fail' | 'not_run' | 'incomplete' | 'inconclusive';
+export type AnalysisAgentPageStatus = 'pass' | 'fail' | 'not_run' | 'incomplete' | 'inconclusive' | 'blocked';
 
 export interface AnalysisAgentPageInput {
   pageNumber: number;
@@ -21,6 +22,7 @@ export interface AnalysisAgentPageSummary {
   pageUrl: string;
   executed: boolean;
   status: AnalysisAgentPageStatus;
+  executionOutcome?: InteractionExecutionOutcome;
   stepCount: number;
   probeAttemptCount: number;
   probeSuccessCount: number;
@@ -117,14 +119,20 @@ function summarizeArtifact(
   if (!executed) {
     status = 'not_run';
     traceSummary = 'No keyboard trace recorded';
+  } else if (artifact?.executionOutcome?.status === 'page_closed' || artifact?.executionOutcome?.status === 'navigated_away') {
+    status = 'blocked';
+    traceSummary = `Interaction blocked: ${artifact.executionOutcome.reason || artifact.executionOutcome.status} (${stepCount} step${stepCount === 1 ? '' : 's'})`;
   } else if (stepCount === 0 && probeAttemptCount === 0) {
-    status = 'incomplete';
+    status = artifact?.executionOutcome?.status === 'timeout' ? 'inconclusive' : 'incomplete';
     if (staticIssueCount > 0 || issueCount > 0) {
       const count = staticIssueCount > 0 ? staticIssueCount : issueCount;
       traceSummary = `0 steps, 0 probes attempted (static assessment: ${count} issue${count === 1 ? '' : 's'})`;
     } else {
-      traceSummary = '0 steps, 0 probes attempted (incomplete)';
+      traceSummary = `0 steps, 0 probes attempted (${status})`;
     }
+  } else if (artifact?.executionOutcome?.status === 'error' && stepCount < 5) {
+    status = 'inconclusive';
+    traceSummary = `Interaction inconclusive: ${artifact.executionOutcome.reason || 'error'} (${stepCount} step${stepCount === 1 ? '' : 's'})`;
   } else {
     status = issueCount > 0 ? 'fail' : 'pass';
     traceSummary = `${stepCount} step${stepCount === 1 ? '' : 's'}, ${probeAttemptCount} probe${probeAttemptCount === 1 ? '' : 's'} attempted, ${issueCount} issue${issueCount === 1 ? '' : 's'}`;
@@ -135,6 +143,7 @@ function summarizeArtifact(
     pageUrl: input.pageUrl,
     executed,
     status,
+    ...(artifact?.executionOutcome ? { executionOutcome: artifact.executionOutcome } : {}),
     stepCount,
     probeAttemptCount,
     probeSuccessCount,
@@ -233,6 +242,8 @@ export function formatAnalysisAgentPageStatus(status: AnalysisAgentPageStatus): 
       return 'Incomplete';
     case 'inconclusive':
       return 'Inconclusive';
+    case 'blocked':
+      return 'Blocked';
     default:
       return 'Not run';
   }

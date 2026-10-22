@@ -613,17 +613,26 @@ export default function ScanDetailPage() {
     ? t('scanMonitor.technicalEvidenceIntro') || 'These DOM/WCAG and vision tables support the Raawi agent assessment. They are not the primary Raawi result, but they explain what the technical layers observed.'
     : (t('scans.allFindingsIntro') ||
       'These tables aggregate results across every scanned page so nothing is hidden behind page selection.');
-  const getAnalysisAgentStatusLabel = (status: 'pass' | 'fail' | 'not_run') => {
-    if (status === 'pass') return t('scanMonitor.pass');
-    if (status === 'fail') return t('scanMonitor.notPass');
+  const getAnalysisAgentStatusLabel = (status: string) => {
+    if (status === 'pass') return t('scanMonitor.pass') || 'Pass';
+    if (status === 'fail') return t('scanMonitor.notPass') || 'Not pass';
+    if (status === 'blocked') return t('scanMonitor.blocked') || 'Blocked';
+    if (status === 'inconclusive') return t('scanMonitor.inconclusive') || 'Inconclusive';
+    if (status === 'incomplete') return t('scanMonitor.incomplete') || 'Incomplete';
     return t('scanMonitor.notRun') || 'Not run';
   };
-  const getAnalysisAgentStatusClass = (status: 'pass' | 'fail' | 'not_run') => {
+  const getAnalysisAgentStatusClass = (status: string) => {
     if (status === 'pass') {
       return 'bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-500/20';
     }
     if (status === 'fail') {
       return 'bg-red-500/15 text-red-700 ring-1 ring-red-500/20';
+    }
+    if (status === 'blocked') {
+      return 'bg-rose-500/15 text-rose-700 ring-1 ring-rose-500/20';
+    }
+    if (status === 'inconclusive' || status === 'incomplete') {
+      return 'bg-amber-500/15 text-amber-700 ring-1 ring-amber-500/20';
     }
     return 'bg-muted text-muted-foreground ring-1 ring-border';
   };

@@ -40,7 +40,7 @@ const wcagRulesMap: Record<string, WCAGRuleMeta> = {
   },
   '2.4.7': {
     wcagId: '2.4.7',
-    level: 'A',
+    level: 'AA',
     title: 'Focus Visible',
   },
   '2.1.1': {

@@ -27,12 +27,40 @@ export type InteractionAgentOptions = {
   maxSteps: number;
   maxMs: number;
   probesEnabled: boolean;
+  seedUrl?: string;
 };
 
+export type InteractionExecutionStatus =
+  | 'completed'
+  | 'timeout'
+  | 'navigated_away'
+  | 'page_closed'
+  | 'error'
+  | 'interrupted';
+
+export type InteractionExecutionOutcome = {
+  status: InteractionExecutionStatus;
+  reason?: string;
+  durationMs: number;
+  stepsExecuted: number;
+  maxStepsConfigured: number;
+  maxMsConfigured: number;
+  hitStepLimit: boolean;
+  hitTimeLimit: boolean;
+};
+
+/**
+ * Browser accessibility-tree simulation disclaimer:
+ * Simulating keyboard traversal and inspecting browser ARIA states in Playwright
+ * models key behavioral aspects of how assistive technologies interact with the DOM,
+ * but is NOT equivalent to validated interaction with native screen readers.
+ * Do not claim NVDA, JAWS, VoiceOver, or TalkBack certification without direct testing.
+ */
 export type InteractionArtifact = {
   url: string;
   pageNumber: number;
   capturedAt: string;
+  executionOutcome?: InteractionExecutionOutcome;
   pageProfile?: RaawiPageProfile;
   taskAssessments?: RaawiTaskAssessment[];
   journeyRuns?: RaawiJourneyRun[];
@@ -280,7 +308,7 @@ function captureFocusScript(): {
     }
   }
   if (!name && el.textContent) name = (el.textContent ?? '').trim().replace(/\s+/g, ' ').trim();
-  name = name.slice(0, NAME_CAP);
+  name = name.slice(0, 200);
 
   let selectorHint = '';
   if (id) selectorHint = `#${id}`;
@@ -298,7 +326,7 @@ function captureFocusScript(): {
     role,
     name,
     id,
-    classes: classes == null ? null : (classes as string).slice(0, CLASSES_CAP),
+    classes: classes == null ? null : (classes as string).slice(0, 200),
     href,
     type,
     disabled,
@@ -1385,8 +1413,16 @@ function buildJourneyRuns(
 export async function runInteractionAgent(
   page: Page,
   ctx: { url: string; pageNumber: number },
-  opts: InteractionAgentOptions & { onProgress?: (stepIndex: number, maxSteps: number) => void }
+  options?: Partial<InteractionAgentOptions & { onProgress?: (stepIndex: number, maxSteps: number) => void }>
 ): Promise<InteractionArtifact> {
+  const opts: InteractionAgentOptions & { onProgress?: (stepIndex: number, maxSteps: number) => void } = {
+    maxSteps: options?.maxSteps ?? 50,
+    maxMs: options?.maxMs ?? 60000,
+    probesEnabled: options?.probesEnabled ?? false,
+    seedUrl: options?.seedUrl,
+    onProgress: options?.onProgress,
+  };
+
   const start = Date.now();
   const steps: InteractionArtifact['steps'] = [];
   const issues: InteractionArtifact['issues'] = [];
@@ -1398,6 +1434,36 @@ export async function runInteractionAgent(
   const roleNameCount = new Map<string, number>();
   let focusNotVisibleCount = 0;
   let focusNotVisibleInteractive: Array<{ stepIndex: number; tag: string; role: string | null }> = [];
+
+  let outcomeStatus: InteractionExecutionStatus = 'completed';
+  let outcomeReason: string | undefined;
+  let hitStepLimit = false;
+  let hitTimeLimit = false;
+
+  const checkPageClosed = (): boolean => {
+    try {
+      return typeof page.isClosed === 'function' ? page.isClosed() : false;
+    } catch {
+      return false;
+    }
+  };
+
+  const isNavigatedAway = (): boolean => {
+    try {
+      if (checkPageClosed()) return false;
+      const currentUrl = page.url();
+      if (!currentUrl || currentUrl === 'about:blank') return false;
+      const targetOrigin = opts.seedUrl
+        ? new URL(opts.seedUrl).origin
+        : ctx.url && ctx.url !== 'about:blank'
+        ? new URL(ctx.url).origin
+        : null;
+      if (!targetOrigin) return false;
+      return new URL(currentUrl).origin !== targetOrigin;
+    } catch {
+      return false;
+    }
+  };
 
   const captureStep = async (i: number, action: 'tab' | 'shift+tab') => {
     const raw = await page.evaluate(captureFocusScript);
@@ -1474,49 +1540,129 @@ export async function runInteractionAgent(
       console.warn('[InteractionAgent] Page profile capture failed:', profileErr);
     }
 
-    await page.keyboard.press('Tab');
-    await page.waitForTimeout(50);
-    await captureStep(0, 'tab');
+    if (checkPageClosed()) {
+      outcomeStatus = 'page_closed';
+      outcomeReason = 'Page was closed before keyboard interaction began.';
+    } else {
+      // Step 0: Initial focus (only if maxSteps >= 1 and deadline not exceeded)
+      if (steps.length < opts.maxSteps && Date.now() - start < opts.maxMs) {
+        try {
+          await page.keyboard.press('Tab');
+          await page.waitForTimeout(50);
+          await captureStep(0, 'tab');
+          maybeProgress(1);
+        } catch (stepErr: any) {
+          if (checkPageClosed() || String(stepErr?.message).includes('closed')) {
+            outcomeStatus = 'page_closed';
+            outcomeReason = 'Page closed during initial focus step.';
+          } else {
+            outcomeStatus = 'error';
+            outcomeReason = stepErr?.message || String(stepErr);
+          }
+        }
+      }
 
-    for (let i = 1; i < opts.maxSteps; i++) {
-      if (Date.now() - start >= opts.maxMs) break;
+      // Forward Tab traversal
+      // Total steps (forward + backward) must strictly never exceed opts.maxSteps
+      const backwardBudget = Math.min(10, Math.floor(opts.maxSteps / 5));
+      const forwardMax = Math.max(1, opts.maxSteps - backwardBudget);
 
-      await page.keyboard.press('Tab');
-      await page.waitForTimeout(50);
-      await captureStep(i, 'tab');
-      maybeProgress(i);
+      while (steps.length < forwardMax && Date.now() - start < opts.maxMs && outcomeStatus === 'completed') {
+        if (checkPageClosed()) {
+          outcomeStatus = 'page_closed';
+          outcomeReason = 'Target page or browser closed during forward keyboard traversal.';
+          break;
+        }
+        if (isNavigatedAway()) {
+          outcomeStatus = 'navigated_away';
+          outcomeReason = `Page navigated away to an unexpected origin: ${page.url()}`;
+          break;
+        }
 
-      const windowStart = Math.max(0, steps.length - LOOP_WINDOW);
-      const windowSteps = steps.slice(windowStart);
-      const lastStep = steps[steps.length - 1];
-      const sig = focusSignature(lastStep.active as ActiveSnapshot);
-      const countInWindow = windowSteps.filter(
-        (s) => focusSignature(s.active as ActiveSnapshot) === sig
-      ).length;
-      if (countInWindow >= LOOP_REPEAT_THRESHOLD) {
-        issues.push({
-          kind: 'focus_trap',
-          message: `Keyboard focus appears trapped: same focus target repeated ${countInWindow} times within ${LOOP_WINDOW} steps.`,
-          confidence: Math.min(0.95, 0.5 + countInWindow * 0.15),
-          evidence: {
-            stepIndexes: windowSteps.map((s) => s.i),
-            signature: sig,
-            repeatCount: countInWindow,
-          },
-          suggestedWcagIds: ['2.1.2', '2.4.3'],
-          howToVerify:
-            'Tab through the page; if focus cycles without reaching new content, a focus trap is likely.',
-        });
-        break;
+        const stepIndex = steps.length;
+        try {
+          await page.keyboard.press('Tab');
+          await page.waitForTimeout(50);
+          await captureStep(stepIndex, 'tab');
+          maybeProgress(stepIndex + 1);
+        } catch (tabErr: any) {
+          if (checkPageClosed() || String(tabErr?.message).includes('closed')) {
+            outcomeStatus = 'page_closed';
+            outcomeReason = 'Target page closed during Tab traversal.';
+          } else {
+            outcomeStatus = 'error';
+            outcomeReason = tabErr?.message || String(tabErr);
+          }
+          break;
+        }
+
+        const windowStart = Math.max(0, steps.length - LOOP_WINDOW);
+        const windowSteps = steps.slice(windowStart);
+        const lastStep = steps[steps.length - 1];
+        const sig = focusSignature(lastStep.active as ActiveSnapshot);
+        const countInWindow = windowSteps.filter(
+          (s) => focusSignature(s.active as ActiveSnapshot) === sig
+        ).length;
+        if (countInWindow >= LOOP_REPEAT_THRESHOLD) {
+          issues.push({
+            kind: 'focus_trap',
+            message: `Keyboard focus appears trapped: same focus target repeated ${countInWindow} times within ${LOOP_WINDOW} steps.`,
+            confidence: Math.min(0.95, 0.5 + countInWindow * 0.15),
+            evidence: {
+              stepIndexes: windowSteps.map((s) => s.i),
+              signature: sig,
+              repeatCount: countInWindow,
+            },
+            suggestedWcagIds: ['2.1.2', '2.4.3'],
+            howToVerify:
+              'Tab through the page; if focus cycles without reaching new content, a focus trap is likely.',
+          });
+          break;
+        }
+      }
+
+      // Backward Shift+Tab traversal (total steps bounded by opts.maxSteps)
+      while (steps.length < opts.maxSteps && Date.now() - start < opts.maxMs && outcomeStatus === 'completed') {
+        if (checkPageClosed()) {
+          outcomeStatus = 'page_closed';
+          outcomeReason = 'Target page closed during backward Shift+Tab traversal.';
+          break;
+        }
+        if (isNavigatedAway()) {
+          outcomeStatus = 'navigated_away';
+          outcomeReason = `Page navigated away during Shift+Tab traversal: ${page.url()}`;
+          break;
+        }
+
+        const stepIndex = steps.length;
+        try {
+          await page.keyboard.press('Shift+Tab');
+          await page.waitForTimeout(50);
+          await captureStep(stepIndex, 'shift+tab');
+          maybeProgress(stepIndex + 1);
+        } catch (shiftErr: any) {
+          if (checkPageClosed() || String(shiftErr?.message).includes('closed')) {
+            outcomeStatus = 'page_closed';
+            outcomeReason = 'Target page closed during Shift+Tab traversal.';
+          } else {
+            outcomeStatus = 'error';
+            outcomeReason = shiftErr?.message || String(shiftErr);
+          }
+          break;
+        }
       }
     }
 
-    const backwardSteps = Math.min(10, Math.max(0, Math.floor(opts.maxSteps / 5)));
-    for (let k = 0; k < backwardSteps; k++) {
-      if (Date.now() - start >= opts.maxMs) break;
-      await page.keyboard.press('Shift+Tab');
-      await page.waitForTimeout(50);
-      await captureStep(steps.length, 'shift+tab');
+    if (Date.now() - start >= opts.maxMs) {
+      hitTimeLimit = true;
+      if (outcomeStatus === 'completed') {
+        outcomeStatus = 'timeout';
+        outcomeReason = `Execution time reached deadline of ${opts.maxMs}ms`;
+      }
+    }
+
+    if (steps.length >= opts.maxSteps) {
+      hitStepLimit = true;
     }
 
     if (unnamedExamples.length > 0) {
@@ -2422,14 +2568,33 @@ export async function runInteractionAgent(
     }
 
     journeyRuns = buildJourneyRuns(pageProfile, taskAssessments, probes, issues, steps.length);
-  } catch (err) {
+  } catch (err: any) {
     console.warn('[InteractionAgent] Run error:', err);
+    if (checkPageClosed() || String(err?.message).includes('closed')) {
+      outcomeStatus = 'page_closed';
+      outcomeReason = 'Target page or browser closed during interaction';
+    } else if (outcomeStatus === 'completed') {
+      outcomeStatus = 'error';
+      outcomeReason = err instanceof Error ? err.message : String(err);
+    }
   }
+
+  const executionOutcome: InteractionExecutionOutcome = {
+    status: outcomeStatus,
+    reason: outcomeReason,
+    durationMs: Date.now() - start,
+    stepsExecuted: steps.length,
+    maxStepsConfigured: opts.maxSteps,
+    maxMsConfigured: opts.maxMs,
+    hitStepLimit,
+    hitTimeLimit,
+  };
 
   const artifact: InteractionArtifact = {
     url: ctx.url,
     pageNumber: ctx.pageNumber,
     capturedAt: new Date().toISOString(),
+    executionOutcome,
     ...(pageProfile ? { pageProfile } : {}),
     ...(taskAssessments.length > 0 ? { taskAssessments } : {}),
     ...(journeyRuns.length > 0 ? { journeyRuns } : {}),

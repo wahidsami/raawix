@@ -570,12 +570,14 @@ export class PageCapture {
               timestamp: new Date().toISOString(),
             } as any);
           }
+          const effectiveMaxSteps = pl.agentMaxSteps ?? config.agent.maxSteps;
+          const effectiveMaxMs = pl.agentMaxMs ?? config.agent.maxMs;
           const artifact = await runInteractionAgent(
             page,
             { url: finalUrl, pageNumber },
             {
-              maxSteps: config.agent.maxSteps,
-              maxMs: config.agent.maxMs,
+              maxSteps: effectiveMaxSteps,
+              maxMs: effectiveMaxMs,
               probesEnabled: config.agent.probesEnabled,
               onProgress: (stepIndex: number, maxSteps: number) => {
                 if (!this.scanId) return;

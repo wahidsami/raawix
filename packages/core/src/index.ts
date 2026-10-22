@@ -14,6 +14,16 @@ export interface ScanPipelineOptions {
   /** Keyboard interaction trace + detectors (“Analysis AI agent”). */
   analysisAgent?: boolean;
   /**
+   * Optional request-level step cap for keyboard interaction agent.
+   * Can only tighten (lower) the server-configured maximum, never exceed it.
+   */
+  agentMaxSteps?: number;
+  /**
+   * Optional request-level timeout in milliseconds for keyboard interaction agent.
+   * Can only tighten (lower) the server-configured maximum, never exceed it.
+   */
+  agentMaxMs?: number;
+  /**
    * When layer2 is on: full-page screenshot (default), viewport-only, or no capture.
    * Resolver treats `none` as Layer 2 off (no screenshot, no vision).
    */
@@ -31,6 +41,8 @@ export interface ResolvedScanPipeline {
   layer2: boolean;
   layer3: boolean;
   analysisAgent: boolean;
+  agentMaxSteps?: number;
+  agentMaxMs?: number;
   screenshotMode: ScreenshotCaptureMode;
 }
 
