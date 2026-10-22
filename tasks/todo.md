@@ -781,9 +781,34 @@
 - **Multilayer Findings:** Layer 1 (8 missing recipe alts, 3 contrast failures), Layer 2 (8 unlabeled clickable container buttons), Layer 3 (focus trap repeated 3x in 15 steps, 13 steps without visible focus indicator, missing alt during task).
 - **AssistiveMap & Widget Pipeline:** Fresh AssistiveMap generated with 9 action intents and 3 landmarks. Query to `GET /api/widget/page-package` verified with `matchConfidence: high`. Freshness rejection of stale/mismatched packages, safe non-destructive DOM remediation, and complete ownership-aware restoration verified (3/3 automated tests passing).
 - **Status:** Complete. Awaiting coordinator review.
+# Tasks - Phase 7B.5F: AssistiveMap Correction Provenance & Widget Integration Closure
 
+- [x] 1. Part A: Inspect the Actual Map & Provenance
+  - [x] Inspect persisted map and artifact files for `scan_1792646398336_ukv6vlm`
+  - [x] Record exact contents and presence of `imageDescriptions`, `labelOverrides`, `actionIntents`, and `forms`
+  - [x] Correlate existing page-package API response with scan ID, fingerprint, and timestamps
+  - [x] Trace exact payload used in `scratch/verify_phase7b_5e_widget.test.ts` (distinguish unmodified live package vs testMap mock)
+- [x] 2. Part B: Verify Corrections Against Upstream Evidence
+  - [x] Trace how AssistiveMap is generated from Layer 1/2/3 in `report-generator.ts` and `assistive-map-generator.ts`
+  - [x] Determine whether empty `imageDescriptions` and `labelOverrides` in live scan is expected or a code/pipeline gap
+  - [x] Verify safety policies: authored names/labels, decorative empty alts, selector uniqueness, confidence gating
+- [x] 3. Part C: Audit Blind Agent Finding RA-001-022
+  - [x] Inspect trace and heuristic trigger for `RA-001-022` (Authenticated Workspace Navigation Unclear)
+  - [x] Inspect why `hasAccountArea: true` was triggered on `broken-workshop.dequelabs.com`
+  - [x] Implement local fix for false positive heuristic if unsupported and add regression tests
+- [x] 4. Part D: Verify Widget Runtime Coverage & Boundaries
+  - [x] Clarify distinction between isolated DOM unit tests and full browser embedding
+  - [x] Document verified coverage boundaries without overstatement
+- [x] 5. Implementation, Regression & Delivery
+  - [x] Run scanner and widget test suites (142/142 scanner tests passing, 12/12 widget phase 5.1 tests passing)
+  - [x] Produce `PHASE_7B_5F_ASSISTIVEMAP_WIDGET_CLOSURE_REPORT.md`
+  - [x] Commit and push to `feature/semantic-core`
+  - [x] Stop and await coordinator review
 
-
-
-
+## Execution Review (Phase 7B.5F)
+- **AssistiveMap Provenance Audited:** The persisted map for `scan_1792646398336_ukv6vlm` contains 9 `actionIntents` and 3 landmarks, but `imageDescriptions` and `labelOverrides` are empty `{}`. Upstream code analysis revealed that `AssistiveMapGenerator` only synthesizes labels/descriptions when `this.geminiProvider` is active; because external LLM vision was disabled on the test scanner per safe boundary rules, no remediation fields were generated.
+- **Test Payload Clarification:** `scratch/verify_phase7b_5e_widget.test.ts` correctly consumed the unmodified live package for freshness and schema evaluation (Tests 1 & 2), but utilized an enriched synthetic fixture for Test 3 to test the widget's remediation and rollback logic. This distinction is now documented with evidentiary clarity.
+- **Finding RA-001-022 Root Cause & Fix:** Flagged defect `RA-001-022` ("Authenticated Workspace Navigation Unclear") was a false positive triggered by a naive keyword match on `"dashboard"` in `<h1>Recipe Dashboard</h1>` on a static public page. Fixed in `apps/scanner/src/agent/page-understanding.ts` to require interactive controls (`accountControls > 0 || logoutControls > 0`) or an authenticated route (`/app/`, `/dashboard/`, etc.). Added regression tests in `apps/scanner/src/agent/page-understanding.test.ts` (142/142 tests passing).
+- **Widget Runtime Coverage Boundaries:** Accurately delineated the 3 tiers of widget verification: (1) Live API retrieval verified via HTTPS on test VPS; (2) Isolated DOM remediation verified with JSDOM; (3) Packaged widget embedding verified on Playwright browser fixtures (`portal-good`). No injection on third-party origins was performed or claimed.
+- **Deliverables:** `PHASE_7B_5F_ASSISTIVEMAP_WIDGET_CLOSURE_REPORT.md` produced, verified, and pushed to `feature/semantic-core`.
 

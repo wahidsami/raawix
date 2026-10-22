@@ -281,7 +281,12 @@ function buildTaskIntents(raw: RawPageProfile, pageType: RaawiPageType): RaawiTa
     });
   }
 
-  if (pageType === 'dashboard' || raw.signals.hasAuthenticatedWorkspace) {
+  const hasAuthWorkspaceEvidence =
+    pageType === 'dashboard' ||
+    (raw.signals.hasAuthenticatedWorkspace &&
+      (raw.counts.accountControls > 0 || raw.signals.hasLogout || raw.counts.logoutControls > 0));
+
+  if (hasAuthWorkspaceEvidence) {
     tasks.push({
       id: 'navigate-authenticated-workspace',
       label: 'Navigate authenticated workspace and account controls',
@@ -454,19 +459,27 @@ export async function captureRaawiPageProfile(page: Page, url: string): Promise<
         hasContact: hasWord(['contact', 'support', 'message', 'تواصل', 'اتصل', 'الدعم']),
         hasAccountArea: hasWord(['account', 'profile', 'dashboard', 'settings', 'workspace', 'portal', 'الحساب', 'الملف', 'لوحة التحكم', 'الإعدادات']),
         hasLogout: hasWord(['logout', 'log out', 'sign out', 'signout', 'تسجيل الخروج', 'خروج']),
-        hasAuthenticatedWorkspace: hasWord([
-          'dashboard',
-          'workspace',
-          'account',
-          'profile',
-          'settings',
-          'portal',
-          'my account',
-          'لوحة',
-          'الحساب',
-          'الملف',
-          'الإعدادات',
-        ]),
+        hasAuthenticatedWorkspace:
+          hasWord(['logout', 'log out', 'sign out', 'signout', 'تسجيل الخروج', 'خروج']) ||
+          (hasWord([
+            'dashboard',
+            'workspace',
+            'account',
+            'profile',
+            'settings',
+            'portal',
+            'my account',
+            'لوحة',
+            'الحساب',
+            'الملف',
+            'الإعدادات',
+          ]) &&
+            ([...links, ...buttons].some((element) =>
+              /account|profile|dashboard|settings|workspace|portal|logout|sign out|خروج|الحساب|الملف|الإعدادات/i.test(
+                accessibleName(element)
+              )
+            ) ||
+              /^\/(?:app|dashboard|workspace|account|portal)\b/i.test(currentUrl))),
         hasDynamicUpdateRisk:
           document.querySelector('[aria-expanded], [aria-haspopup], [role="dialog"], [aria-modal="true"], [role="tablist"]') != null ||
           document.querySelector('[role="search"], input[type="search"]') != null ||
@@ -774,6 +787,32 @@ export function assessRaawiTaskIntents(profile: RaawiPageProfile): RaawiTaskAsse
       const hasWorkspaceStructure =
         !!profile.mainHeading &&
         (profile.landmarks.includes('main') || profile.landmarks.includes('navigation') || profile.landmarks.length >= 2);
+
+      // If page has no account controls, no logout controls, and is not a dashboard route,
+      // it is a public page lacking authenticated workspace context.
+      if (
+        profile.pageType !== 'dashboard' &&
+        profile.counts.accountControls === 0 &&
+        profile.counts.logoutControls === 0 &&
+        !profile.signals.hasLogout
+      ) {
+        return {
+          taskId: task.id,
+          label: task.label,
+          category: task.category,
+          result: 'working',
+          confidence: 0.6,
+          summary: 'Public content evaluated; no authenticated workspace or account management cues required.',
+          evidence: {
+            pageType: profile.pageType,
+            mainHeading: profile.mainHeading,
+            landmarks: profile.landmarks,
+            accountControls: 0,
+            logoutControls: 0,
+          },
+        };
+      }
+
       if (profile.counts.buttonsWithoutName > 0 || profile.counts.linksWithoutName > 0) {
         return {
           taskId: task.id,
