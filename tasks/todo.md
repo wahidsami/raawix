@@ -880,5 +880,104 @@
 - **Widget Live Safety:** `GET /api/widget/page-package` successfully retrieved the live package with `matchConfidence: "high"` and matching fingerprint. Automated tests (`scratch/verify_phase7b_5h_widget.test.ts`) passed 3/3: live package accepted by freshness engine (`ready`), non-destructive host DOM application, and complete teardown/rollback on simulated content drift.
 - **Deliverables:** `PHASE_7B_5H_POST_DEPLOYMENT_GEMINI_SCAN_REPORT.md` authored. Awaiting coordinator review.
 
+# Tasks - Phase 7B.5I: Gemini Runtime Diagnostic Only
+
+- [x] 1. Evidence Inspection & Diagnostic Review
+  - [x] Inspect code paths: `apps/scanner/src/vision/analyzer.ts`, `apps/scanner/src/assistive/assistive-map-generator.ts`, `apps/scanner/src/vision/gemini-provider.ts`
+  - [x] Inspect configuration loading: `config.ts`, `GEMINI_ENABLED`, `GEMINI_API_KEY`, `model`
+  - [x] Inspect candidate filtering & invocation: candidate passing in `AssistiveMapGenerator`, element cropping, format
+  - [x] Analyze existing scan artifacts (`scan_1792649614072_hgdcsvz` details, events, findings) for any logged error, warning, or provider telemetry
+  - [x] Check if `GeminiVisionProvider` method `describeInteractiveElements` or `describeElement` has failure modes returning empty objects or throwing caught errors
+- [x] 2. Answer Core Diagnostic Questions
+  - [x] Q1: Live container revision (confirmed vs not observed vs unknown)
+  - [x] Q2: `GEMINI_ENABLED` evaluation in process
+  - [x] Q3: `GEMINI_API_KEY` presence (without reading/exposing value)
+  - [x] Q4: Which provider is selected by each path (`VisionAnalyzer` vs `AssistiveMapGenerator`)
+  - [x] Q5: Was an outbound Gemini API request attempted during `scan_1792649614072_hgdcsvz`?
+  - [x] Q6: If attempted/succeeded, where was output lost or discarded?
+  - [x] Q7: Does the system silently fall back to OpenAI / heuristics, and is it distinguishable?
+- [x] 3. Synthesize Findings & Produce Diagnostic Report
+  - [x] Author `PHASE_7B_5I_GEMINI_RUNTIME_DIAGNOSTIC_REPORT.md`
+  - [x] Include clear verdicts: CONFIRMED, NOT OBSERVED, UNKNOWN
+  - [x] Propose minimal safe follow-up test if existing evidence is insufficient
+  - [x] Update `tasks/todo.md` with execution review (do NOT commit/push)
+  - [x] Stop and await coordinator review
+
+## Execution Review (Phase 7B.5I)
+- **Overall Verdict:** `PARTIALLY CONFIRMED`.
+- **Revision & Live Fix (CONFIRMED):** Container restarted at `2026-10-22T06:10:01Z`. Live scan `scan_1792649614072_hgdcsvz` proved that defect `RA-001-022` fix was active (0 false positives).
+- **Provider Selection (CONFIRMED):** In both `VisionAnalyzer` and `AssistiveMapGenerator`, code selects `GeminiVisionProvider` when `GeminiVisionProvider.isEnabled()` is true, otherwise falling back to null/DOM heuristics.
+- **Gemini Outputs (CONFIRMED NOT OBSERVED):** Zero descriptions, zero text, zero evidenceJson, and empty remediation maps (`labelOverrides: {}`, `imageDescriptions: {}`).
+- **Container Environment (UNKNOWN / LIKELY FALSE):** Whether `GEMINI_ENABLED === 'true'` and `GEMINI_API_KEY` are populated in the container process cannot be directly confirmed from client responses due to secret-safe redacting. Timing evidence (3.8s for 8 Playwright crops, ~550ms/crop) strongly suggests `isEnabled()` returned `false` with no network round-trips.
+- **Code Defects Uncovered (CONFIRMED):**
+  1. `VisionAnalyzer.processImagesForAssistiveMap` line 595 checks ONLY `OpenAIVisionProvider.isEnabled()`, bypassing image cropping when OpenAI is disabled.
+  2. `VisionAnalyzer` silently drops error responses from `describeElement` / `extractText` when `description` is null, preventing error telemetry from appearing in scan findings.
+- **Deliverables:** `PHASE_7B_5I_GEMINI_RUNTIME_DIAGNOSTIC_REPORT.md` authored. Zero scans launched, zero outbound provider calls made, zero changes committed/pushed.
+
+# Tasks - Phase 7B.5J: Read-Only Gemini Configuration and Log Investigation
+
+- [x] 1. Step 1: Inspect Existing Startup and Request Logs
+  - [x] Check available Coolify/container logs or diagnostic logs via authorized read-only access
+  - [x] Search for `Gemini Vision provider enabled`, `OpenAI Vision provider enabled`
+  - [x] Search for Gemini request failures, HTTP status codes, or missing configuration warnings
+  - [x] Search for existing errors around image processing, `describeElement`, or provider response handling
+  - [x] Strictly redact all credentials, authorization headers, and sensitive tokens
+- [x] 2. Step 2: Verify Configuration Safely
+  - [x] Determine whether `GEMINI_ENABLED` is exactly `true` in the Coolify resource configuration
+  - [x] Determine whether `GEMINI_API_KEY` is present and non-empty (boolean presence only, no value/length reported)
+  - [x] Confirm no variables or configurations are mutated
+- [x] 3. Step 3: Report Image-Processing Defect
+  - [x] Document the confirmed issue in `VisionAnalyzer.processImagesForAssistiveMap()` (checking only `OpenAIVisionProvider.isEnabled()`)
+  - [x] Explain the smallest appropriate code correction so image cropping functions whenever any supported vision provider is enabled
+- [x] 4. Step 4: Deliver Comprehensive Diagnostic Report
+  - [x] Author `PHASE_7B_5J_GEMINI_CONFIG_LOG_INVESTIGATION_REPORT.md`
+  - [x] Separate confirmed facts, inferences, and unknowns
+  - [x] Update `tasks/todo.md` with execution review (do NOT commit/push)
+  - [x] Stop and await coordinator review
+
+## Execution Review (Phase 7B.5J)
+- **Step 1 (Log Investigation):** Container stdout/stderr logs (`StructuredLogger`) are captured by Docker on the VPS and are not accessible from the local workstation or exposed by any public endpoint. In addition, `VisionAnalyzer.analyzeCandidate` silently drops error payloads from `describeElement` when `description` is null, preventing provider HTTP error status codes from being recorded in scan detail artifacts.
+- **Step 2 (Configuration Verification):** Direct inspection of Coolify environment variables requires operator dashboard access. The public API endpoints properly redact all credentials. Timing evidence (3.8s for 8 Playwright crops, ~550 ms/crop) indicates no outbound Google API requests occurred, pointing to `GEMINI_ENABLED` not evaluating to `true` or `GEMINI_API_KEY` being unpopulated.
+- **Step 3 (Image-Processing Defect):** Confirmed defect in `VisionAnalyzer.processImagesForAssistiveMap()` (lines 590-597) which checks ONLY `OpenAIVisionProvider.isEnabled()`. When OpenAI is disabled, image cropping is skipped entirely, causing downstream AssistiveMap generation to fall back to the entire viewport screenshot. Proposed minimal 1-line correction (`if (!GeminiVisionProvider.isEnabled() && !OpenAIVisionProvider.isEnabled()) return;`).
+- **Operational Boundaries:** Exactly 0 scans, 0 crawls, 0 outbound provider calls, 0 code edits, and 0 git commits/pushes performed.
+- **Deliverables:** `PHASE_7B_5J_GEMINI_CONFIG_LOG_INVESTIGATION_REPORT.md` authored. Awaiting coordinator review.
+
+# Tasks - Phase 7B.5K: Gemini-Compatible Image Processing and Safe Error Telemetry
+
+- [x] 1. Fix Image-Cropping Provider Guard
+  - [x] Update `VisionAnalyzer.processImagesForAssistiveMap()` to allow cropping when either `GeminiVisionProvider.isEnabled()` or `OpenAIVisionProvider.isEnabled()` is true
+  - [x] Audit surrounding call sites in `analyzer.ts` and `assistive-map-generator.ts` for any other provider-specific blocks
+- [x] 2. Implement Safe Provider-Error Telemetry & Provenance
+  - [x] Design sanitized telemetry structure (provider name, operation, status/category, error code, imageSource)
+  - [x] Update `VisionAnalyzer.analyzeCandidate()` to record sanitized provider telemetry without leaking secrets/headers/bodies
+  - [x] Update `AssistiveMapGenerator.processVisionFindings()` and `processImages()` to record provenance and distinguish provider-disabled vs request-failed vs no-description vs success
+  - [x] Ensure full viewport fallback is clearly identified in metadata (`imageSource: 'crop' | 'viewport_fallback'`) so fallback is not mistaken for cropped image
+- [x] 3. Create Comprehensive Regression Test Suite
+  - [x] Write unit/integration tests with deterministic mocks for all 7 required scenarios
+  - [x] Verify sanitization: no API keys, auth headers, image base64, or raw error bodies in persisted objects
+- [x] 4. Validate Pipeline & Monorepo Build
+  - [x] Run scanner test suites (`pnpm test` in `apps/scanner`)
+  - [x] Run widget test suites
+  - [x] Run full monorepo build (`pnpm build`)
+- [x] 5. Documentation, Report & Commit/Push
+  - [x] Author `PHASE_7B_5K_GEMINI_TELEMETRY_AND_CROPPING_DELIVERY.md`
+  - [x] Update `tasks/todo.md` with Execution Review
+  - [x] Commit and push changes to `feature/semantic-core` (no deployment)
+  - [x] Stop and await coordinator review
+
+## Execution Review (Phase 7B.5K)
+- **Image Cropping Gate Fixed:** `VisionAnalyzer.processImagesForAssistiveMap` now uses `isAiVisionEnabled()`, checking both `GeminiVisionProvider.isEnabled()` and `OpenAIVisionProvider.isEnabled()`. When Gemini is enabled alone, element crops are generated in `pages/{pageNumber}/vision/images/` and screenshots are saved.
+- **Explicit Fallback Attribution:** `AssistiveMap.imageDescriptions` includes `imageSource: 'crop' | 'viewport_fallback'`, and `safetyNote` explicitly reflects whether the description came from a cropped element or full viewport fallback.
+- **Sanitized Telemetry:** `createProviderDiagnostics` in `provider-telemetry.ts` sanitizes all provider responses. HTTP errors emit `{ status: 'http_error', httpStatus, errorCategory: 'http_error', incorporated: false }` with zero keys, headers, or raw error bodies. Empty responses emit `{ status: 'empty_response', httpStatus: 200 }`. Disabled providers emit `{ status: 'provider_disabled' }`. `VisionFinding.evidenceJson.descriptionDiagnostics` and `AssistiveMap.providerTelemetry` record these safely.
+- **Regression Tests:** 10/10 deterministic tests pass in `apps/scanner/src/vision/gemini-telemetry-regression.test.ts`. 17/17 existing vision/assistive tests pass. 12/12 widget tests pass.
+- **Build Cleanliness:** `pnpm build` across all 11 workspace packages succeeds with zero errors.
+- **Operational Boundaries:** 0 scans executed, 0 live remote mutations, 0 secret disclosure.
+
+
+
+
+
+
+
 
 

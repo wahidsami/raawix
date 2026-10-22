@@ -392,6 +392,9 @@ export class ScanRepository {
             if (finding.evidenceJson) {
               evidenceJsonData.geminiTextExtraction = finding.evidenceJson.geminiTextExtraction;
               evidenceJsonData.geminiDescription = finding.evidenceJson.geminiDescription;
+              evidenceJsonData.providerDiagnostics = finding.evidenceJson.providerDiagnostics;
+              evidenceJsonData.descriptionDiagnostics = finding.evidenceJson.descriptionDiagnostics;
+              evidenceJsonData.textDiagnostics = finding.evidenceJson.textDiagnostics;
             }
 
             visionFindingsData.push({

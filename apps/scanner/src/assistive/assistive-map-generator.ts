@@ -12,12 +12,18 @@ import { createHash } from 'node:crypto';
 import { ImageCandidateSelector } from './image-candidate-selector.js';
 import { imageCache } from './image-cache.js';
 import { FormAssistExtractor, type FormAssistPlan } from './form-assist-extractor.js';
+import {
+  createProviderDiagnostics,
+  type AssistiveMapProviderTelemetry,
+  type ProviderName,
+} from '../vision/provider-telemetry.js';
 
 export interface AssistiveMap {
   labelOverrides: Record<string, LabelOverride>;
   imageDescriptions: Record<string, ImageDescription>;
   actionIntents: Record<string, ActionIntent>;
   forms?: FormAssistPlan[]; // Form Assist Plan (new)
+  providerTelemetry?: AssistiveMapProviderTelemetry;
 }
 
 export interface LabelOverride {
@@ -36,6 +42,7 @@ export interface ImageDescription {
   safetyNote?: string;
   imageArtifactPath?: string; // Path to cropped image
   imageVisualHash?: string; // SHA256 hash of image bytes for deduplication
+  imageSource?: 'crop' | 'viewport_fallback';
 }
 
 export interface ActionIntent {
@@ -61,6 +68,7 @@ export type VisionModelProvider = GeminiVisionProvider | OpenAIVisionProvider;
 export class AssistiveMapGenerator {
   private logger: StructuredLogger;
   private geminiProvider?: VisionModelProvider;
+  private providerName: ProviderName = 'none';
   private scanId?: string;
   private geminiImageCount: number = 0; // Track images processed per scan for rate limiting
 
@@ -70,8 +78,12 @@ export class AssistiveMapGenerator {
 
     if (GeminiVisionProvider.isEnabled()) {
       this.geminiProvider = new GeminiVisionProvider();
+      this.providerName = 'gemini';
     } else if (OpenAIVisionProvider.isEnabled()) {
       this.geminiProvider = new OpenAIVisionProvider();
+      this.providerName = 'openai';
+    } else {
+      this.providerName = 'none';
     }
   }
 
@@ -83,10 +95,26 @@ export class AssistiveMapGenerator {
     visionFindings: VisionFinding[],
     scanId?: string
   ): Promise<{ map: AssistiveMap; confidenceSummary: ConfidenceSummary }> {
+    const providerName: ProviderName = this.geminiProvider
+      ? (this.geminiProvider instanceof GeminiVisionProvider ? 'gemini' : (this.geminiProvider instanceof OpenAIVisionProvider ? 'openai' : this.providerName))
+      : 'none';
+
+    const telemetry: AssistiveMapProviderTelemetry = {
+      provider: providerName,
+      labelOverridesAttempted: 0,
+      labelOverridesSucceeded: 0,
+      imageDescriptionsAttempted: 0,
+      imageDescriptionsSucceeded: 0,
+      cropsUsed: 0,
+      viewportFallbacksUsed: 0,
+      failures: [],
+    };
+
     const map: AssistiveMap = {
       labelOverrides: {},
       imageDescriptions: {},
       actionIntents: {},
+      providerTelemetry: telemetry,
     };
 
     if (!artifact.htmlPath || !artifact.html) {
@@ -149,8 +177,13 @@ export class AssistiveMapGenerator {
         let confidence: 'high' | 'medium' | 'low' = finding.confidence as 'high' | 'medium' | 'low';
         let source: 'vision' | 'gemini' | 'dom' = 'vision';
 
-        // If Gemini enabled and no label found, try Gemini
+        // If provider enabled and no label found, try AI vision description
         if (!label && this.geminiProvider && artifact.screenshotPath) {
+          const providerName: ProviderName =
+            this.geminiProvider instanceof GeminiVisionProvider ? 'gemini' : 'openai';
+          if (map.providerTelemetry) {
+            map.providerTelemetry.labelOverridesAttempted++;
+          }
           try {
             // Get element bounding box from vision finding
             const bbox = finding.bbox as { x: number; y: number; width: number; height: number };
@@ -161,16 +194,41 @@ export class AssistiveMapGenerator {
               finding.kind
             );
 
+            const diag = createProviderDiagnostics(
+              providerName,
+              'describe_element',
+              geminiResult.description,
+              geminiResult.rawResponse,
+              !!geminiResult.description
+            );
+
             if (geminiResult.description) {
               label = geminiResult.description;
               source = 'gemini';
-              confidence = 'medium'; // Gemini outputs are medium confidence
+              confidence = 'medium'; // AI vision outputs are medium confidence
+              if (map.providerTelemetry) {
+                map.providerTelemetry.labelOverridesSucceeded++;
+              }
+            } else if (map.providerTelemetry) {
+              map.providerTelemetry.failures.push({
+                operation: 'label_override',
+                status: diag.status,
+                httpStatus: diag.httpStatus,
+                errorCategory: diag.errorCategory,
+              });
             }
           } catch (error) {
-            this.logger.warn('Gemini description failed for unlabeled control', {
+            this.logger.warn('AI vision description failed for unlabeled control', {
               selector,
               error: error instanceof Error ? error.message : 'Unknown error',
             });
+            if (map.providerTelemetry) {
+              map.providerTelemetry.failures.push({
+                operation: 'label_override',
+                status: 'unknown_error',
+                errorCategory: 'unknown_error',
+              });
+            }
           }
         }
 
@@ -233,6 +291,16 @@ export class AssistiveMapGenerator {
           // Look for image crop in vision/images/ folder (use src for reliable matching)
           const imageCropPath = await this.findImageCrop(artifact, selector, src, scanId);
           const imagePath = imageCropPath || artifact.screenshotPath;
+          const imageSource: 'crop' | 'viewport_fallback' = imageCropPath ? 'crop' : 'viewport_fallback';
+
+          if (map.providerTelemetry) {
+            map.providerTelemetry.imageDescriptionsAttempted++;
+            if (imageCropPath) {
+              map.providerTelemetry.cropsUsed++;
+            } else {
+              map.providerTelemetry.viewportFallbacksUsed++;
+            }
+          }
 
           // D) Caching & dedupe: Compute visual hash and check cache
           const visualHash = await imageCache.computeVisualHash(imagePath);
@@ -245,9 +313,14 @@ export class AssistiveMapGenerator {
             // Use cached description
             description = cachedEntry.description;
             confidence = cachedEntry.confidence;
+            if (map.providerTelemetry) {
+              map.providerTelemetry.imageDescriptionsSucceeded++;
+            }
             this.logger.info('Using cached image description', { visualHash, selector });
           } else {
-            // Call Gemini with constrained prompt
+            const providerName: ProviderName =
+              this.geminiProvider instanceof GeminiVisionProvider ? 'gemini' : 'openai';
+            // Call AI provider with constrained prompt
             const context = ImageCandidateSelector.getNearbyContext(img);
             const geminiResult = await this.geminiProvider.describeElement(
               imagePath,
@@ -255,13 +328,31 @@ export class AssistiveMapGenerator {
               context || undefined
             );
 
+            const diag = createProviderDiagnostics(
+              providerName,
+              'describe_element',
+              geminiResult.description,
+              geminiResult.rawResponse,
+              !!geminiResult.description
+            );
+
             if (geminiResult.description) {
               description = geminiResult.description;
-              confidence = 'medium'; // Gemini outputs are always medium confidence
+              confidence = 'medium'; // AI vision outputs are always medium confidence
               this.geminiImageCount++;
+              if (map.providerTelemetry) {
+                map.providerTelemetry.imageDescriptionsSucceeded++;
+              }
 
               // Cache the result
               imageCache.set(visualHash, description, confidence, imageCropPath || undefined);
+            } else if (map.providerTelemetry) {
+              map.providerTelemetry.failures.push({
+                operation: 'image_description',
+                status: diag.status,
+                httpStatus: diag.httpStatus,
+                errorCategory: diag.errorCategory,
+              });
             }
           }
 
@@ -271,16 +362,26 @@ export class AssistiveMapGenerator {
               alt: description,
               confidence,
               source: 'gemini',
-              safetyNote: 'AI-generated description - verify accuracy',
+              safetyNote: imageSource === 'crop'
+                ? 'AI-generated description - verify accuracy'
+                : 'AI-generated description (viewport fallback) - verify accuracy',
               imageArtifactPath: imageCropPath || undefined,
               imageVisualHash: visualHash,
+              imageSource,
             };
           }
         } catch (error) {
-          this.logger.warn('Gemini alt text generation failed', {
+          this.logger.warn('AI vision alt text generation failed', {
             selector,
             error: error instanceof Error ? error.message : 'Unknown error',
           });
+          if (map.providerTelemetry) {
+            map.providerTelemetry.failures.push({
+              operation: 'image_description',
+              status: 'unknown_error',
+              errorCategory: 'unknown_error',
+            });
+          }
         }
       }
     }

@@ -8,6 +8,7 @@ import { StructuredLogger } from '../utils/logger.js';
 import { GeminiVisionProvider } from './gemini-provider.js';
 import { OpenAIVisionProvider } from './openai-vision-provider.js';
 import { ImageCandidateSelector } from '../assistive/image-candidate-selector.js';
+import { createProviderDiagnostics, type ProviderName } from './provider-telemetry.js';
 
 export type VisionModelProvider = GeminiVisionProvider | OpenAIVisionProvider;
 
@@ -18,6 +19,7 @@ export class VisionAnalyzer {
   private logger: StructuredLogger;
   private scanId?: string;
   private geminiProvider?: VisionModelProvider;
+  private providerName: ProviderName = 'none';
 
   constructor(scanId?: string) {
     this.scanId = scanId;
@@ -26,10 +28,14 @@ export class VisionAnalyzer {
     // Optional per-element AI vision enrichment.
     if (GeminiVisionProvider.isEnabled()) {
       this.geminiProvider = new GeminiVisionProvider();
+      this.providerName = 'gemini';
       this.logger.info('Gemini Vision provider enabled');
     } else if (OpenAIVisionProvider.isEnabled() && config.openai.visionElementEnrichment) {
       this.geminiProvider = new OpenAIVisionProvider();
+      this.providerName = 'openai';
       this.logger.info('OpenAI Vision provider enabled');
+    } else {
+      this.providerName = 'none';
     }
   }
 
@@ -164,7 +170,7 @@ export class VisionAnalyzer {
     const selector = await this.generateStableSelector(element);
 
     // Get outerHTML snippet
-    const outerHTML = await element.evaluate((el) => (el as Element).outerHTML);
+    const outerHTML = (await element.evaluate((el) => (el as Element).outerHTML)) || '';
     const htmlSnippet = outerHTML.substring(0, 500);
 
     // Analyze for findings
@@ -291,55 +297,105 @@ export class VisionAnalyzer {
             }
           }
 
-          // Gemini Vision enhancement (OCR + description)
+          // AI Vision enhancement (OCR + description)
           if (this.geminiProvider) {
+            const providerName: ProviderName =
+              this.geminiProvider instanceof GeminiVisionProvider
+                ? 'gemini'
+                : (this.geminiProvider instanceof OpenAIVisionProvider ? 'openai' : this.providerName);
             try {
-              // Extract text via Gemini (more accurate OCR)
+              // Extract text via Vision provider (more accurate OCR)
               if (!finding.detectedText || finding.detectedText.trim().length === 0) {
                 const geminiTextResult = await this.geminiProvider.extractText(cropPath);
-                if (geminiTextResult.text && geminiTextResult.text.trim().length > 0) {
-                  finding.detectedText = geminiTextResult.text.trim();
-                  // Gemini outputs are always low/medium confidence, needs_review
+                if (!finding.evidenceJson) {
+                  finding.evidenceJson = {};
+                }
+                const hasText = !!(geminiTextResult.text && geminiTextResult.text.trim().length > 0);
+                if (hasText) {
+                  finding.detectedText = geminiTextResult.text!.trim();
+                  // AI provider outputs are always low/medium confidence, needs_review
                   finding.confidence = 'medium';
 
-                  // Store raw Gemini response in evidence
+                  // Store AI response text in evidence
                   finding.evidence.push({
                     type: 'text',
-                    value: geminiTextResult.text.trim(),
-                    description: 'Text detected via Gemini Vision API (may not be accessible to screen readers)',
+                    value: geminiTextResult.text!.trim(),
+                    description: `Text detected via ${providerName === 'gemini' ? 'Gemini' : 'OpenAI'} Vision API (may not be accessible to screen readers)`,
                   });
 
-                  // Store raw provider output for auditability
-                  if (!finding.evidenceJson) {
-                    finding.evidenceJson = {};
-                  }
-                  finding.evidenceJson.geminiTextExtraction = geminiTextResult.rawResponse;
+                  // Sanitized structure compatible with consumers without storing raw provider dumps
+                  finding.evidenceJson.geminiTextExtraction = {
+                    text: geminiTextResult.text!.trim(),
+                  };
                 }
+                finding.evidenceJson.textDiagnostics = createProviderDiagnostics(
+                  providerName,
+                  'extract_text',
+                  geminiTextResult.text,
+                  geminiTextResult.rawResponse,
+                  hasText
+                );
               }
 
               // Get element description for user guidance
               const geminiDescResult = await this.geminiProvider.describeElement(cropPath, finding.kind);
-              if (geminiDescResult.description && geminiDescResult.description.trim().length > 0) {
+              if (!finding.evidenceJson) {
+                finding.evidenceJson = {};
+              }
+              const hasDesc = !!(geminiDescResult.description && geminiDescResult.description.trim().length > 0);
+              if (hasDesc) {
                 // Add description to evidence (for widget guidance)
                 finding.evidence.push({
                   type: 'text',
-                  value: geminiDescResult.description.trim(),
-                  description: 'UI element description from Gemini Vision API (for user guidance only)',
+                  value: geminiDescResult.description!.trim(),
+                  description: `UI element description from ${providerName === 'gemini' ? 'Gemini' : 'OpenAI'} Vision API (for user guidance only)`,
                 });
 
-                // Store raw provider output for auditability
-                if (!finding.evidenceJson) {
-                  finding.evidenceJson = {};
-                }
-                finding.evidenceJson.geminiDescription = geminiDescResult.rawResponse;
+                // Sanitized structure compatible with widget-guidance (candidates[0].content.parts[0].text)
+                finding.evidenceJson.geminiDescription = {
+                  candidates: [
+                    {
+                      content: {
+                        parts: [{ text: geminiDescResult.description!.trim() }],
+                      },
+                    },
+                  ],
+                };
               }
+              finding.evidenceJson.descriptionDiagnostics = createProviderDiagnostics(
+                providerName,
+                'describe_element',
+                geminiDescResult.description,
+                geminiDescResult.rawResponse,
+                hasDesc
+              );
             } catch (error) {
-              this.logger.warn('Gemini enhancement failed', {
+              this.logger.warn('AI vision enhancement failed', {
                 findingId: finding.id,
                 error: error instanceof Error ? error.message : 'Unknown error',
               });
-              // Continue - Gemini failure should not break vision analysis
+              if (!finding.evidenceJson) {
+                finding.evidenceJson = {};
+              }
+              finding.evidenceJson.descriptionDiagnostics = {
+                provider: providerName,
+                operation: 'describe_element',
+                status: 'unknown_error',
+                errorCategory: 'unknown_error',
+                incorporated: false,
+              };
             }
+          } else {
+            // Provider disabled or unavailable
+            if (!finding.evidenceJson) {
+              finding.evidenceJson = {};
+            }
+            finding.evidenceJson.providerDiagnostics = {
+              provider: 'none',
+              operation: 'describe_element',
+              status: 'provider_disabled',
+              incorporated: false,
+            };
           }
         } catch (error) {
           this.logger.warn('Failed to save screenshot crop', {
@@ -435,7 +491,7 @@ export class VisionAnalyzer {
     const hasSvg = await element.$('svg');
     const hasImg = await element.$('img');
     const hasIconClass = await element.evaluate((el: Element) => {
-      const classList = Array.from((el as HTMLElement).classList);
+      const classList = (el as HTMLElement).classList ? Array.from((el as HTMLElement).classList) : [];
       return classList.some((cls: string) => cls.includes('icon') || cls.includes('Icon'));
     });
 
@@ -592,7 +648,7 @@ export class VisionAnalyzer {
     pageNumber: number,
     outputDir: string
   ): Promise<void> {
-    if (!OpenAIVisionProvider.isEnabled()) {
+    if (!GeminiVisionProvider.isEnabled() && !OpenAIVisionProvider.isEnabled()) {
       return; // Skip if AI vision not enabled
     }
 
