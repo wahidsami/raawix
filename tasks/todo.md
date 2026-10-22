@@ -719,6 +719,38 @@
 - **Deliverables:** `PHASE_7B_5C_REQUEST_VALIDATION_FIX_REPORT.md` produced.
 - **Status:** HALTED. Awaiting coordinator deployment authorization for `raawi-x-phase2-test-scanner`.
 
+# Tasks - Phase 7B.5D: Post-Deployment Validation Verification
+
+- [x] 1. Live Endpoint & Health Checks
+  - [x] Verify `GET https://test-api.unifinitylab.com/health` returns HTTP 200 (`status: "ok"`, timestamp `05:04:24.849Z`, fresh ETag)
+  - [x] Verify `GET https://test-api.unifinitylab.com/api/scanner/config` returns safe configuration with SSRF active
+- [x] 2. Deployed Revision & Validation Boundary Verification
+  - [x] Confirm deployment of commit `f1588cf` on Coolify resource `raawi-x-phase2-test-scanner`
+  - [x] Confirm source declarations for `agentMaxSteps` and `agentMaxMs` in `apps/scanner/src/middleware/validation.ts`
+  - [x] Execute non-mutating diagnostic harness on compiled `dist/` distribution files:
+    - [x] Case 1: 25 requested steps -> 25 effective steps (tightened)
+    - [x] Case 2: 15,000 requested ms -> 10,000 effective ms (clamped to ceiling)
+    - [x] Case 3: 200 requested steps -> 50 effective steps (clamped to ceiling)
+    - [x] Case 4: Omitted limits -> 50 steps / 10,000 ms (server defaults)
+    - [x] Case 5: Negative steps -> rejected with HTTP 400 (`Validation failed`)
+- [x] 3. Safety Gates & Zero Mutation Boundary
+  - [x] Confirm SSRF protections remain strictly active (ports 80/443 only, localhost blocked)
+  - [x] Confirm autonomous goal execution remains disabled (`RAAWI_EXECUTION_AGENT_ENABLED=false`)
+  - [x] Preserve zero-mutation boundary: no scans launched, queued, or created
+  - [x] Document boundary limitation clearly (non-mutating harness used to avoid creating test scan noise)
+- [x] 4. Deliverables & Handoff
+  - [x] Produce `PHASE_7B_5D_POST_DEPLOYMENT_VALIDATION_REPORT.md`
+  - [x] Commit and push to `feature/semantic-core`
+  - [x] STOP and await coordinator authorization before runtime acceptance scan
+
+## Execution Review (Phase 7B.5D)
+- **Deployment Operational:** Rolling deployment of `raawi-x-phase2-test-scanner` at commit `f1588cf` is healthy, online, and responding to health and config probes.
+- **Effective Limits Proven:** Non-mutating diagnostic harness proves request-level tightening (25 steps), server ceiling clamping (10000 ms / 50 steps), server defaults preservation, and HTTP 400 rejection on invalid/negative inputs.
+- **Safety Gates Active:** SSRF port/host restrictions active, autonomous goal execution disabled, and zero scans created.
+- **Deliverables:** `PHASE_7B_5D_POST_DEPLOYMENT_VALIDATION_REPORT.md` produced.
+- **Status:** HALTED. Awaiting coordinator review and authorization before launching runtime acceptance scan.
+
+
 
 
 
