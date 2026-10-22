@@ -666,3 +666,30 @@
 - **Deliverables:** `PHASE_7B_5B_FINAL_RUNTIME_READINESS_REPORT.md` produced.
 - **Status:** HALTED. Awaiting explicit coordinator authorization before any scanner modifications or runtime tests.
 
+# Tasks - Phase 7B.5C.0: Coolify Deployment Reconciliation
+
+- [x] 1. Resource Mapping & Topology
+  - [x] Identify isolated test resources (`raawi-x-phase2-test-scanner`, `test UI`, `raawix-db`)
+  - [x] Document that Express API and BullMQ queue worker run in the exact same Node.js process / container
+- [x] 2. Deployment History Reconciliation
+  - [x] Acknowledge coordinator's manual deployment evidence (`7caf193` deployed on `raawi-x-phase2-test-scanner` and `test UI`)
+  - [x] Reconcile previous inference: container is actively running `7caf193`
+- [x] 3. Validation Schema Inspection
+  - [x] Verify `apps/scanner/src/middleware/validation.ts`: confirms `scanPipelineSchema` omits `agentMaxSteps` and `agentMaxMs` in `7caf193`
+  - [x] Confirm that Phase 7B.5B defect finding remains 100% valid (Zod strips fields on HTTP requests)
+- [x] 4. Minimum Required Correction & Deployment Target
+  - [x] Identify minimal patch: declare `agentMaxSteps` and `agentMaxMs` in `scanPipelineSchema`
+  - [x] Identify precise Coolify resource to redeploy: `raawi-x-phase2-test-scanner` only
+- [x] 5. Deliverables & Handoff
+  - [x] Produce `PHASE_7B_5C_0_COOLIFY_DEPLOYMENT_RECONCILIATION.md`
+  - [x] Commit and push to `feature/semantic-core`
+  - [x] STOP and await coordinator authorization before patching or deploying
+
+## Execution Review (Phase 7B.5C.0)
+- **Deployment Topology:** Express HTTP API and BullMQ worker are not separate services; they run in the single unified container `raawi-x-phase2-test-scanner`.
+- **Revision Reconciliation:** The manual Coolify deployment succeeded at `7caf193`, so both API and worker have the Blind Agent execution loop.
+- **Core Defect Confirmed:** Because commit `7caf193` itself omitted `agentMaxSteps`/`agentMaxMs` from `apps/scanner/src/middleware/validation.ts`, Zod strips them on all HTTP requests. The Phase 7B.5B finding is completely valid.
+- **Action Plan:** Patch `validation.ts` (2 lines), commit/push, and redeploy `raawi-x-phase2-test-scanner` in Coolify.
+- **Status:** HALTED. Awaiting coordinator authorization.
+
+
