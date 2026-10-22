@@ -498,6 +498,33 @@
 - **Remote Scanner Identity:** Test scanner API deployed on Coolify (`https://test-api.unifinitylab.com`) verified at commit `742879c`. Because all commits since `742879c` were widget code and documentation, the deployed scanner possesses 100% of the active scanner codebase; no redeploy is required for scanning public test targets.
 - **Boundaries Preserved:** Zero scans launched. Zero remote deployments triggered. SSRF protections and `ALLOWED_PORTS` preserved without weakening.
 
+# Tasks - Phase 7B.2: Authorized Controlled Accessibility Scans
+
+- [x] 1. Mandatory Preflight
+  - [x] Verify `https://test-api.unifinitylab.com/health` and test environment isolation
+  - [x] Check target reachability over HTTPS (`https://broken-workshop.dequelabs.com/` and `https://webtestingcourse.dequecloud.com/`)
+  - [x] Inspect deployed scanner configuration & agent gates via `GET /api/scanner/config`
+  - [x] Confirm bot challenge / protection detection policy
+- [x] 2. RUN-04: Single-Page Defect Detection (`https://broken-workshop.dequelabs.com/`)
+  - [x] Obtain test session/auth token if required or submit scan request via API (Scan ID: `scan_1792634916178_ctdyyua`)
+  - [x] Launch RUN-04 (`maxPages: 1`, `maxDepth: 0`, `auditMode: classic`, `concurrency: 1`)
+  - [x] Monitor lifecycle and poll status to completion (35.6s)
+  - [x] Verify actual page content scanned, WCAG findings (7 pass, 2 fail, 1 review), 8 vision findings, screenshot/artifacts, and report rendering
+- [x] 3. RUN-05: Bounded Multi-Page Scan (`https://webtestingcourse.dequecloud.com/`)
+  - [x] Launch RUN-05 (`maxPages: 3`, `maxDepth: 1`, `auditMode: classic`, `concurrency: 1`) (Scan ID: `scan_1792635169890_vnhozyh`)
+  - [x] Monitor lifecycle to completion (7m 07s); verify 3 pages visited, crawl boundaries enforced (depth 1, max 3), per-page findings, and report rendering
+- [x] 4. RUN-06: Keyboard-Agent Verification (`https://broken-workshop.dequelabs.com/`)
+  - [x] Verify deployed process-level gate `AGENT_ENABLED` and safe limit configurability (`maxSteps <= 25`, `maxMs <= 15000`)
+  - [x] Gate/limits evaluation: Deployed server process defaults to `maxSteps: 50` and does not accept per-request step clamping; modifying server env is prohibited. Recorded as **BLOCKED** per stop condition.
+- [x] 5. Findings & Evidence Analysis
+  - [x] Correlate findings across severities, rules, and demo site known defect expectations (confirmed true positives on alt text, low contrast, and unlabeled buttons)
+  - [x] Verify screenshot, summary, and rendered reports on `https://test-report.unifinitylab.com`
+- [x] 6. Comprehensive Deliverable & Closure
+  - [x] Produce `PHASE_7B_2_CONTROLLED_SCAN_RESULTS_REPORT.md`
+  - [x] Commit and push documentation to `feature/semantic-core`
+  - [x] STOP for coordinator review
+
+
 
 
 
