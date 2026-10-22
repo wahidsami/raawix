@@ -572,6 +572,46 @@
 - **Automated Verification:** 116/116 scanner tests passing, 16 acceptance tests for the Blind Agent passing, all widget test suites passing, and monorepo production build (`pnpm -r build`) verified with zero TypeScript errors.
 - **Deliverables:** `PHASE_7B_3_BLIND_AGENT_COMPLETION_REPORT.md` produced. Ready for commit and push.
 
+# Tasks - Phase 7B.4: End-to-End Pipeline Integration Verification
+
+- [x] Part A: Read-Only Architecture Audit
+  - [x] Verify branch, HEAD (`4689fbb`), working tree, and remote sync
+  - [x] Trace end-to-end data and execution flow: Layer 1 -> Layer 2 -> Layer 3 -> AssistiveMap -> Widget
+  - [x] Identify persistence and transmission points for scanner findings, vision findings, agent interaction trace, and semantic models
+  - [x] Verify AssistiveMap schema and widget page-package API endpoint (`/api/widget/page-package`)
+  - [x] Inspect DomRemediator behavior: original-state preservation, safe remediation, full restoration, and stale-map invalidation
+  - [x] Document distinction between Layer 3 analysis (diagnostic/discovery) and Widget remediation (runtime assistive DOM augmentation)
+- [x] Part B: Implement Local Integration Coverage
+  - [x] Create a comprehensive end-to-end integration test exercising actual package interfaces without parallel mocking (`apps/scanner/src/pipeline-integration.test.ts`)
+  - [x] Verify Layer 1 DOM/WCAG rule evaluations on controlled fixture (WCAG 1.1.1 and WCAG 4.1.2)
+  - [x] Verify Layer 2 screenshot capture and vision analyzer candidate identification / graceful degradation
+  - [x] Verify Layer 3 Blind Agent keyboard traversal and evidence capture (steps executed, unnamed control detected)
+  - [x] Verify AssistiveMap generation from upstream evidence conforming to widget contract
+  - [x] Verify Widget consuming AssistiveMap, applying permitted remediations (image descriptions, label overrides), and safe restoration
+  - [x] Verify stale fingerprint / content drift invalidation in widget
+  - [x] Verify telemetry status mapping (`pass`, `fail`, `not_run`, `incomplete`, `inconclusive`, `blocked`)
+- [x] Part C: Acceptance Criteria & Regression Verification
+  - [x] Controlled fixture demonstrates complete flow through all available stages (9/9 integration tests passing)
+  - [x] Known accessibility defect traced to actual evidence and downstream guidance (missing alt image and unlabeled control)
+  - [x] Safe remediation and complete restoration verified (revert restores pristine original DOM)
+  - [x] Missing evidence / failures handled honestly (dead page throws or records failure instead of fake success)
+  - [x] Monorepo test suites passing: 23 scanner test files (125 tests), 99 widget tests passing 100%
+  - [x] Production build (`pnpm -r build`) passing with zero TypeScript errors
+- [x] Part D: Reporting & Delivery
+  - [x] Author `PHASE_7B_4_PIPELINE_INTEGRATION_VERIFICATION_REPORT.md`
+  - [x] Commit and push to `feature/semantic-core`
+  - [x] Stop and await coordinator review
+
+## Execution Review (Phase 7B.4)
+- **Pipeline Integration Verified:** Automated end-to-end test suite created in `apps/scanner/src/pipeline-integration.test.ts` exercising real package interfaces from `@raawi-x/rules` (`RuleEngine`), `VisionAnalyzer`, `runInteractionAgent`, `AssistiveMapGenerator`, and `DomRemediator` + `evaluateFreshness` from `@raawi-x/widget`.
+- **Accurate Defect-to-Remediation Trace:** Missing alt image (`#fix-hero-img`) and unlabeled form control (`#fix-unlabeled-input`) were detected with element-level evidence by Layer 1, correlated by Layer 2/3, synthesized into high-confidence `imageDescriptions` and `labelOverrides`, remediated on opt-in by `DomRemediator`, and completely reversed on `revert()` without lingering page mutations.
+- **Safety Boundaries Preserved:** Authored alt text (`#fix-logo-img`), intentional decorative images (`#fix-decorative-img` with `alt=""`), and authored button labels (`#fix-submit-btn`) were strictly preserved and never overwritten.
+- **Freshness Invalidation:** Content drift (heading change) triggers `isStale: true` and status `'outdated'`, ensuring stale maps are invalidated rather than applied.
+- **Regression Status:** 125/125 scanner tests passing (23 test files), 99/99 widget tests passing, and monorepo production build (`pnpm -r build`) exiting with code 0.
+- **Deliverables:** `PHASE_7B_4_PIPELINE_INTEGRATION_VERIFICATION_REPORT.md` produced. Ready for commit and push.
+
+
+
 
 
 
