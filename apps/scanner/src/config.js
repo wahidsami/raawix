@@ -98,7 +98,7 @@ export const config = {
     gemini: {
         enabled: process.env.GEMINI_ENABLED === 'true', // Default disabled
         apiKey: process.env.GEMINI_API_KEY || '',
-        model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+        model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
         maxChars: parseInt(process.env.GEMINI_MAX_CHARS || '4000', 10),
         maxImageBytes: parseInt(process.env.GEMINI_MAX_IMAGE_BYTES || '10485760', 10), // 10MB default
         maxImagesPerScan: parseInt(process.env.GEMINI_MAX_IMAGES_PER_SCAN || '50', 10), // Rate limit per scan

@@ -416,6 +416,66 @@ describe('Phase 7B.5K — Gemini-Compatible Image Processing & Safe Telemetry Re
     });
     expect(finding.evidenceJson.geminiDescription).toBeUndefined();
   });
+
+  // =========================================================================
+  // Phase 7B.5K.1: Gemini Model Configuration & Override Validation
+  // =========================================================================
+
+  // Scenario 11: resolves default model to 'gemini-3.8-flash'
+  it('Scenario 11: resolves default model to gemini-3.8-flash', () => {
+    // Restore default configuration
+    delete process.env.GEMINI_MODEL;
+    config.gemini.model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+
+    expect(config.gemini.model).toBe('gemini-3.8-flash');
+
+    const provider = new GeminiVisionProvider();
+    expect((provider as any).model).toBe('gemini-3.8-flash');
+  });
+
+  // Scenario 12: respects valid explicit GEMINI_MODEL override
+  it('Scenario 12: respects valid explicit GEMINI_MODEL override', () => {
+    config.gemini.model = 'gemini-2.0-flash';
+
+    const provider = new GeminiVisionProvider();
+    expect((provider as any).model).toBe('gemini-2.0-flash');
+    expect((provider as any).apiUrl).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+    );
+  });
+
+  // Scenario 13: constructs valid generateContent API URL with default model
+  it('Scenario 13: constructs valid generateContent API URL with default model', () => {
+    config.gemini.model = 'gemini-3.8-flash';
+
+    const provider = new GeminiVisionProvider();
+    expect((provider as any).apiUrl).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent'
+    );
+  });
+
+  // Scenario 14: remains disabled unless GEMINI_ENABLED equals true and key is non-empty
+  it('Scenario 14: remains disabled unless GEMINI_ENABLED equals true and a non-empty key is configured', () => {
+    // Case A: enabled = false, key present
+    config.gemini.enabled = false;
+    config.gemini.apiKey = 'valid-key';
+    expect(GeminiVisionProvider.isEnabled()).toBe(false);
+
+    // Case B: enabled = true, key empty
+    config.gemini.enabled = true;
+    config.gemini.apiKey = '';
+    expect(GeminiVisionProvider.isEnabled()).toBe(false);
+
+    // Case C: enabled = false, key empty
+    config.gemini.enabled = false;
+    config.gemini.apiKey = '';
+    expect(GeminiVisionProvider.isEnabled()).toBe(false);
+
+    // Case D: enabled = true, key present
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'valid-key';
+    expect(GeminiVisionProvider.isEnabled()).toBe(true);
+  });
 });
 
 

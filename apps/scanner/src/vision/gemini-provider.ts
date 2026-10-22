@@ -26,7 +26,7 @@ export class GeminiVisionProvider {
   }
   
   private get apiUrl(): string {
-    // Use v1beta for gemini-1.5-flash model (not available in v1)
+    // Use v1beta generateContent endpoint for Gemini models (e.g., gemini-3.8-flash)
     return `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent`;
   }
 
