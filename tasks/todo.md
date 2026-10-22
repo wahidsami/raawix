@@ -466,6 +466,40 @@
 - **Schema Compatibility:** All parameters for RUN-01, RUN-02, and RUN-03 are fully supported by `scanRequestSchema`.
 - **Verdict:** **NOT READY FOR EXECUTION (BLOCKED)**. Awaiting coordinator authorization to clean stale fixture build files and approve an isolated development port configuration. Zero scans launched.
 
+# Tasks - Phase 7B.1: Test Fixture Repair & Scanner Readiness
+
+- [x] 1. Part A: Repository & Source Integrity
+  - [x] Audit all files in `test-sites/portal-good/src` and `test-sites/gov-sim/src`
+  - [x] Identify exactly which `.js`, `.d.ts`, and `.js.map` files are generated artifacts shadowing original `.tsx`/`.ts` (156 files confirmed)
+  - [x] Remove confirmed stale generated files from git
+  - [x] Verify fixture build configurations (`tsconfig.json`) to prevent future emission into `src/` (excluded `test-sites` from root `tsconfig.json`)
+- [x] 2. Part B: Local Verification of Repaired Fixtures
+  - [x] Run `pnpm --filter @raawi-x/test-portal-good build` and verify clean build (744ms)
+  - [x] Run `pnpm --filter @raawi-x/test-gov-sim build` and verify clean build (657ms)
+  - [x] Start `portal-good` locally on port 4173 briefly; test HTTP 200 on expected routes (`/`, `/about`, `/services`, etc.); stop process
+  - [x] Start `gov-sim` locally on port 4174 briefly; test HTTP 200 on expected routes (`/`, `/login`, `/auth/verify`, `/dashboard`); stop process
+  - [x] Verify behavioral fidelity (clean vs intentional defects)
+- [x] 3. Part C: Isolated Scanner Readiness
+  - [x] Inspect remote test VPS (`test-api.unifinitylab.com`) via public endpoints (`/health`, `/api/scanner/config`)
+  - [x] Determine deployed scanner version (`742879c`)
+  - [x] Assess whether deployed scanner includes recent accuracy/telemetry fixes vs documentation-only commits (zero scanner diff since `742879c`; deployed version has 100% of scanner code)
+  - [x] Review configuration and network safeguards without exposing secrets
+- [x] 4. Part D: Regression, Documentation & Git Delivery
+  - [x] Run scanner test suite (`vitest run` in `apps/scanner`: 100/100 tests passing)
+  - [x] Run widget test suite (99/99 unit tests passing)
+  - [x] Produce `PHASE_7B_1_FIXTURE_REPAIR_AND_SCANNER_READINESS_REPORT.md`
+  - [x] Commit and push fixes to `feature/semantic-core`
+  - [x] STOP without deploying or launching scans, report commit SHA
+
+## Execution Review (Phase 7B.1)
+- **Fixture Repair:** Removed 156 stale build artifacts from `test-sites/portal-good/src` (80 files) and `test-sites/gov-sim/src` (76 files) that shadowed TypeScript sources. Updated root `tsconfig.json` to exclude `test-sites`.
+- **Build & Route Verification:** Both fixtures built in <1 second and responded with `HTTP 200 OK` across all expected routes (`/`, `/about`, `/services`, `/login`, `/auth/verify`, `/dashboard`). Local test processes terminated cleanly.
+- **Scanner Regression:** 100/100 scanner unit tests passed; 99/99 widget tests passed. Zero regressions.
+- **Remote Scanner Identity:** Test scanner API deployed on Coolify (`https://test-api.unifinitylab.com`) verified at commit `742879c`. Because all commits since `742879c` were widget code and documentation, the deployed scanner possesses 100% of the active scanner codebase; no redeploy is required for scanning public test targets.
+- **Boundaries Preserved:** Zero scans launched. Zero remote deployments triggered. SSRF protections and `ALLOWED_PORTS` preserved without weakening.
+
+
+
 
 
 
