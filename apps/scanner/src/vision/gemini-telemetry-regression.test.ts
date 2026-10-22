@@ -4,6 +4,7 @@ import { AssistiveMapGenerator } from '../assistive/assistive-map-generator.js';
 import { GeminiVisionProvider } from './gemini-provider.js';
 import { OpenAIVisionProvider } from './openai-vision-provider.js';
 import { createProviderDiagnostics } from './provider-telemetry.js';
+import { geminiBudgetTracker } from './gemini-budget.js';
 import { imageCache } from '../assistive/image-cache.js';
 import { config } from '../config.js';
 import type { PageArtifact, VisionFinding } from '@raawi-x/core';
@@ -11,7 +12,7 @@ import { rm, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 
-describe('Phase 7B.5K — Gemini-Compatible Image Processing & Safe Telemetry Regression Suite', () => {
+describe('Phase 7B.5K & 7B.5N — Gemini-Compatible Image Processing, Rate-Limit & Safe Telemetry Regression Suite', () => {
   const origGemini = { ...config.gemini };
   const origOpenai = { ...config.openai };
   const testOutputDir = join(process.cwd(), 'scratch', 'test-phase7b5k-output');
@@ -19,14 +20,14 @@ describe('Phase 7B.5K — Gemini-Compatible Image Processing & Safe Telemetry Re
   beforeEach(async () => {
     vi.clearAllMocks();
     imageCache.clear();
+    geminiBudgetTracker.reset();
     await mkdir(testOutputDir, { recursive: true });
   });
 
   afterEach(async () => {
-    config.gemini.enabled = origGemini.enabled;
-    config.gemini.apiKey = origGemini.apiKey;
-    config.openai.enabled = origOpenai.enabled;
-    config.openai.apiKey = origOpenai.apiKey;
+    config.gemini = { ...origGemini };
+    config.openai = { ...origOpenai };
+    geminiBudgetTracker.reset();
     try {
       await rm(testOutputDir, { recursive: true, force: true });
     } catch {}
@@ -689,6 +690,469 @@ describe('Phase 7B.5K — Gemini-Compatible Image Processing & Safe Telemetry Re
     expect(sanitized.candidates[0].content.parts[0].text).toBe('Public clean output.');
     expect(JSON.stringify(sanitized)).not.toContain('Private thinking process');
     expect(JSON.stringify(sanitized)).not.toContain('thought');
+  });
+
+  // Scenario 22: HTTP 429 triggers bounded backoff and respects retry ceiling
+  it('Scenario 22: HTTP 429 triggers bounded backoff and respects retry ceiling', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+    config.gemini.maxRetries = 2;
+    config.gemini.baseDelayMs = 10;
+    config.gemini.maxDelayMs = 50;
+    config.gemini.maxRetryBudgetMs = 500;
+
+    const provider = new GeminiVisionProvider('scan-sc22');
+    const sleepSpy = vi.spyOn(provider as any, 'sleep').mockResolvedValue(undefined);
+    const doFetchSpy = vi.spyOn(provider as any, 'doFetch').mockResolvedValue({
+      ok: false,
+      status: 429,
+      text: async () => 'Rate limit exceeded',
+      headers: new Headers(),
+    });
+
+    const cropPath = join(testOutputDir, 'crop-sc22.png');
+    await writeFile(cropPath, Buffer.from('mock-bytes'));
+
+    const result = await provider.describeElement(cropPath, 'button');
+    expect(result.description).toBeNull();
+    expect(result.rawResponse.status).toBe(429);
+    expect(result.rawResponse.category).toBe('rate_limit_exceeded');
+
+    // 1 initial attempt + 2 retries = 3 calls to doFetch
+    expect(doFetchSpy).toHaveBeenCalledTimes(3);
+    expect(sleepSpy).toHaveBeenCalledTimes(2);
+
+    // Circuit breaker is now tripped for this scan
+    expect(geminiBudgetTracker.isCircuitOpen('scan-sc22')).toBe(true);
+    expect(geminiBudgetTracker.getCircuitReason('scan-sc22')).toBe('rate_limit_exceeded');
+  });
+
+  // Scenario 23: HTTP 503 follows separate retry policy and bounds
+  it('Scenario 23: HTTP 503 follows separate retry policy and bounds', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+    config.gemini.maxRetries = 2;
+    config.gemini.baseDelayMs = 10;
+
+    const provider = new GeminiVisionProvider('scan-sc23');
+    const sleepSpy = vi.spyOn(provider as any, 'sleep').mockResolvedValue(undefined);
+    const doFetchSpy = vi.spyOn(provider as any, 'doFetch').mockResolvedValue({
+      ok: false,
+      status: 503,
+      text: async () => 'The model is overloaded. Please try again later.',
+      headers: new Headers(),
+    });
+
+    const cropPath = join(testOutputDir, 'crop-sc23.png');
+    await writeFile(cropPath, Buffer.from('mock-bytes'));
+
+    const result = await provider.describeElement(cropPath, 'button');
+    expect(result.description).toBeNull();
+    expect(result.rawResponse.status).toBe(503);
+    expect(result.rawResponse.category).toBe('service_unavailable');
+
+    expect(doFetchSpy).toHaveBeenCalledTimes(3);
+    expect(sleepSpy).toHaveBeenCalledTimes(2);
+  });
+
+  // Scenario 24: Valid Retry-After header is respected up to budget ceiling
+  it('Scenario 24: respects valid Retry-After header up to budget ceiling', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+    config.gemini.maxRetries = 1;
+    config.gemini.maxDelayMs = 5000;
+    config.gemini.maxRetryBudgetMs = 10000;
+
+    const provider = new GeminiVisionProvider('scan-sc24');
+    const sleepSpy = vi.spyOn(provider as any, 'sleep').mockResolvedValue(undefined);
+
+    let callCount = 0;
+    vi.spyOn(provider as any, 'doFetch').mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        return {
+          ok: false,
+          status: 429,
+          text: async () => 'Too Many Requests',
+          headers: new Headers({ 'retry-after': '3' }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [
+            { content: { parts: [{ text: 'Magnifying glass search icon.' }] } },
+          ],
+        }),
+      };
+    });
+
+    const cropPath = join(testOutputDir, 'crop-sc24.png');
+    await writeFile(cropPath, Buffer.from('mock-bytes'));
+
+    const result = await provider.describeElement(cropPath, 'button');
+    expect(result.description).toBe('Magnifying glass search icon.');
+    expect(sleepSpy).toHaveBeenCalledWith(3000);
+  });
+
+  // Scenario 25: Exhausted request budget stops further provider calls immediately
+  it('Scenario 25: stops further provider calls immediately when request budget is exhausted', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+    config.gemini.maxRequestsPerScan = 2;
+
+    const provider = new GeminiVisionProvider('scan-sc25');
+    const doFetchSpy = vi.spyOn(provider as any, 'doFetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: 'Icon description.' }] } }],
+      }),
+    });
+
+    const cropPath = join(testOutputDir, 'crop-sc25.png');
+    await writeFile(cropPath, Buffer.from('mock-bytes'));
+
+    // Request 1: succeeds
+    const res1 = await provider.describeElement(cropPath, 'button');
+    expect(res1.description).toBe('Icon description.');
+
+    // Request 2: succeeds (reaches budget limit of 2)
+    const res2 = await provider.describeElement(cropPath, 'button');
+    expect(res2.description).toBe('Icon description.');
+
+    // Request 3: must be blocked by budget tracker without calling doFetch
+    const res3 = await provider.describeElement(cropPath, 'button');
+    expect(res3.description).toBeNull();
+    expect(res3.rawResponse.category).toBe('request_budget_exhausted');
+    expect(res3.rawResponse.status).toBe(429);
+
+    // doFetch should only have been called twice
+    expect(doFetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  // Scenario 26: Layer 2 successful descriptions preserved when later calls fail
+  it('Scenario 26: preserves successful Layer 2 descriptions when subsequent calls fail', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+
+    const analyzer = new VisionAnalyzer('scan-sc26');
+    let callIndex = 0;
+    (analyzer as any).geminiProvider = {
+      extractText: vi.fn().mockResolvedValue({ text: null, rawResponse: null }),
+      describeElement: vi.fn().mockImplementation(async () => {
+        callIndex++;
+        if (callIndex === 1) {
+          return {
+            description: 'Pencil edit icon in circular button.',
+            rawResponse: {
+              candidates: [{ content: { parts: [{ text: 'Pencil edit icon in circular button.' }] } }],
+            },
+          };
+        }
+        return {
+          description: null,
+          rawResponse: { status: 429, error: 'Resource has been exhausted', category: 'quota_exhausted' },
+        };
+      }),
+    };
+
+    const mockBtn1 = {
+      tagName: 'BUTTON',
+      getAttribute: (attr: string) => (attr === 'id' ? 'btn-1' : null),
+      id: 'btn-1',
+      textContent: '',
+      innerText: '',
+      outerHTML: '<button id="btn-1"></button>',
+      getAttributeNames: () => [],
+      classList: [],
+      parentElement: null,
+    };
+
+    const mockBtn2 = {
+      tagName: 'BUTTON',
+      getAttribute: (attr: string) => (attr === 'id' ? 'btn-2' : null),
+      id: 'btn-2',
+      textContent: '',
+      innerText: '',
+      outerHTML: '<button id="btn-2"></button>',
+      getAttributeNames: () => [],
+      classList: [],
+      parentElement: null,
+    };
+
+    const el1: any = {
+      screenshot: vi.fn().mockImplementation(async ({ path }) => writeFile(path, Buffer.from('b1'))),
+      evaluate: vi.fn().mockImplementation((fn: any) => fn(mockBtn1)),
+      boundingBox: vi.fn().mockResolvedValue({ x: 0, y: 0, width: 20, height: 20 }),
+      getAttribute: vi.fn().mockResolvedValue(null),
+      $: vi.fn().mockResolvedValue(null),
+    };
+
+    const el2: any = {
+      screenshot: vi.fn().mockImplementation(async ({ path }) => writeFile(path, Buffer.from('b2'))),
+      evaluate: vi.fn().mockImplementation((fn: any) => fn(mockBtn2)),
+      boundingBox: vi.fn().mockResolvedValue({ x: 20, y: 20, width: 20, height: 20 }),
+      getAttribute: vi.fn().mockResolvedValue(null),
+      $: vi.fn().mockResolvedValue(null),
+    };
+
+    const finding1 = await (analyzer as any).analyzeCandidate(el1, {} as any, 1, 'https://example.com', testOutputDir);
+    const finding2 = await (analyzer as any).analyzeCandidate(el2, {} as any, 1, 'https://example.com', testOutputDir);
+
+    expect(finding1.evidenceJson.geminiDescription).toBeDefined();
+    expect(finding1.evidenceJson.descriptionDiagnostics.status).toBe('success');
+    expect(finding1.evidenceJson.descriptionDiagnostics.incorporated).toBe(true);
+
+    expect(finding2.evidenceJson.geminiDescription).toBeUndefined();
+    expect(finding2.evidenceJson.descriptionDiagnostics.status).toBe('quota_exhausted');
+    expect(finding2.evidenceJson.descriptionDiagnostics.incorporated).toBe(false);
+  });
+
+  // Scenario 27: Layer 3 safely falls back to DOM/heuristic output when AI calls fail
+  it('Scenario 27: Layer 3 safely falls back to DOM/heuristic output when AI calls fail', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+
+    const generator = new AssistiveMapGenerator('scan-sc27');
+    (generator as any).geminiProvider = {
+      describeElement: vi.fn().mockResolvedValue({
+        description: null,
+        rawResponse: { status: 429, error: 'Resource has been exhausted', category: 'quota_exhausted' },
+      }),
+    };
+
+    const mockArtifact: PageArtifact = {
+      pageNumber: 1,
+      url: 'https://example.com/page',
+      htmlPath: '/dummy/page.html',
+      html: `
+        <html>
+          <body>
+            <button id="submit-btn">Submit Order</button>
+            <img src="https://example.com/recipe.png" alt="" width="50" height="50" id="recipe-img">
+          </body>
+        </html>
+      `,
+      screenshotPath: '/dummy/screenshot.png',
+    };
+
+    const { map } = await generator.generateAssistiveMap(mockArtifact, []);
+    expect(map).toBeDefined();
+    expect(map.providerTelemetry?.failures.length).toBe(1);
+    expect(map.providerTelemetry?.failures[0].status).toBe('quota_exhausted');
+    expect(map.providerTelemetry?.failures[0].httpStatus).toBe(429);
+    // DOM action intent for the button was successfully retained
+    expect(map.actionIntents['#submit-btn']).toBeDefined();
+    expect(map.actionIntents['#submit-btn'].source).toBe('dom');
+  });
+
+  // Scenario 28: Layer 3 safely reuses Layer 2 description when identity & provenance match
+  it('Scenario 28: Layer 3 safely reuses Layer 2 description when identity and provenance match', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+
+    const generator = new AssistiveMapGenerator('scan-sc28');
+    const describeSpy = vi.fn();
+    (generator as any).geminiProvider = {
+      describeElement: describeSpy,
+    };
+
+    const mockArtifact: PageArtifact = {
+      pageNumber: 1,
+      url: 'https://example.com/recipe',
+      htmlPath: '/dummy/recipe.html',
+      html: `
+        <html>
+          <body>
+            <button id="edit-pencil"></button>
+          </body>
+        </html>
+      `,
+      screenshotPath: '/dummy/screenshot.png',
+    };
+
+    const l2Findings: VisionFinding[] = [
+      {
+        id: 'finding-pencil',
+        pageNumber: 1,
+        url: 'https://example.com/recipe',
+        kind: 'clickable_unlabeled',
+        bbox: { x: 10, y: 10, width: 30, height: 30 },
+        confidence: 'high',
+        correlatedSelector: '#edit-pencil',
+        suggestedWcagIds: ['4.1.2'],
+        evidence: [],
+        evidenceJson: {
+          geminiDescription: {
+            candidates: [
+              { content: { parts: [{ text: 'A black pencil icon inside a circular button.' }] } },
+            ],
+          },
+          descriptionDiagnostics: {
+            provider: 'gemini',
+            operation: 'describe_element',
+            status: 'success',
+            httpStatus: 200,
+            incorporated: true,
+          },
+        },
+      },
+    ];
+
+    const { map } = await generator.generateAssistiveMap(mockArtifact, l2Findings);
+
+    expect(map.labelOverrides['#edit-pencil']).toBeDefined();
+    expect(map.labelOverrides['#edit-pencil'].label).toBe('A black pencil icon inside a circular button.');
+    expect(map.labelOverrides['#edit-pencil'].source).toBe('gemini');
+    expect(map.labelOverrides['#edit-pencil'].confidence).toBe('medium');
+    expect(map.providerTelemetry?.labelOverridesAttempted).toBe(1);
+    expect(map.providerTelemetry?.labelOverridesSucceeded).toBe(1);
+
+    // CRITICAL: describeElement was NOT called because Layer 2 description was reused!
+    expect(describeSpy).not.toHaveBeenCalled();
+  });
+
+  // Scenario 29: Layer 3 rejects reuse when selector/element identity mismatches
+  it('Scenario 29: Layer 3 rejects reuse when selector/element identity mismatches', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+
+    const generator = new AssistiveMapGenerator('scan-sc29');
+    (generator as any).geminiProvider = {
+      describeElement: vi.fn(),
+    };
+
+    const mockArtifact: PageArtifact = {
+      pageNumber: 1,
+      url: 'https://example.com/recipe',
+      htmlPath: '/dummy/recipe.html',
+      html: `
+        <html>
+          <body>
+            <button id="different-element">Actual Text</button>
+          </body>
+        </html>
+      `,
+      screenshotPath: '/dummy/screenshot.png',
+    };
+
+    const l2Findings: VisionFinding[] = [
+      {
+        id: 'finding-orphan',
+        pageNumber: 1,
+        url: 'https://example.com/recipe',
+        kind: 'clickable_unlabeled',
+        bbox: { x: 10, y: 10, width: 30, height: 30 },
+        confidence: 'high',
+        // Selector that does not exist in DOM
+        correlatedSelector: '#non-existent-pencil',
+        suggestedWcagIds: ['4.1.2'],
+        evidence: [],
+        evidenceJson: {
+          geminiDescription: {
+            candidates: [
+              { content: { parts: [{ text: 'A black pencil icon.' }] } },
+            ],
+          },
+        },
+      },
+    ];
+
+    const { map } = await generator.generateAssistiveMap(mockArtifact, l2Findings);
+
+    // Mismatched selector must NOT produce a label override
+    expect(map.labelOverrides['#non-existent-pencil']).toBeUndefined();
+    expect(map.labelOverrides['#different-element']).toBeUndefined();
+  });
+
+  // Scenario 30: Provider telemetry counters remain exact across retries, failures, and budget exhaustion
+  it('Scenario 30: maintains exact provider telemetry counters across retries, failures, and budget exhaustion', async () => {
+    config.gemini.enabled = true;
+    config.gemini.apiKey = 'test-key';
+    config.gemini.maxRequestsPerScan = 1;
+
+    const generator = new AssistiveMapGenerator('scan-sc30');
+    const crop1 = join(testOutputDir, 'crop-sc30-1.png');
+    const crop2 = join(testOutputDir, 'crop-sc30-2.png');
+    await writeFile(crop1, Buffer.from('crop-one-distinct-bytes-sc30'));
+    await writeFile(crop2, Buffer.from('crop-two-distinct-bytes-sc30'));
+    vi.spyOn(generator as any, 'findImageCrop')
+      .mockResolvedValueOnce(crop1)
+      .mockResolvedValueOnce(crop2);
+
+    let callCount = 0;
+    (generator as any).geminiProvider = {
+      describeElement: vi.fn().mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          return {
+            description: 'First image alt description.',
+            rawResponse: { candidates: [{ content: { parts: [{ text: 'First image alt description.' }] } }] },
+          };
+        }
+        return {
+          description: null,
+          rawResponse: { status: 429, error: 'Request budget exhausted', category: 'request_budget_exhausted' },
+        };
+      }),
+    };
+
+    const mockArtifact: PageArtifact = {
+      pageNumber: 1,
+      url: 'https://example.com/gallery',
+      htmlPath: '/dummy/gallery.html',
+      html: `
+        <html>
+          <body>
+            <img src="https://example.com/img1.png" alt="" width="50" height="50" id="img-1">
+            <img src="https://example.com/img2.png" alt="" width="50" height="50" id="img-2">
+          </body>
+        </html>
+      `,
+      screenshotPath: '/dummy/screenshot.png',
+    };
+
+    const { map } = await generator.generateAssistiveMap(mockArtifact, []);
+    const tel = map.providerTelemetry!;
+
+    expect(tel.imageDescriptionsAttempted).toBe(2);
+    expect(tel.imageDescriptionsSucceeded).toBe(1);
+    expect(tel.failures.length).toBe(1);
+    expect(tel.failures[0].status).toBe('request_budget_exhausted');
+    expect(tel.failures[0].errorCategory).toBe('request_budget_exhausted');
+    // Mathematical invariant
+    expect(tel.imageDescriptionsAttempted).toBe(tel.imageDescriptionsSucceeded + tel.failures.length);
+  });
+
+  // Scenario 31: Zero secrets, keys, or raw error bodies exposed in diagnostics or evidenceJson
+  it('Scenario 31: guarantees zero secrets, keys, or raw error bodies in diagnostics and evidenceJson', async () => {
+    const rawErrorPayload = {
+      status: 429,
+      error: 'Google API key AIzaSy-super-secret-do-not-leak exhausted quota at https://generativelanguage.googleapis.com',
+      headers: { authorization: 'Bearer super-secret-token' },
+      body: 'Raw internal stack trace and dump',
+    };
+
+    const diag = createProviderDiagnostics(
+      'gemini',
+      'describe_element',
+      null,
+      rawErrorPayload,
+      false
+    );
+
+    expect(diag.status).toBe('quota_exhausted');
+    expect(diag.errorCategory).toBe('quota_exhausted');
+    expect(diag.httpStatus).toBe(429);
+
+    const serialized = JSON.stringify(diag);
+    expect(serialized).not.toContain('AIzaSy');
+    expect(serialized).not.toContain('super-secret');
+    expect(serialized).not.toContain('Bearer');
+    expect(serialized).not.toContain('stack trace');
+    expect(serialized).not.toContain('authorization');
   });
 });
 

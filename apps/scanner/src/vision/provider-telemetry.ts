@@ -13,14 +13,22 @@ export type DiagnosticStatus =
   | 'network_error'
   | 'size_limit_exceeded'
   | 'empty_response'
-  | 'unknown_error';
+  | 'unknown_error'
+  | 'rate_limit_exceeded'
+  | 'quota_exhausted'
+  | 'service_unavailable'
+  | 'request_budget_exhausted';
 
 export type ErrorCategory =
   | 'http_error'
   | 'network_error'
   | 'size_limit_exceeded'
   | 'empty_response'
-  | 'unknown_error';
+  | 'unknown_error'
+  | 'rate_limit_exceeded'
+  | 'quota_exhausted'
+  | 'service_unavailable'
+  | 'request_budget_exhausted';
 
 export interface SanitizedProviderDiagnostics {
   provider: ProviderName;
@@ -78,22 +86,70 @@ export function createProviderDiagnostics(
     };
   }
 
-  // 2. HTTP Error: rawResponse contains numeric status code >= 400
-  if (rawResponse && typeof rawResponse.status === 'number' && rawResponse.status >= 400) {
+  const explicitCategory = rawResponse && typeof rawResponse.category === 'string' ? rawResponse.category : undefined;
+  const statusNumber = rawResponse && typeof rawResponse.status === 'number' ? rawResponse.status : undefined;
+  const errorStr = rawResponse && typeof rawResponse.error === 'string' ? rawResponse.error : '';
+
+  // 2. Request budget exhausted
+  if (explicitCategory === 'request_budget_exhausted' || /budget exhausted/i.test(errorStr)) {
     return {
       provider,
       operation,
-      status: 'http_error',
-      httpStatus: rawResponse.status,
-      errorCategory: 'http_error',
+      status: 'request_budget_exhausted',
+      httpStatus: statusNumber || 429,
+      errorCategory: 'request_budget_exhausted',
       incorporated: false,
     };
   }
 
-  // 3. Category inspection from error string (without storing the string itself)
-  const errorStr = rawResponse && typeof rawResponse.error === 'string' ? rawResponse.error : '';
+  // 3. Quota exhausted vs Rate limit exceeded
+  if (
+    explicitCategory === 'quota_exhausted' ||
+    (statusNumber === 429 && /quota|resource_exhausted|exhausted/i.test(errorStr))
+  ) {
+    return {
+      provider,
+      operation,
+      status: 'quota_exhausted',
+      httpStatus: 429,
+      errorCategory: 'quota_exhausted',
+      incorporated: false,
+    };
+  }
 
-  if (/size limit|too large/i.test(errorStr)) {
+  if (
+    explicitCategory === 'rate_limit_exceeded' ||
+    statusNumber === 429 ||
+    /rate limit|too many requests/i.test(errorStr)
+  ) {
+    return {
+      provider,
+      operation,
+      status: 'rate_limit_exceeded',
+      httpStatus: 429,
+      errorCategory: 'rate_limit_exceeded',
+      incorporated: false,
+    };
+  }
+
+  // 4. Service unavailable (HTTP 503)
+  if (
+    explicitCategory === 'service_unavailable' ||
+    statusNumber === 503 ||
+    /service unavailable/i.test(errorStr)
+  ) {
+    return {
+      provider,
+      operation,
+      status: 'service_unavailable',
+      httpStatus: 503,
+      errorCategory: 'service_unavailable',
+      incorporated: false,
+    };
+  }
+
+  // 5. Size limit exceeded
+  if (explicitCategory === 'size_limit_exceeded' || /size limit|too large/i.test(errorStr)) {
     return {
       provider,
       operation,
@@ -103,7 +159,23 @@ export function createProviderDiagnostics(
     };
   }
 
-  if (/network|fetch|timeout|econnrefused|enotfound|socket/i.test(errorStr)) {
+  // 6. Generic HTTP Error: rawResponse contains numeric status code >= 400
+  if (statusNumber && statusNumber >= 400) {
+    return {
+      provider,
+      operation,
+      status: 'http_error',
+      httpStatus: statusNumber,
+      errorCategory: 'http_error',
+      incorporated: false,
+    };
+  }
+
+  // 7. Network error
+  if (
+    explicitCategory === 'network_error' ||
+    /network|fetch|timeout|econnrefused|enotfound|socket/i.test(errorStr)
+  ) {
     return {
       provider,
       operation,
@@ -113,7 +185,7 @@ export function createProviderDiagnostics(
     };
   }
 
-  // 4. Empty Response: Provider returned response without text/description
+  // 8. Empty Response: Provider returned response without text/description
   if (!errorStr) {
     return {
       provider,
@@ -125,7 +197,7 @@ export function createProviderDiagnostics(
     };
   }
 
-  // 5. Unknown Error
+  // 9. Unknown Error
   return {
     provider,
     operation,

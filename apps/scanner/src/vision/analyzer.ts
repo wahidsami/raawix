@@ -27,7 +27,7 @@ export class VisionAnalyzer {
 
     // Optional per-element AI vision enrichment.
     if (GeminiVisionProvider.isEnabled()) {
-      this.geminiProvider = new GeminiVisionProvider();
+      this.geminiProvider = new GeminiVisionProvider(this.scanId);
       this.providerName = 'gemini';
       this.logger.info('Gemini Vision provider enabled');
     } else if (OpenAIVisionProvider.isEnabled() && config.openai.visionElementEnrichment) {

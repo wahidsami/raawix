@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { config } from '../config.js';
 import { StructuredLogger } from '../utils/logger.js';
+import { geminiBudgetTracker } from './gemini-budget.js';
 
 /**
  * Gemini Vision API provider
@@ -18,11 +19,13 @@ export class GeminiVisionProvider {
   private apiKey: string;
   private baseUrl: string = 'https://generativelanguage.googleapis.com/v1/models';
   private model: string;
+  private scanId?: string;
 
-  constructor() {
-    this.logger = new StructuredLogger();
+  constructor(scanId?: string) {
+    this.logger = new StructuredLogger(scanId);
     this.apiKey = config.gemini.apiKey || '';
     this.model = config.gemini.model;
+    this.scanId = scanId;
   }
   
   private get apiUrl(): string {
@@ -38,6 +41,217 @@ export class GeminiVisionProvider {
   }
 
   /**
+   * Performs the underlying fetch call. Can be spied or overridden in tests.
+   */
+  protected async doFetch(payload: any): Promise<Response> {
+    return fetch(`${this.apiUrl}?key=${this.apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
+   * Bounded backoff delay. Can be spied or overridden in tests.
+   */
+  protected async sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Parses standard Retry-After header (seconds or HTTP date) to milliseconds.
+   */
+  private parseRetryAfter(headerValue: string | null | undefined): number | null {
+    if (!headerValue) return null;
+    const seconds = parseInt(headerValue, 10);
+    if (!isNaN(seconds) && seconds >= 0) {
+      return seconds * 1000;
+    }
+    const dateMs = new Date(headerValue).getTime();
+    if (!isNaN(dateMs) && dateMs > Date.now()) {
+      return dateMs - Date.now();
+    }
+    return null;
+  }
+
+  /**
+   * Executes Gemini API request with bounded retries, backoff with jitter,
+   * request budgeting, and circuit breaking upon quota exhaustion.
+   */
+  private async executeWithRetry(
+    payload: any,
+    operation: 'extract_text' | 'describe_element'
+  ): Promise<{ data: any | null; rawResponse: any }> {
+    const budget = geminiBudgetTracker.canMakeRequest(this.scanId);
+    if (!budget.allowed) {
+      this.logger.warn('Gemini request halted by budget tracker or circuit breaker', {
+        scanId: this.scanId,
+        reason: budget.reason,
+        operation,
+      });
+      return {
+        data: null,
+        rawResponse: {
+          status: budget.reason === 'service_unavailable' ? 503 : 429,
+          error: budget.reason === 'request_budget_exhausted'
+            ? 'Request budget exhausted'
+            : (budget.reason === 'quota_exhausted'
+                ? 'Google Gemini quota exhausted'
+                : (budget.reason === 'service_unavailable'
+                    ? 'Service unavailable'
+                    : 'Rate limit exceeded')),
+          category: budget.reason,
+        },
+      };
+    }
+
+    geminiBudgetTracker.recordAttempt(this.scanId);
+    const maxRetries = config.gemini.maxRetries;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await this.doFetch(payload);
+
+        if (response.ok) {
+          const data = await response.json();
+          const rawResponse = this.sanitizeRawResponse(data);
+          return { data, rawResponse };
+        }
+
+        const status = response.status;
+        const errorText = await response.text();
+        const isQuota = /quota|RESOURCE_EXHAUSTED|Resource has been exhausted/i.test(errorText);
+
+        // 1. HTTP 429: Rate Limit or Quota Exhaustion
+        if (status === 429) {
+          if (isQuota) {
+            geminiBudgetTracker.tripCircuit(this.scanId, 'quota_exhausted');
+            return {
+              data: null,
+              rawResponse: {
+                status: 429,
+                error: 'Google Gemini quota exhausted',
+                category: 'quota_exhausted',
+              },
+            };
+          }
+
+          if (attempt < maxRetries) {
+            const retryAfterHeader = response.headers?.get?.('retry-after');
+            let delay = this.parseRetryAfter(retryAfterHeader);
+            if (delay === null) {
+              delay = Math.min(
+                config.gemini.maxDelayMs,
+                config.gemini.baseDelayMs * Math.pow(2, attempt) + Math.floor(Math.random() * 200)
+              );
+            } else {
+              delay = Math.min(delay, config.gemini.maxDelayMs);
+            }
+
+            const canRetry = geminiBudgetTracker.recordRetryDelay(this.scanId, delay);
+            if (canRetry) {
+              this.logger.info('Gemini rate limited (429); backing off', {
+                scanId: this.scanId,
+                attempt: attempt + 1,
+                delay,
+              });
+              await this.sleep(delay);
+              continue;
+            }
+          }
+
+          geminiBudgetTracker.tripCircuit(this.scanId, 'rate_limit_exceeded');
+          return {
+            data: null,
+            rawResponse: {
+              status: 429,
+              error: 'Rate limit exceeded',
+              category: 'rate_limit_exceeded',
+            },
+          };
+        }
+
+        // 2. HTTP 503: Service Unavailable
+        if (status === 503) {
+          if (attempt < maxRetries) {
+            const delay = Math.min(
+              config.gemini.maxDelayMs,
+              config.gemini.baseDelayMs * Math.pow(2, attempt) + Math.floor(Math.random() * 200)
+            );
+            const canRetry = geminiBudgetTracker.recordRetryDelay(this.scanId, delay);
+            if (canRetry) {
+              this.logger.info('Gemini service unavailable (503); backing off', {
+                scanId: this.scanId,
+                attempt: attempt + 1,
+                delay,
+              });
+              await this.sleep(delay);
+              continue;
+            }
+          }
+
+          return {
+            data: null,
+            rawResponse: {
+              status: 503,
+              error: 'Service unavailable',
+              category: 'service_unavailable',
+            },
+          };
+        }
+
+        // 3. Non-retryable HTTP Error (400, 401, 403, 404, etc.)
+        return {
+          data: null,
+          rawResponse: {
+            status,
+            error: errorText.substring(0, 200),
+            category: 'http_error',
+          },
+        };
+      } catch (error) {
+        if (attempt < maxRetries) {
+          const delay = Math.min(
+            config.gemini.maxDelayMs,
+            config.gemini.baseDelayMs * Math.pow(2, attempt)
+          );
+          const canRetry = geminiBudgetTracker.recordRetryDelay(this.scanId, delay);
+          if (canRetry) {
+            this.logger.warn('Gemini network error; retrying', {
+              scanId: this.scanId,
+              attempt: attempt + 1,
+              delay,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            });
+            await this.sleep(delay);
+            continue;
+          }
+        }
+
+        return {
+          data: null,
+          rawResponse: {
+            status: 0,
+            error: error instanceof Error ? error.message : 'Unknown network error',
+            category: 'network_error',
+          },
+        };
+      }
+    }
+
+    return {
+      data: null,
+      rawResponse: {
+        status: 429,
+        error: 'Retry budget exhausted',
+        category: 'rate_limit_exceeded',
+      },
+    };
+  }
+
+  /**
    * Extract text from image using Gemini Vision API (OCR)
    */
   async extractText(imagePath: string): Promise<{ text: string | null; rawResponse: any }> {
@@ -48,57 +262,57 @@ export class GeminiVisionProvider {
     try {
       // Read image as base64
       const imageBuffer = await readFile(imagePath);
-      const imageBase64 = imageBuffer.toString('base64');
 
-      const response = await fetch(
-        `${this.apiUrl}?key=${this.apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: 'Extract all visible text from this image. Return only the text content, no explanations.',
-                  },
-                  {
-                    inline_data: {
-                      mime_type: 'image/png',
-                      data: imageBase64,
-                    },
-                  },
-                ],
-              },
-            ],
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        this.logger.warn('Gemini API request failed', {
-          status: response.status,
-          error: errorText.substring(0, 200),
+      if (imageBuffer.length > config.gemini.maxImageBytes) {
+        this.logger.warn('Image too large for Gemini processing', {
+          imagePath,
+          size: imageBuffer.length,
+          maxBytes: config.gemini.maxImageBytes,
         });
-        return { text: null, rawResponse: { error: errorText, status: response.status } };
+        return {
+          text: null,
+          rawResponse: { error: 'Image exceeds maximum size limit', category: 'size_limit_exceeded' },
+        };
       }
 
-      const data = await response.json();
-      const rawResponse = this.sanitizeRawResponse(data);
+      const imageBase64 = imageBuffer.toString('base64');
+      const payload = {
+        contents: [
+          {
+            parts: [
+              {
+                text: 'Extract all visible text from this image. Return only the text content, no explanations.',
+              },
+              {
+                inline_data: {
+                  mime_type: 'image/png',
+                  data: imageBase64,
+                },
+              },
+            ],
+          },
+        ],
+      };
 
-      // Extract text from Gemini response (excluding thought parts)
+      const { data, rawResponse } = await this.executeWithRetry(payload, 'extract_text');
+      if (!data) {
+        return { text: null, rawResponse };
+      }
+
       const text = this.extractTextFromResponse(data);
-
       return { text, rawResponse };
     } catch (error) {
       this.logger.warn('Gemini text extraction failed', {
         imagePath,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
-      return { text: null, rawResponse: { error: error instanceof Error ? error.message : 'Unknown error' } };
+      return {
+        text: null,
+        rawResponse: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          category: 'unknown_error',
+        },
+      };
     }
   }
 
@@ -128,7 +342,7 @@ export class GeminiVisionProvider {
         });
         return {
           description: null,
-          rawResponse: { error: 'Image exceeds maximum size limit' },
+          rawResponse: { error: 'Image exceeds maximum size limit', category: 'size_limit_exceeded' },
         };
       }
 
@@ -145,55 +359,37 @@ export class GeminiVisionProvider {
       
       prompt += `Return only the description, no explanations.`;
 
-      const response = await fetch(
-        `${this.apiUrl}?key=${this.apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [
+      const payload = {
+        contents: [
+          {
+            parts: [
               {
-                parts: [
-                  {
-                    text: prompt,
-                  },
-                  {
-                    inline_data: {
-                      mime_type: 'image/png',
-                      data: imageBase64,
-                    },
-                  },
-                ],
+                text: prompt,
+              },
+              {
+                inline_data: {
+                  mime_type: 'image/png',
+                  data: imageBase64,
+                },
               },
             ],
-          }),
-        }
-      );
+          },
+        ],
+      };
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        this.logger.warn('Gemini API request failed', {
-          status: response.status,
-          error: errorText.substring(0, 200),
-        });
-        return { description: null, rawResponse: { error: errorText, status: response.status } };
+      const { data, rawResponse } = await this.executeWithRetry(payload, 'describe_element');
+      if (!data) {
+        return { description: null, rawResponse };
       }
-
-      const data = await response.json();
-      const rawResponse = this.sanitizeRawResponse(data);
 
       // Extract description from Gemini response (excluding thought parts)
       let description = this.extractTextFromResponse(data);
 
       // Constrain to 1 sentence max
       if (description) {
-        // Take first sentence only
         const firstSentence = description.split(/[.!?]/)[0].trim();
         if (firstSentence.length > 0) {
           description = firstSentence;
-          // Add period if missing
           if (!description.endsWith('.') && !description.endsWith('!') && !description.endsWith('?')) {
             description += '.';
           }
@@ -206,7 +402,13 @@ export class GeminiVisionProvider {
         imagePath,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
-      return { description: null, rawResponse: { error: error instanceof Error ? error.message : 'Unknown error' } };
+      return {
+        description: null,
+        rawResponse: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          category: 'unknown_error',
+        },
+      };
     }
   }
 

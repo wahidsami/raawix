@@ -1040,11 +1040,83 @@
 - **Persistence & Evidence Isolated:** `sanitizeRawResponse()` scrubs `thought: true` parts from the projected raw response object. Downstream mappings in `VisionAnalyzer` and `AssistiveMapGenerator` only receive clean, filtered descriptions for `finding.evidenceJson.geminiDescription`, `finding.evidenceJson.geminiTextExtraction`, `map.imageDescriptions`, and `map.labelOverrides`.
 - **Regression Suite:** Scenarios 15–21 added to `apps/scanner/src/vision/gemini-telemetry-regression.test.ts`. All 21/21 tests passing. Full scanner test suite passing (26 files, 166 tests). Widget test suite passing (12/12). Monorepo build clean across all 11 packages.
 
+# Tasks - Phase 7B.5M: Authorized Single Gemini Runtime Verification Scan
 
+- [x] 1. Preflight Verification
+  - [x] Confirm test API health and deployment readiness (`https://test-api.unifinitylab.com/health` HTTP 200)
+  - [x] Confirm target URL responsiveness (`https://broken-workshop.dequelabs.com/` HTTP 200)
+  - [x] Verify safety limits and configuration enforcement
+  - [x] Zero secret exposure and zero direct out-of-band Gemini test calls
+- [x] 2. Authorized Single Bounded Scan
+  - [x] Submit exactly one scan (`POST /api/scans/start` with `maxPages: 1`, `maxDepth: 0`, `agentMaxSteps: 25`, `agentMaxMs: 10000`, viewport mode)
+  - [x] Capture scan ID: `scan_1792657060743_e63osv1`
+  - [x] Follow scan lifecycle to completion (`completed` in 271s, 1 page audited)
+  - [x] Verify zero second scans launched
+- [x] 3. Gemini Provider Telemetry & Execution Evidence
+  - [x] Inspect Layer 2 vision findings (8 findings evaluated; 3 succeeded with HTTP 200, 5 encountered HTTP 503/429)
+  - [x] Verify element cropping vs fallback (`cropsUsed: 8`, `viewportFallbacksUsed: 0`)
+  - [x] Verify thought-content isolation (zero `thought: true` parts in raw candidates or output descriptions)
+  - [x] Inspect Layer 3 AssistiveMap telemetry (`imageDescriptionsAttempted: 8`, all recorded HTTP 429 quota exhaustion gracefully)
+  - [x] Query live widget page-package (`GET /api/widget/page-package` returned HTTP 200 with `matchConfidence: 'high'`)
+- [x] 4. Reporting & Review
+  - [x] Author `PHASE_7B_5M_GEMINI_RUNTIME_VERIFICATION_REPORT.md`
+  - [x] Update `tasks/todo.md` with execution review
+  - [x] Stop and await coordinator review
 
+## Execution Review (Phase 7B.5M)
+- **Single Scan Executed:** Exactly one authorized scan `scan_1792657060743_e63osv1` submitted to `https://test-api.unifinitylab.com` targeting `https://broken-workshop.dequelabs.com/`. Finished with status `completed` across 1 page. Blind agent executed 25 steps in 1,514 ms (`hitStepLimit: true`).
+- **Gemini Runtime Provider Active:** `provider: 'gemini'` was confirmed active in the Coolify environment. Network connectivity to `generativelanguage.googleapis.com` succeeded.
+- **Layer 2 Verification:** 3 of 8 element descriptions succeeded with HTTP 200 and were incorporated (`"A black pencil icon inside a white circular button."`, `"A black pencil icon angled diagonally inside a white circular button."`, `"A circular white button displaying a black pencil icon oriented diagonally."`). Remaining calls were throttled by Google's API (HTTP 429 / 503).
+- **Thought Isolation Confirmed:** Output descriptions and sanitized raw candidates strictly excluded all internal reasoning parts (`thought: true`). Only clean descriptive text was incorporated into findings and evidence.
+- **Cropping Confirmed:** Element cropping was used 100% of the time (`cropsUsed: 8`, `viewportFallbacksUsed: 0`).
+- **Telemetry & Safety:** Failure tracking recorded error categories cleanly with zero secret disclosure.
 
+# Tasks - Phase 7B.5N: Gemini Request Budgeting, Rate-Limit Handling, and Diagnostic Classification
 
+- [x] 1. Audit Request Flow & Telemetry Mechanics
+  - [x] Audit request volume per candidate and per page across Layer 2 and Layer 3
+  - [x] Audit retry/backoff behavior on HTTP 429 and 503 (0 retries in previous implementation, immediate failure)
+  - [x] Audit potential overlap between Layer 2 interactive control descriptions and Layer 3 AssistiveMap operations
+  - [x] Verify safety and criteria for reusing Layer 2 descriptions in Layer 3 labelOverrides
+  - [x] Document audit findings in comprehensive report
+- [x] 2. Implement Bounded Request Budgeting & Rate Limiting
+  - [x] Add Gemini rate/budget configuration in `apps/scanner/src/config.ts` (`maxRequestsPerScan: 15`, `maxRetries: 2`, `baseDelayMs: 1000`, `maxDelayMs: 5000`, `maxRetryBudgetMs: 10000`)
+  - [x] Implement central request budgeting and circuit-breaker mechanism upon rate limit / quota exhaustion (`gemini-budget.ts`)
+  - [x] Implement bounded exponential backoff with jitter and `Retry-After` header parsing for HTTP 429 and 503
+  - [x] Implement early exit / short-circuit when scan budget or backoff budget is exhausted
+  - [x] Ensure non-retryable errors fail immediately without retry delay
+- [x] 3. Refine Layer 2 & Layer 3 Integration & Safe Reuse
+  - [x] In `AssistiveMapGenerator.processVisionFindings`: reuse Layer 2 Gemini descriptions for unlabeled controls with matching selector and proven success
+  - [x] Enforce strict identity, medium confidence, `source: 'gemini'`, and safety note for reused descriptions
+  - [x] Do NOT call Gemini API again for elements already successfully described in Layer 2
+  - [x] Keep Layer 3 image descriptions strictly separate for content `<img>` elements
+  - [x] Maintain exact counters for `imageDescriptionsAttempted`, `labelOverridesAttempted`, `cropsUsed`, and failures
+- [x] 4. Improve Diagnostic Classification Safely
+  - [x] Distinguish `rate_limit_exceeded` vs `quota_exhausted` (429) vs `service_unavailable` (503) vs `request_budget_exhausted`
+  - [x] Update `SanitizedProviderDiagnostics` and `createProviderDiagnostics()` in `apps/scanner/src/vision/provider-telemetry.ts`
+  - [x] Ensure zero credentials, headers, base64 data, or raw error bodies leak into diagnostics or findings
+- [x] 5. Add Deterministic Regression Tests (Scenarios 22–31+)
+  - [x] Scenario 22: HTTP 429 triggers bounded backoff and respects retry ceiling
+  - [x] Scenario 23: HTTP 503 follows separate retry policy and bounds
+  - [x] Scenario 24: Valid `Retry-After` header is respected up to budget ceiling
+  - [x] Scenario 25: Exhausted request budget stops further provider calls immediately
+  - [x] Scenario 26: Layer 2 successful descriptions preserved when later calls fail
+  - [x] Scenario 27: Layer 3 safely falls back to DOM/heuristic output when AI calls fail
+  - [x] Scenario 28: Layer 3 safely reuses Layer 2 description when identity & provenance match
+  - [x] Scenario 29: Layer 3 rejects reuse when selector/element identity mismatches
+  - [x] Scenario 30: Provider telemetry counters remain exact across retries, failures, and budget exhaustion
+  - [x] Scenario 31: Zero secrets, keys, or raw error bodies exposed in diagnostics or evidenceJson
+- [x] 6. Monorepo Validation & Delivery
+  - [x] Verify all tests pass locally (100% regression and unit tests: 31/31 regression, 176/176 scanner, 12/12 widget)
+  - [x] Verify build clean across all packages (`tsc -b` clean build)
+  - [x] Author `PHASE_7B_5N_GEMINI_RATE_LIMIT_BUDGET_REPORT.md`
+  - [x] Commit and push changes to `feature/semantic-core`
+  - [x] Stop and await coordinator review (zero live scans, zero remote mutations)
 
-
-
+## Execution Review (Phase 7B.5N)
+- **Centralized Budget & Circuit Breaker:** Implemented `GeminiBudgetTracker` in `apps/scanner/src/vision/gemini-budget.ts`, enforcing a strict per-scan request ceiling (`maxRequestsPerScan: 15`) and retry time ceiling (`maxRetryBudgetMs: 10000`).
+- **Resilient Bounded Retries & Backoff:** `GeminiVisionProvider.executeWithRetry` handles HTTP 429 (rate limits) and HTTP 503 (service unavailable) with exponential backoff, jitter, and standard `Retry-After` header parsing (seconds or HTTP date). When quota exhaustion is detected (`RESOURCE_EXHAUSTED` / `quota`), the circuit breaker trips immediately to eliminate futile outbound requests.
+- **Layer 2 to Layer 3 Deduplication:** `AssistiveMapGenerator.processVisionFindings` reuses successful Gemini descriptions from Layer 2 (`finding.evidenceJson.geminiDescription`) when element identity and selector match, setting `source: 'gemini'` and `confidence: 'medium'`, and avoiding redundant API calls for previously audited controls.
+- **Diagnostic Granularity & Sanitization:** Extended `createProviderDiagnostics` to categorize errors into `rate_limit_exceeded`, `quota_exhausted`, `service_unavailable`, and `request_budget_exhausted` while guaranteeing zero credentials, headers, base64 data, or raw provider bodies are exposed.
+- **Regression Suite:** Added Scenarios 22–31 to `gemini-telemetry-regression.test.ts` (31/31 passing). All 176 scanner tests across 26 test files pass cleanly with zero regressions. Production build succeeds cleanly.
 

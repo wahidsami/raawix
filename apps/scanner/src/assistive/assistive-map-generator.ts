@@ -77,7 +77,7 @@ export class AssistiveMapGenerator {
     this.scanId = scanId;
 
     if (GeminiVisionProvider.isEnabled()) {
-      this.geminiProvider = new GeminiVisionProvider();
+      this.geminiProvider = new GeminiVisionProvider(this.scanId);
       this.providerName = 'gemini';
     } else if (OpenAIVisionProvider.isEnabled()) {
       this.geminiProvider = new OpenAIVisionProvider();
@@ -176,6 +176,22 @@ export class AssistiveMapGenerator {
         let label: string | null = finding.detectedText || null;
         let confidence: 'high' | 'medium' | 'low' = finding.confidence as 'high' | 'medium' | 'low';
         let source: 'vision' | 'gemini' | 'dom' = 'vision';
+
+        // Safe Layer 2 reuse: If Layer 2 already generated a Gemini description, reuse it
+        const l2GeminiDesc = finding.evidenceJson?.geminiDescription?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!label && l2GeminiDesc && typeof l2GeminiDesc === 'string' && l2GeminiDesc.trim().length > 0) {
+          label = l2GeminiDesc.trim();
+          source = 'gemini';
+          confidence = 'medium';
+          if (map.providerTelemetry) {
+            map.providerTelemetry.labelOverridesAttempted++;
+            map.providerTelemetry.labelOverridesSucceeded++;
+          }
+          this.logger.info('Reusing Layer 2 Gemini description for label override', {
+            selector,
+            label,
+          });
+        }
 
         // If provider enabled and no label found, try AI vision description
         if (!label && this.geminiProvider && artifact.screenshotPath) {
