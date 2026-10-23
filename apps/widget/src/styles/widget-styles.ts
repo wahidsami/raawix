@@ -882,4 +882,233 @@ export const WIDGET_CSS = `
     white-space: nowrap;
     border-width: 0;
   }
+
+  /* Phase 2C: Standalone Magnified Reading Strip */
+  .raawi-reading-strip {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 2147483646;
+    pointer-events: auto;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-top: 3px solid var(--primary, #27ae60);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    max-height: 35vh;
+    min-height: 75px;
+    box-sizing: border-box;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+
+  .raawi-strip-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 14px;
+    background: var(--surface-elevated, #f8fafc);
+    border-bottom: 1px solid var(--border, #e2e8f0);
+    flex-shrink: 0;
+  }
+
+  .raawi-strip-brand {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary, #0f172a);
+  }
+
+  .raawi-strip-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .raawi-strip-scale-group {
+    display: flex;
+    background: var(--border, #e2e8f0);
+    border-radius: var(--radius-sm, 6px);
+    padding: 2px;
+    gap: 2px;
+  }
+
+  .raawi-strip-scale-btn {
+    border: none;
+    background: transparent;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-secondary, #475569);
+    transition: all 0.15s ease;
+  }
+
+  .raawi-strip-scale-btn:hover {
+    color: var(--text-primary, #0f172a);
+  }
+
+  .raawi-strip-scale-btn.active {
+    background: var(--primary, #27ae60);
+    color: #ffffff;
+  }
+
+  .raawi-strip-scale-btn:focus-visible {
+    outline: 2px solid var(--primary, #27ae60);
+    outline-offset: 1px;
+  }
+
+  .raawi-strip-close-btn {
+    border: none;
+    background: transparent;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    color: var(--text-muted, #64748b);
+    padding: 3px 8px;
+    border-radius: var(--radius-sm, 6px);
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+  }
+
+  .raawi-strip-close-btn:hover {
+    background: #fee2e2;
+    color: #e11d48;
+  }
+
+  .raawi-strip-close-btn:focus-visible {
+    outline: 2px solid #e11d48;
+    outline-offset: 1px;
+  }
+
+  .raawi-strip-mirror {
+    padding: 10px 18px 14px 18px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 40px;
+    box-sizing: border-box;
+  }
+
+  .raawi-strip-text {
+    line-height: 1.45;
+    color: var(--text-primary, #0f172a);
+    word-break: break-word;
+    transition: font-size 0.15s ease;
+  }
+
+  .raawi-strip-text.raawi-scale-150 {
+    font-size: 1.5rem;
+  }
+
+  .raawi-strip-text.raawi-scale-200 {
+    font-size: 2.0rem;
+  }
+
+  .raawi-strip-text.raawi-scale-250 {
+    font-size: 2.5rem;
+  }
+
+  .raawi-strip-text.raawi-scale-300 {
+    font-size: 3.0rem;
+  }
+
+  .raawi-strip-text.fallback {
+    color: var(--text-muted, #64748b);
+    font-style: italic;
+    font-size: 1.25rem !important;
+  }
+
+  .raawi-strip-text.raawi-font-cairo {
+    font-family: 'Cairo', 'Noto Naskh Arabic', 'Tahoma', Arial, sans-serif !important;
+    letter-spacing: 0.015em;
+  }
+
+  .raawi-strip-text.raawi-font-latin {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+  }
+
+  /* High contrast mode for reading strip */
+  .raawi-strip-contrast {
+    background: #000000 !important;
+    border-top: 3px solid #ffff00 !important;
+    box-shadow: 0 -4px 20px rgba(255, 255, 255, 0.2) !important;
+  }
+
+  .raawi-strip-contrast .raawi-strip-toolbar {
+    background: #111111 !important;
+    border-bottom: 1px solid #333333 !important;
+  }
+
+  .raawi-strip-contrast .raawi-strip-brand,
+  .raawi-strip-contrast .raawi-strip-title,
+  .raawi-strip-contrast .raawi-strip-text {
+    color: #ffffff !important;
+  }
+
+  .raawi-strip-contrast .raawi-strip-text.fallback {
+    color: #ffff00 !important;
+  }
+
+  .raawi-strip-contrast .raawi-strip-scale-group {
+    background: #222222 !important;
+    border: 1px solid #444444 !important;
+  }
+
+  .raawi-strip-contrast .raawi-strip-scale-btn {
+    color: #ffffff !important;
+  }
+
+  .raawi-strip-contrast .raawi-strip-scale-btn.active {
+    background: #ffff00 !important;
+    color: #000000 !important;
+    font-weight: 700 !important;
+  }
+
+  .raawi-strip-contrast .raawi-strip-close-btn {
+    color: #ffff00 !important;
+  }
+
+  .raawi-strip-contrast .raawi-strip-close-btn:hover {
+    background: #ffff00 !important;
+    color: #000000 !important;
+  }
+
+  /* Reduced motion override for reading strip */
+  .raawi-strip-reduced-motion,
+  .raawi-strip-reduced-motion * {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  @media (max-width: 640px) {
+    .raawi-reading-strip {
+      max-height: 45vh;
+    }
+
+    .raawi-strip-toolbar {
+      padding: 4px 8px;
+    }
+
+    .raawi-strip-scale-btn {
+      padding: 2px 5px;
+      font-size: 10px;
+    }
+
+    .raawi-strip-text.raawi-scale-250 {
+      font-size: 2.1rem;
+    }
+
+    .raawi-strip-text.raawi-scale-300 {
+      font-size: 2.4rem;
+    }
+  }
 `;
+

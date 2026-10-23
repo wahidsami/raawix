@@ -19,6 +19,7 @@ import { LauncherComponent } from '../components/launcher';
 import { PanelComponent } from '../components/panel';
 import { LiveAnnouncerComponent } from '../components/live-announcer';
 import { SpeechReader } from './speech-reader';
+import { ReadingStripComponent } from '../components/reading-strip';
 import { WIDGET_CSS } from '../styles/widget-styles';
 import type { Locale } from './types';
 
@@ -36,6 +37,7 @@ export class RaawiAccessibilityWidget extends HTMLElement {
   private remediator: DomRemediator;
   private pageTracker: PageTracker;
   private speechReader: SpeechReader;
+  private readingStrip: ReadingStripComponent;
   private backdrop: HTMLElement;
 
   private onDocumentKeyDown: (e: KeyboardEvent) => void;
@@ -101,6 +103,9 @@ export class RaawiAccessibilityWidget extends HTMLElement {
 
     // 7. Initialize Display Manager for non-destructive visual and reading preferences
     this.displayManager = new DisplayManager(this.state, this.shadow);
+
+    // 7b. Initialize Reading Strip Component (Phase 2C)
+    this.readingStrip = new ReadingStripComponent(this.state, this.i18n, this.shadow);
 
     // Wire MapApiClient changes to remediator
     this.apiClient.subscribe((status, data) => {
@@ -199,6 +204,9 @@ export class RaawiAccessibilityWidget extends HTMLElement {
     if (this.speechReader) {
       this.speechReader.destroy();
     }
+    if (this.readingStrip) {
+      this.readingStrip.destroy();
+    }
   }
 
   public open(): void {
@@ -258,6 +266,10 @@ export class RaawiAccessibilityWidget extends HTMLElement {
 
   public getSpeechReader(): SpeechReader {
     return this.speechReader;
+  }
+
+  public getReadingStrip(): ReadingStripComponent {
+    return this.readingStrip;
   }
 
   public getShadowRoot(): ShadowRoot {

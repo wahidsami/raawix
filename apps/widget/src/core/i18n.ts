@@ -145,6 +145,18 @@ export interface TranslationDictionary {
   headingNavigated: string;
   refreshHeadings: string;
   toolsDescription: string;
+
+  // Phase 2C: Standalone Magnified Reading Strip
+  magnifierStrip: string;
+  toggleMagnifierStrip: string;
+  magnifierScale: string;
+  magnifierFallback: string;
+  closeReadingStrip: string;
+  magnifierZoom150: string;
+  magnifierZoom200: string;
+  magnifierZoom250: string;
+  magnifierZoom300: string;
+  protectedContentHidden: string;
 }
 
 export const translations: Record<Locale, TranslationDictionary> = {
@@ -280,6 +292,18 @@ export const translations: Record<Locale, TranslationDictionary> = {
     headingNavigated: 'تم الانتقال إلى العنوان',
     refreshHeadings: 'تحديث العناوين',
     toolsDescription: 'أدوات مساعدة مستقلة للقراءة والتصفح والتنقل',
+
+    // Phase 2C: Standalone Magnified Reading Strip
+    magnifierStrip: 'شريط القراءة المكبّر',
+    toggleMagnifierStrip: 'تبديل شريط القراءة المكبّر',
+    magnifierScale: 'مستوى التكبير',
+    magnifierFallback: 'مرّر المؤشر أو حدّد نصاً أو تنقل باللوحة لعرض المحتوى مكبّراً',
+    closeReadingStrip: 'إغلاق شريط التكبير',
+    magnifierZoom150: '150%',
+    magnifierZoom200: '200%',
+    magnifierZoom250: '250%',
+    magnifierZoom300: '300%',
+    protectedContentHidden: 'محتوى محمي لا يمكن عرضه',
   },
   en: {
     widgetTitle: 'Accessibility & Usability Options',
@@ -413,6 +437,18 @@ export const translations: Record<Locale, TranslationDictionary> = {
     headingNavigated: 'Navigated to heading',
     refreshHeadings: 'Refresh headings',
     toolsDescription: 'Standalone assistive reading, speech and outline tools',
+
+    // Phase 2C: Standalone Magnified Reading Strip
+    magnifierStrip: 'Magnified Reading Strip',
+    toggleMagnifierStrip: 'Toggle magnified reading strip',
+    magnifierScale: 'Magnification Level',
+    magnifierFallback: 'Hover, focus, or select text on the page to view magnified content',
+    closeReadingStrip: 'Close reading strip',
+    magnifierZoom150: '150%',
+    magnifierZoom200: '200%',
+    magnifierZoom250: '250%',
+    magnifierZoom300: '300%',
+    protectedContentHidden: 'Protected content hidden',
   },
 };
 

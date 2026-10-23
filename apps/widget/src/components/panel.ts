@@ -379,6 +379,29 @@ export class PanelComponent {
           </div>
         </div>
 
+        <!-- Phase 2C: Standalone Magnified Reading Strip -->
+        <div class="raawi-control-card" id="raawi-magnifier-strip-card">
+          <div class="raawi-control-header">
+            <div>
+              <div class="raawi-control-title">${t.magnifierStrip}</div>
+              <div class="raawi-control-desc">${t.magnifierFallback}</div>
+            </div>
+            <label class="raawi-toggle">
+              <input type="checkbox" id="raawi-toggle-magnifier-strip" data-testid="raawi-tool-magnifier-strip" ${settings.magnifierStrip ? 'checked' : ''} aria-label="${t.toggleMagnifierStrip}">
+              <span class="raawi-toggle-slider"></span>
+            </label>
+          </div>
+          <div id="raawi-magnifier-scale-container" style="display: ${settings.magnifierStrip ? 'flex' : 'none'}; margin-top: 10px; justify-content: space-between; align-items: center;">
+            <span style="font-size: 12px; color: var(--text-secondary);">${t.magnifierScale}</span>
+            <div class="raawi-lang-switch">
+              <button type="button" class="raawi-lang-btn ${settings.magnifierScale === 1.5 ? 'active' : ''}" data-panel-magnifier-scale="1.5" data-testid="raawi-panel-scale-150">${t.magnifierZoom150}</button>
+              <button type="button" class="raawi-lang-btn ${settings.magnifierScale === 2.0 ? 'active' : ''}" data-panel-magnifier-scale="2.0" data-testid="raawi-panel-scale-200">${t.magnifierZoom200}</button>
+              <button type="button" class="raawi-lang-btn ${settings.magnifierScale === 2.5 ? 'active' : ''}" data-panel-magnifier-scale="2.5" data-testid="raawi-panel-scale-250">${t.magnifierZoom250}</button>
+              <button type="button" class="raawi-lang-btn ${settings.magnifierScale === 3.0 ? 'active' : ''}" data-panel-magnifier-scale="3.0" data-testid="raawi-panel-scale-300">${t.magnifierZoom300}</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Hide Images -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
@@ -670,6 +693,26 @@ export class PanelComponent {
         const height = btn.getAttribute('data-mask-height') as 'small' | 'medium' | 'large';
         if (height) {
           this.state.updateSetting('readingMaskWindowHeight', height);
+          this.render();
+        }
+      });
+    });
+
+    // Magnified reading strip toggle (Phase 2C)
+    const magnifierStripToggle = this.element.querySelector('#raawi-toggle-magnifier-strip') as HTMLInputElement | null;
+    magnifierStripToggle?.addEventListener('change', () => {
+      this.state.updateSetting('magnifierStrip', magnifierStripToggle.checked);
+      this.render();
+    });
+
+    // Magnified reading strip scale buttons (Phase 2C)
+    const magnifierScaleBtns = this.element.querySelectorAll<HTMLButtonElement>('button[data-panel-magnifier-scale]');
+    magnifierScaleBtns.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const scale = parseFloat(btn.getAttribute('data-panel-magnifier-scale') || '2.0') as any;
+        if ([1.5, 2.0, 2.5, 3.0].includes(scale)) {
+          this.state.updateSetting('magnifierScale', scale);
           this.render();
         }
       });

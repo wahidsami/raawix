@@ -111,6 +111,8 @@ export interface PagePackageResponse {
 
 export type MapFetchStatus = 'idle' | 'loading' | 'ready' | 'not-scanned' | 'error' | 'mismatch' | 'offline' | 'outdated' | 'invalid' | 'unknown';
 
+export type MagnifierScale = 1.5 | 2.0 | 2.5 | 3.0;
+
 export interface WidgetSettings {
   textSize: number; // 0.8 to 2.0 (1.0 default)
   lineSpacing: number; // 0.8 to 2.0 (1.0 default)
@@ -125,6 +127,8 @@ export interface WidgetSettings {
   readingGuideThickness: 'thin' | 'medium' | 'thick';
   readingMask: boolean;
   readingMaskWindowHeight: 'small' | 'medium' | 'large';
+  magnifierStrip: boolean; // Phase 2C: Standalone magnified reading strip
+  magnifierScale: MagnifierScale; // 1.5 | 2.0 | 2.5 | 3.0 (2.0 default)
   hideImages: boolean;
   activePreset: 'none' | 'blind' | 'low-vision' | 'dyslexia';
   remediationEnabled: boolean; // Phase 5.4: opt-in DOM remediation
@@ -144,7 +148,10 @@ export const DEFAULT_SETTINGS: WidgetSettings = {
   readingGuideThickness: 'medium',
   readingMask: false,
   readingMaskWindowHeight: 'medium',
+  magnifierStrip: false,
+  magnifierScale: 2.0,
   hideImages: false,
   activePreset: 'none',
   remediationEnabled: false,
 };
+

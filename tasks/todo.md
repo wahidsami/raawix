@@ -1475,4 +1475,60 @@
 - **Dependency Optimization:** Confirmed self-contained base64 embedding in `cairo-data.ts` and local woff2 assets + OFL 1.1 license in `apps/widget/assets/fonts/cairo/`. Safely removed `@fontsource/cairo` devDependency from `apps/widget/package.json` and `pnpm-lock.yaml`.
 - **Test Evidence:** 147/147 automated tests passed across all 8 widget test files (22/22 in `phase2b-visual-tools.test.ts`). Computed styles evaluated across all 7 cases with documented JSDOM limitations. Zero TypeScript errors and clean production Vite bundle build.
 
+# Tasks - Phase 2C: Standalone Magnified Reading Strip
+
+- [x] 1. Preflight & Architecture Design
+  - [x] Verify git status, clean worktree, branch `feature/semantic-core`, HEAD (`ffe3eb0`), and 73+ GB free disk space
+  - [x] Design docked reading strip architecture mounted in Shadow DOM with low-overhead tracking
+- [x] 2. Settings Model & State Persistence
+  - [x] Add `magnifierStrip: boolean` (default `false`) and `magnifierScale: 1.5 | 2.0 | 2.5 | 3.0` (default `2.0`) to `WidgetSettings` and `DEFAULT_SETTINGS` in `types.ts`
+  - [x] Update `state.ts` to sanitize, persist, and reset `magnifierStrip` and `magnifierScale`
+- [x] 3. Bilingual Localization Parity
+  - [x] Add translation keys to `i18n.ts` for Arabic and English: `magnifierStrip`, `toggleMagnifierStrip`, `magnifierScale`, `magnifierFallback`, `closeReadingStrip`, `magnifierZoom150`, `magnifierZoom200`, `magnifierZoom250`, `magnifierZoom300`, `protectedContentHidden`
+  - [x] Verify 1:1 key parity between Arabic and English dictionaries
+- [x] 4. ReadingStrip Component Implementation
+  - [x] Create `apps/widget/src/components/reading-strip.ts` inside Shadow DOM
+  - [x] Docked reading strip UI: compact accessible toolbar (zoom levels + immediate close button) and text display container
+  - [x] Visual-only mirror semantics: `aria-hidden="true"` on text container; interactive strip controls remain accessible
+  - [x] Multi-source content tracking: keyboard focus (`focusin`), text selection (`selectionchange`), and mouse hover (`pointerover` / `mousemove`)
+  - [x] Keyboard navigation protection: avoid overriding keyboard focus content during ambient mouse moves
+  - [x] Touch-first support: avoid hover-based triggers on touch; rely on focus and selection
+  - [x] Debounced updates and nested element resolution (resolve icons/spans to semantic parent: headings, paragraphs, lists, links, buttons, form controls)
+  - [x] Security & privacy: strictly exclude `input[type="password"]`, `input[type="hidden"]`, file inputs, and sensitive values
+  - [x] Exclusion of widget DOM: strictly ignore elements inside `raawi-accessibility-widget`
+  - [x] Sensible fallback message when no active content is present
+  - [x] Dynamic typography: bundled Cairo font and RTL for Arabic content, clean Latin stack for English
+  - [x] Contrast and motion: respect `contrastMode`, `stopAnimations`, and `reduceMotion`
+  - [x] Full teardown: cleanly remove listeners, timers, and DOM elements on disable or destroy
+- [x] 5. Panel UI & Shadow Container Integration
+  - [x] Add Magnified Reading Strip control card to the Reading tab in `panel.ts`
+  - [x] Wire toggle `#raawi-toggle-magnifier-strip` and scale selector buttons (`150%`, `200%`, `250%`, `300%`)
+  - [x] Wire `ReadingStripComponent` into `shadow-container.ts` and subscribe to state changes
+  - [x] Add scoped styles for `.raawi-reading-strip` in `widget-styles.ts`
+- [x] 6. Automated Testing & Regression Verification
+  - [x] Author targeted test suite `apps/widget/test/phase2c-magnifier-strip.test.ts` (27/27 tests passing)
+  - [x] Test toggle, scale levels, persistence, and reset
+  - [x] Test content extraction across headings, paragraphs, lists, links, buttons, and form controls
+  - [x] Test sensitive input exclusion and widget DOM exclusion
+  - [x] Test keyboard focus vs pointer hover priority
+  - [x] Test safe fallback message and immediate close button
+  - [x] Test Arabic/Cairo vs English typography and high contrast / reduced motion
+  - [x] Test complete cleanup on disable, reset, and destroy
+  - [x] Run full regression suite across all widget test files (174/174 tests passing)
+  - [x] Run `tsc --noEmit` and `vite build`
+- [x] 7. Review, Commit, Push & Delivery Report
+  - [x] Inspect git diff for cleanliness and senior engineering standards
+  - [x] Commit and push to `feature/semantic-core`
+  - [x] Provide comprehensive Phase 2C delivery report and await coordinator review
+
+## Execution Review (Widget Phase 2C)
+- **Standalone Magnified Reading Strip:** Implemented `ReadingStripComponent` mounted inside the widget Shadow DOM as a docked, responsive banner at the viewport bottom.
+- **Visual-Only Mirror Semantics:** The magnified text mirror is marked `aria-hidden="true"` so screen readers are not burdened with duplicate page text, while the strip's own toolbar controls (zoom levels: 150%, 200%, 250%, 300%; close button) are fully accessible with proper `aria-pressed` and `aria-label` semantics.
+- **Form Privacy & Security:** Password inputs (`type="password"`), hidden inputs (`type="hidden"`), file inputs (`type="file"`), and user-entered input values are strictly never mirrored. Form controls surface only safe descriptive metadata (accessible label, role, checked/selected state). Contenteditable text is excluded unless explicitly selected.
+- **Predictable Context Tracking:** Prioritizes active text selections (`selectionchange`) and keyboard focus (`focusin`) over mouse hover. Suppresses pointer hover updates for 1200ms following keyboard navigation (`Tab`, arrow keys). Ignores ambient hover on touch-first devices. Resolves nested icons/spans to semantic parent containers (`button`, `a`, `h1`-`h6`, `p`, `li`, etc.).
+- **Typography & Localization:** Preserves bundled `'Cairo'` font and `rtl` direction for Arabic text (detected via explicit `lang="ar"` or Arabic script Unicode range, never by `dir="rtl"` alone), with Latin system sans-serif for English content. All 10 new translation keys maintain 1:1 parity across Arabic and English dictionaries.
+- **Underlying Website Protection:** Zero permanent host DOM mutations, zero inline style modifications, and zero interference with page click handlers (`pointer-events: auto` strictly isolated to strip controls). Complete teardown of all listeners, timers, and DOM nodes on disable, reset, or widget destroy.
+- **Test Evidence:** 174/174 automated tests passed across all 9 widget test files (27/27 in `phase2c-magnifier-strip.test.ts`). Zero TypeScript errors and clean production Vite bundle build (`dist/widget.iife.js` 192.02 kB).
+
+
 

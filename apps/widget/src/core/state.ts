@@ -148,6 +148,12 @@ export class StateManager {
             if (typeof settings.lineSpacing !== 'number' || isNaN(settings.lineSpacing)) {
               settings.lineSpacing = 1.0;
             }
+            if (typeof settings.magnifierStrip !== 'boolean') {
+              settings.magnifierStrip = false;
+            }
+            if (![1.5, 2.0, 2.5, 3.0].includes(settings.magnifierScale)) {
+              settings.magnifierScale = 2.0;
+            }
             return settings;
           }
         }
