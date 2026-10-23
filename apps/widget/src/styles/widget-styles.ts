@@ -337,7 +337,13 @@ export const WIDGET_CSS = `
     background: var(--surface-elevated);
     border-bottom: 1px solid var(--border);
     padding: 4px 6px 0;
+    gap: 4px;
     overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .raawi-tab-bar::-webkit-scrollbar {
+    display: none;
   }
 
   .raawi-tab-btn {
@@ -345,11 +351,11 @@ export const WIDGET_CSS = `
     border: none;
     background: transparent;
     min-height: 44px;
-    padding: 10px 10px;
-    font-size: 13px;
+    padding: 8px 8px;
+    font-size: 12.5px;
     font-weight: 600;
     color: var(--text-secondary);
-    border-bottom: 2px solid transparent;
+    border-bottom: 2.5px solid transparent;
     cursor: pointer;
     transition: all 0.15s ease;
     white-space: nowrap;
@@ -357,10 +363,22 @@ export const WIDGET_CSS = `
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 6px;
+    border-top-left-radius: var(--radius-sm);
+    border-top-right-radius: var(--radius-sm);
+    position: relative;
+  }
+
+  .raawi-tab-icon {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    display: inline-block;
   }
 
   .raawi-tab-btn:hover {
     color: var(--text-primary);
+    background: rgba(240, 253, 250, 0.6);
   }
 
   .raawi-tab-btn:focus-visible {
@@ -372,8 +390,7 @@ export const WIDGET_CSS = `
     color: var(--primary);
     border-bottom-color: var(--primary);
     background: var(--surface);
-    border-top-left-radius: var(--radius-sm);
-    border-top-right-radius: var(--radius-sm);
+    font-weight: 700;
   }
 
   /* Tab Content Body */
@@ -395,12 +412,40 @@ export const WIDGET_CSS = `
     display: flex;
     flex-direction: column;
     gap: 10px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
 
   .raawi-control-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
+  }
+
+  .raawi-control-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .raawi-control-icon-wrap {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background: #f0fdfa;
+    color: var(--primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .raawi-control-icon-wrap svg {
+    width: 17px;
+    height: 17px;
   }
 
   .raawi-control-title {
@@ -410,8 +455,9 @@ export const WIDGET_CSS = `
   }
 
   .raawi-control-desc {
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--text-muted);
+    line-height: 1.35;
   }
 
   /* Badges & Page Insights */
@@ -600,8 +646,8 @@ export const WIDGET_CSS = `
   }
 
   .raawi-stepper-btn {
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     border-radius: var(--radius-sm);
     border: 1px solid var(--border);
     background: var(--surface-elevated);
@@ -609,10 +655,21 @@ export const WIDGET_CSS = `
     font-size: 16px;
     font-weight: bold;
     cursor: pointer;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     transition: all 0.15s ease;
+    position: relative;
+  }
+
+  .raawi-stepper-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .raawi-stepper-btn:hover {
@@ -621,12 +678,38 @@ export const WIDGET_CSS = `
     color: var(--primary);
   }
 
+  .raawi-stepper-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
   .raawi-stepper-value {
-    font-size: 13px;
+    font-size: 13.5px;
     font-weight: 700;
     color: var(--primary);
-    min-width: 48px;
+    min-width: 52px;
     text-align: center;
+  }
+
+  .raawi-stepper-progress {
+    width: 100%;
+    margin-top: 6px;
+  }
+
+  .raawi-progress-track {
+    width: 100%;
+    height: 5px;
+    background: #e2e8f0;
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .raawi-progress-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: var(--radius-full);
+    transition: width 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   /* Switch Toggle */
@@ -635,6 +718,7 @@ export const WIDGET_CSS = `
     display: inline-block;
     width: 44px;
     height: 24px;
+    flex-shrink: 0;
   }
 
   .raawi-toggle input {
@@ -678,10 +762,10 @@ export const WIDGET_CSS = `
     transform: translateX(20px);
   }
 
-  /* Preset Grid */
+  /* Accessibility Profile Cards (Presets) */
   .raawi-preset-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, 1fr);
     gap: 8px;
   }
 
@@ -698,15 +782,146 @@ export const WIDGET_CSS = `
     transition: all 0.15s ease;
   }
 
+  .raawi-preset-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: start;
+    padding: 12px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    gap: 4px;
+  }
+
+  :host([dir="rtl"]) .raawi-preset-card {
+    text-align: right;
+    align-items: flex-start;
+  }
+
+  :host([dir="ltr"]) .raawi-preset-card {
+    text-align: left;
+    align-items: flex-start;
+  }
+
   .raawi-preset-btn:hover {
     border-color: var(--primary);
     color: var(--primary);
+  }
+
+  .raawi-preset-card:hover {
+    border-color: var(--primary);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
   }
 
   .raawi-preset-btn.active {
     background: var(--primary-light);
     border-color: var(--primary);
     color: var(--primary);
+  }
+
+  .raawi-preset-card.active {
+    background: var(--primary-light);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 1px var(--primary);
+  }
+
+  .raawi-preset-icon-wrap {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    flex-shrink: 0;
+  }
+
+  .raawi-preset-card.active .raawi-preset-icon-wrap {
+    background: var(--primary);
+    color: #ffffff;
+  }
+
+  .raawi-preset-name {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.25;
+  }
+
+  .raawi-preset-card.active .raawi-preset-name {
+    color: var(--primary);
+  }
+
+  .raawi-preset-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.35;
+  }
+
+  /* Segmented Cursor Control */
+  .raawi-segmented-control {
+    display: inline-flex;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 3px;
+    gap: 3px;
+  }
+
+  .raawi-segmented-btn {
+    border: none;
+    background: transparent;
+    min-height: 34px;
+    padding: 4px 10px;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    position: relative;
+    white-space: nowrap;
+  }
+
+  .raawi-segmented-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .raawi-segmented-btn:hover {
+    color: var(--text-primary);
+  }
+
+  .raawi-segmented-btn.active {
+    background: var(--surface);
+    color: var(--primary);
+    box-shadow: var(--shadow-sm);
+    font-weight: 700;
+  }
+
+  .raawi-segmented-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+  }
+
+  .raawi-cursor-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    display: inline-block;
   }
 
   /* Action Buttons */

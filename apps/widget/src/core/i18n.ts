@@ -24,6 +24,16 @@ export interface TranslationDictionary {
   presetLowVision: string;
   presetDyslexia: string;
   presetNone: string;
+  presetBlindDesc: string;
+  presetLowVisionDesc: string;
+  presetDyslexiaDesc: string;
+  presetNoneDesc: string;
+  cursorDesc: string;
+  highContrastDesc: string;
+  focusHighlightDesc: string;
+  readableFontDesc: string;
+  highlightLinksDesc: string;
+  stopAnimationsDesc: string;
 
   // Display Controls
   textSize: string;
@@ -177,6 +187,16 @@ export const translations: Record<Locale, TranslationDictionary> = {
     presetLowVision: 'ضعف البصر وتباين عالٍ',
     presetDyslexia: 'عسر القراءة والتركيز',
     presetNone: 'الوضع الافتراضي (إيقاف)',
+    presetBlindDesc: 'مساعدة صوتية وتوجيه نصوص كامل',
+    presetLowVisionDesc: 'تكبير نصوص وتباين ألوان مرتفع',
+    presetDyslexiaDesc: 'مسطرة قراءة وتباعد مريح وتثبيت الحركة',
+    presetNoneDesc: 'استعادة المظهر الافتراضي للموقع',
+    cursorDesc: 'مؤشر فأرة كبير عالي الوضوح',
+    highContrastDesc: 'عكس الألوان ورفع تباين العناصر',
+    focusHighlightDesc: 'إطار واضح حول العنصر النشط',
+    readableFontDesc: 'خط عربي ولاتيني مريح وواضح',
+    highlightLinksDesc: 'تمييز الروابط والأزرار بوضوح',
+    stopAnimationsDesc: 'إيقاف الحركة والوميض في الصفحة',
 
     textSize: 'حجم الخط',
     increaseTextSize: 'تكبير حجم الخط',
@@ -322,6 +342,16 @@ export const translations: Record<Locale, TranslationDictionary> = {
     presetLowVision: 'Low Vision & Contrast',
     presetDyslexia: 'Dyslexia & Focus',
     presetNone: 'Default (Off)',
+    presetBlindDesc: 'Audio guidance & screen reader support',
+    presetLowVisionDesc: 'Enhanced text scale & high contrast',
+    presetDyslexiaDesc: 'Reading guide ruler & calm line spacing',
+    presetNoneDesc: 'Restore default original view',
+    cursorDesc: 'High-visibility mouse pointer options',
+    highContrastDesc: 'Invert colors and maximize contrast',
+    focusHighlightDesc: 'Bold outline around active elements',
+    readableFontDesc: 'Clear typography for comfortable reading',
+    highlightLinksDesc: 'Distinct underline on all hyperlinks',
+    stopAnimationsDesc: 'Pause blinking, video and moving elements',
 
     textSize: 'Text Size',
     increaseTextSize: 'Increase text size',

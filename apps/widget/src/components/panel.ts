@@ -21,6 +21,37 @@ function escapeHtml(str: string): string {
   }[m] || m));
 }
 
+const TAB_ICONS = {
+  assist: '<svg class="raawi-tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2v4m0 8v4M2 10h4m8 0h4m-2.9-5.1-2.8 2.8m-6.4 6.4-2.8 2.8m0-12 2.8 2.8m6.4 6.4 2.8 2.8"/></svg>',
+  vision: '<svg class="raawi-tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 10s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="10" cy="10" r="3"/></svg>',
+  reading: '<svg class="raawi-tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  tools: '<svg class="raawi-tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="14" cy="14" r="3"/><path d="M8.5 8.5 11.5 11.5m2.5-5.5h-4m-4 8h-4"/></svg>',
+};
+
+const PRESET_ICONS = {
+  blind: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;" aria-hidden="true"><path d="M3 3l14 14M8.5 8.7a3 3 0 0 0 4.1 4.1M10 4c4.5 0 7.5 4 8.5 6a12.8 12.8 0 0 1-3.6 4.3M6.5 5.5A12.4 12.4 0 0 0 1.5 10c1 2 4 6 8.5 6 1.4 0 2.7-.4 3.8-1"/></svg>',
+  lowVision: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="m14 14 4 4"/><circle cx="9" cy="9" r="2"/></svg>',
+  dyslexia: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;" aria-hidden="true"><path d="M4 5h12M4 10h12M4 15h8"/><circle cx="16" cy="15" r="1.5" fill="currentColor"/></svg>',
+  none: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;" aria-hidden="true"><path d="M3 10a7 7 0 1 0 14 0 7 7 0 0 0-14 0z"/><path d="m5 5 10 10"/></svg>',
+};
+
+const VISION_ICONS = {
+  textSize: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 15V6l4-1m0 0v10m0-10l4 1v9M14 15v-5l2-.5m0 0v5.5m0-5.5l2 .5v5"/></svg>',
+  lineSpacing: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h14M3 10h14M3 16h14M7 7l-2-2 2-2M7 13l-2 2 2 2"/></svg>',
+  contrast: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M10 3v14a7 7 0 0 0 0-14z" fill="currentColor"/></svg>',
+  focusHighlight: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2" stroke-dasharray="3 3"/><circle cx="10" cy="10" r="2.5" fill="currentColor"/></svg>',
+  readableFont: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 16L8.5 4h3L16 16m-10.5-4h9"/></svg>',
+  highlightLinks: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 11.5a4 4 0 0 0 5.6 0l2.5-2.5a4 4 0 0 0-5.6-5.6L9.8 4.6M11.5 8.5a4 4 0 0 0-5.6 0l-2.5 2.5a4 4 0 0 0 5.6 5.6l1.2-1.2"/></svg>',
+  stopAnimations: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="M8 8v4m4-4v4"/></svg>',
+  cursor: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 4 6 13 2.5-5 5-2.5L4 4z"/></svg>',
+};
+
+const CURSOR_ICONS = {
+  off: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 2l5 11 2-4 4-2L3 2z"/></svg>',
+  dark: '<svg viewBox="0 0 16 16" fill="#0f172a" stroke="#ffffff" stroke-width="1" aria-hidden="true"><path d="M2 1l7 14 3-5 5-3L2 1z"/></svg>',
+  light: '<svg viewBox="0 0 16 16" fill="#ffffff" stroke="#0f172a" stroke-width="1.5" aria-hidden="true"><path d="M2 1l7 14 3-5 5-3L2 1z"/></svg>',
+};
+
 export class PanelComponent {
   private element: HTMLElement;
   private state: StateManager;
@@ -185,6 +216,9 @@ export class PanelComponent {
       this.headingsCache = HeadingsNavigator.discoverHeadings();
     }
 
+    const textSizePct = Math.max(0, Math.min(100, Math.round(((settings.textSize - 0.8) / 1.2) * 100)));
+    const lineSpacingPct = Math.max(0, Math.min(100, Math.round(((settings.lineSpacing - 0.8) / 1.2) * 100)));
+
     this.element.setAttribute('dir', this.state.getDirection());
 
     this.element.innerHTML = `
@@ -215,10 +249,10 @@ export class PanelComponent {
 
       <!-- Tab Navigation (WAI-ARIA Tablist Pattern) -->
       <nav class="raawi-tab-bar" role="tablist" aria-label="${t.widgetTitle}">
-        <button type="button" class="raawi-tab-btn ${activeTab === 'assist' ? 'active' : ''}" data-tab="assist" id="raawi-tab-assist" data-testid="raawi-tab-assist" role="tab" aria-selected="${activeTab === 'assist'}" aria-controls="raawi-tabpanel-assist" tabindex="${activeTab === 'assist' ? '0' : '-1'}">${t.assist}</button>
-        <button type="button" class="raawi-tab-btn ${activeTab === 'vision' ? 'active' : ''}" data-tab="vision" id="raawi-tab-vision" data-testid="raawi-tab-vision" role="tab" aria-selected="${activeTab === 'vision'}" aria-controls="raawi-tabpanel-vision" tabindex="${activeTab === 'vision' ? '0' : '-1'}">${t.vision}</button>
-        <button type="button" class="raawi-tab-btn ${activeTab === 'reading' ? 'active' : ''}" data-tab="reading" id="raawi-tab-reading" data-testid="raawi-tab-reading" role="tab" aria-selected="${activeTab === 'reading'}" aria-controls="raawi-tabpanel-reading" tabindex="${activeTab === 'reading' ? '0' : '-1'}">${t.reading}</button>
-        <button type="button" class="raawi-tab-btn ${activeTab === 'tools' ? 'active' : ''}" data-tab="tools" id="raawi-tab-tools" data-testid="raawi-tab-tools" role="tab" aria-selected="${activeTab === 'tools'}" aria-controls="raawi-tabpanel-tools" tabindex="${activeTab === 'tools' ? '0' : '-1'}">${t.tools}</button>
+        <button type="button" class="raawi-tab-btn ${activeTab === 'assist' ? 'active' : ''}" data-tab="assist" id="raawi-tab-assist" data-testid="raawi-tab-assist" role="tab" aria-selected="${activeTab === 'assist'}" aria-controls="raawi-tabpanel-assist" tabindex="${activeTab === 'assist' ? '0' : '-1'}">${TAB_ICONS.assist}${t.assist}</button>
+        <button type="button" class="raawi-tab-btn ${activeTab === 'vision' ? 'active' : ''}" data-tab="vision" id="raawi-tab-vision" data-testid="raawi-tab-vision" role="tab" aria-selected="${activeTab === 'vision'}" aria-controls="raawi-tabpanel-vision" tabindex="${activeTab === 'vision' ? '0' : '-1'}">${TAB_ICONS.vision}${t.vision}</button>
+        <button type="button" class="raawi-tab-btn ${activeTab === 'reading' ? 'active' : ''}" data-tab="reading" id="raawi-tab-reading" data-testid="raawi-tab-reading" role="tab" aria-selected="${activeTab === 'reading'}" aria-controls="raawi-tabpanel-reading" tabindex="${activeTab === 'reading' ? '0' : '-1'}">${TAB_ICONS.reading}${t.reading}</button>
+        <button type="button" class="raawi-tab-btn ${activeTab === 'tools' ? 'active' : ''}" data-tab="tools" id="raawi-tab-tools" data-testid="raawi-tab-tools" role="tab" aria-selected="${activeTab === 'tools'}" aria-controls="raawi-tabpanel-tools" tabindex="${activeTab === 'tools' ? '0' : '-1'}">${TAB_ICONS.tools}${t.tools}</button>
       </nav>
 
       <!-- Tab Content: Assist -->
@@ -231,10 +265,26 @@ export class PanelComponent {
             <span class="raawi-control-title">${t.presets}</span>
           </div>
           <div class="raawi-preset-grid">
-            <button type="button" class="raawi-preset-btn ${settings.activePreset === 'blind' ? 'active' : ''}" data-preset="blind" data-testid="raawi-preset-blind">${t.presetBlind}</button>
-            <button type="button" class="raawi-preset-btn ${settings.activePreset === 'low-vision' ? 'active' : ''}" data-preset="low-vision" data-testid="raawi-preset-lowvision">${t.presetLowVision}</button>
-            <button type="button" class="raawi-preset-btn ${settings.activePreset === 'dyslexia' ? 'active' : ''}" data-preset="dyslexia" data-testid="raawi-preset-dyslexia">${t.presetDyslexia}</button>
-            <button type="button" class="raawi-preset-btn ${settings.activePreset === 'none' ? 'active' : ''}" data-preset="none">${t.presetNone}</button>
+            <button type="button" class="raawi-preset-btn raawi-preset-card ${settings.activePreset === 'blind' ? 'active' : ''}" data-preset="blind" data-testid="raawi-preset-blind">
+              <div class="raawi-preset-icon-wrap" aria-hidden="true">${PRESET_ICONS.blind}</div>
+              <div class="raawi-preset-name">${t.presetBlind}</div>
+              <div class="raawi-preset-desc">${t.presetBlindDesc}</div>
+            </button>
+            <button type="button" class="raawi-preset-btn raawi-preset-card ${settings.activePreset === 'low-vision' ? 'active' : ''}" data-preset="low-vision" data-testid="raawi-preset-lowvision">
+              <div class="raawi-preset-icon-wrap" aria-hidden="true">${PRESET_ICONS.lowVision}</div>
+              <div class="raawi-preset-name">${t.presetLowVision}</div>
+              <div class="raawi-preset-desc">${t.presetLowVisionDesc}</div>
+            </button>
+            <button type="button" class="raawi-preset-btn raawi-preset-card ${settings.activePreset === 'dyslexia' ? 'active' : ''}" data-preset="dyslexia" data-testid="raawi-preset-dyslexia">
+              <div class="raawi-preset-icon-wrap" aria-hidden="true">${PRESET_ICONS.dyslexia}</div>
+              <div class="raawi-preset-name">${t.presetDyslexia}</div>
+              <div class="raawi-preset-desc">${t.presetDyslexiaDesc}</div>
+            </button>
+            <button type="button" class="raawi-preset-btn raawi-preset-card ${settings.activePreset === 'none' ? 'active' : ''}" data-preset="none">
+              <div class="raawi-preset-icon-wrap" aria-hidden="true">${PRESET_ICONS.none}</div>
+              <div class="raawi-preset-name">${t.presetNone}</div>
+              <div class="raawi-preset-desc">${t.presetNoneDesc}</div>
+            </button>
           </div>
         </div>
       </div>
@@ -244,9 +294,12 @@ export class PanelComponent {
         <!-- Text Size -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
-            <div>
-              <div class="raawi-control-title">${t.textSize}</div>
-              <div class="raawi-control-desc">80% - 200%</div>
+            <div class="raawi-control-header-left">
+              <div class="raawi-control-icon-wrap" aria-hidden="true">${VISION_ICONS.textSize}</div>
+              <div>
+                <div class="raawi-control-title">${t.textSize}</div>
+                <div class="raawi-control-desc">80% – 200%</div>
+              </div>
             </div>
             <div class="raawi-stepper-group">
               <button type="button" class="raawi-stepper-btn" id="raawi-btn-text-dec" aria-label="${t.decreaseTextSize}">-</button>
@@ -254,14 +307,22 @@ export class PanelComponent {
               <button type="button" class="raawi-stepper-btn" id="raawi-btn-text-inc" aria-label="${t.increaseTextSize}">+</button>
             </div>
           </div>
+          <div class="raawi-stepper-progress" aria-hidden="true">
+            <div class="raawi-progress-track">
+              <div class="raawi-progress-fill" style="width: ${textSizePct}%;"></div>
+            </div>
+          </div>
         </div>
 
         <!-- Line Spacing -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
-            <div>
-              <div class="raawi-control-title">${t.lineSpacing}</div>
-              <div class="raawi-control-desc">80% - 200%</div>
+            <div class="raawi-control-header-left">
+              <div class="raawi-control-icon-wrap" aria-hidden="true">${VISION_ICONS.lineSpacing}</div>
+              <div>
+                <div class="raawi-control-title">${t.lineSpacing}</div>
+                <div class="raawi-control-desc">80% – 200%</div>
+              </div>
             </div>
             <div class="raawi-stepper-group">
               <button type="button" class="raawi-stepper-btn" id="raawi-btn-line-dec" aria-label="${t.decreaseLineSpacing}">-</button>
@@ -269,12 +330,23 @@ export class PanelComponent {
               <button type="button" class="raawi-stepper-btn" id="raawi-btn-line-inc" aria-label="${t.increaseLineSpacing}">+</button>
             </div>
           </div>
+          <div class="raawi-stepper-progress" aria-hidden="true">
+            <div class="raawi-progress-track">
+              <div class="raawi-progress-fill" style="width: ${lineSpacingPct}%;"></div>
+            </div>
+          </div>
         </div>
 
         <!-- Contrast Mode Toggle -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
-            <span class="raawi-control-title">${t.highContrastMode}</span>
+            <div class="raawi-control-header-left">
+              <div class="raawi-control-icon-wrap" aria-hidden="true">${VISION_ICONS.contrast}</div>
+              <div>
+                <div class="raawi-control-title">${t.highContrastMode}</div>
+                <div class="raawi-control-desc">${t.highContrastDesc}</div>
+              </div>
+            </div>
             <label class="raawi-toggle">
               <input type="checkbox" id="raawi-toggle-contrast" ${settings.contrastMode ? 'checked' : ''} aria-label="${t.toggleHighContrast}">
               <span class="raawi-toggle-slider"></span>
@@ -285,7 +357,13 @@ export class PanelComponent {
         <!-- Focus Highlight Toggle -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
-            <span class="raawi-control-title">${t.focusHighlight}</span>
+            <div class="raawi-control-header-left">
+              <div class="raawi-control-icon-wrap" aria-hidden="true">${VISION_ICONS.focusHighlight}</div>
+              <div>
+                <div class="raawi-control-title">${t.focusHighlight}</div>
+                <div class="raawi-control-desc">${t.focusHighlightDesc}</div>
+              </div>
+            </div>
             <label class="raawi-toggle">
               <input type="checkbox" id="raawi-toggle-focus-highlight" data-testid="raawi-tool-focus-highlight" ${settings.focusHighlight ? 'checked' : ''} aria-label="${t.toggleFocusHighlight}">
               <span class="raawi-toggle-slider"></span>
@@ -296,7 +374,13 @@ export class PanelComponent {
         <!-- Readable Font Override Toggle -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
-            <span class="raawi-control-title">${t.readableFont}</span>
+            <div class="raawi-control-header-left">
+              <div class="raawi-control-icon-wrap" aria-hidden="true">${VISION_ICONS.readableFont}</div>
+              <div>
+                <div class="raawi-control-title">${t.readableFont}</div>
+                <div class="raawi-control-desc">${t.readableFontDesc}</div>
+              </div>
+            </div>
             <label class="raawi-toggle">
               <input type="checkbox" id="raawi-toggle-readable-font" data-testid="raawi-tool-readable-font" ${settings.readableFont ? 'checked' : ''} aria-label="${t.toggleReadableFont}">
               <span class="raawi-toggle-slider"></span>
@@ -307,7 +391,13 @@ export class PanelComponent {
         <!-- Highlight Links & Action Controls Toggle -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
-            <span class="raawi-control-title">${t.highlightLinks}</span>
+            <div class="raawi-control-header-left">
+              <div class="raawi-control-icon-wrap" aria-hidden="true">${VISION_ICONS.highlightLinks}</div>
+              <div>
+                <div class="raawi-control-title">${t.highlightLinks}</div>
+                <div class="raawi-control-desc">${t.highlightLinksDesc}</div>
+              </div>
+            </div>
             <label class="raawi-toggle">
               <input type="checkbox" id="raawi-toggle-highlight-links" data-testid="raawi-tool-highlight-links" ${settings.highlightLinks ? 'checked' : ''} aria-label="${t.toggleHighlightLinks}">
               <span class="raawi-toggle-slider"></span>
@@ -318,7 +408,13 @@ export class PanelComponent {
         <!-- Stop Animations Toggle -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
-            <span class="raawi-control-title">${t.stopAnimations}</span>
+            <div class="raawi-control-header-left">
+              <div class="raawi-control-icon-wrap" aria-hidden="true">${VISION_ICONS.stopAnimations}</div>
+              <div>
+                <div class="raawi-control-title">${t.stopAnimations}</div>
+                <div class="raawi-control-desc">${t.stopAnimationsDesc}</div>
+              </div>
+            </div>
             <label class="raawi-toggle">
               <input type="checkbox" id="raawi-toggle-stop-animations" data-testid="raawi-tool-stop-animations" ${settings.stopAnimations ? 'checked' : ''} aria-label="${t.toggleStopAnimations}">
               <span class="raawi-toggle-slider"></span>
@@ -326,14 +422,29 @@ export class PanelComponent {
           </div>
         </div>
 
-        <!-- Large Cursor Toggle -->
+        <!-- Large Cursor Segmented Selection -->
         <div class="raawi-control-card">
-          <div class="raawi-control-header">
-            <span class="raawi-control-title">${t.bigCursor}</span>
-            <div class="raawi-lang-switch">
-              <button type="button" class="raawi-lang-btn ${settings.bigCursor === 'off' ? 'active' : ''}" data-cursor="off">${t.off}</button>
-              <button type="button" class="raawi-lang-btn ${settings.bigCursor === 'dark' ? 'active' : ''}" data-cursor="dark">${t.bigDarkCursor}</button>
-              <button type="button" class="raawi-lang-btn ${settings.bigCursor === 'light' ? 'active' : ''}" data-cursor="light">${t.bigLightCursor}</button>
+          <div class="raawi-control-header" style="flex-wrap: wrap; gap: 10px;">
+            <div class="raawi-control-header-left">
+              <div class="raawi-control-icon-wrap" aria-hidden="true">${VISION_ICONS.cursor}</div>
+              <div>
+                <div class="raawi-control-title">${t.bigCursor}</div>
+                <div class="raawi-control-desc">${t.cursorDesc}</div>
+              </div>
+            </div>
+            <div class="raawi-segmented-control" role="group" aria-label="${t.bigCursor}">
+              <button type="button" class="raawi-segmented-btn ${settings.bigCursor === 'off' ? 'active' : ''}" data-cursor="off">
+                <span class="raawi-cursor-icon" aria-hidden="true">${CURSOR_ICONS.off}</span>
+                <span>${t.off}</span>
+              </button>
+              <button type="button" class="raawi-segmented-btn ${settings.bigCursor === 'dark' ? 'active' : ''}" data-cursor="dark">
+                <span class="raawi-cursor-icon" aria-hidden="true">${CURSOR_ICONS.dark}</span>
+                <span>${t.bigDarkCursor}</span>
+              </button>
+              <button type="button" class="raawi-segmented-btn ${settings.bigCursor === 'light' ? 'active' : ''}" data-cursor="light">
+                <span class="raawi-cursor-icon" aria-hidden="true">${CURSOR_ICONS.light}</span>
+                <span>${t.bigLightCursor}</span>
+              </button>
             </div>
           </div>
         </div>

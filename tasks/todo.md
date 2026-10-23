@@ -1661,6 +1661,39 @@
 - **Footer Polish:** Implemented `Active & Ready` (`جاهز ونشط`) pill with subtle teal border and green/teal status dot, and muted disclaimer.
 - **Tab Content Unchanged:** Tab bodies, presets, sliders, and navigation controls remained strictly untouched as authorized for Phase 1.
 - **Verification Evidence:** 174/174 unit and integration tests passing. Generated genuine Chromium screenshots `18_phase1_launcher_teal.png`, `19_phase1_panel_shell.png`, `20_phase1_arabic_shell.png`, and `21_phase1_mobile_shell.png`.
+# Tasks - Raawi X Widget Redesign: Phase 2 (Tab Navigation + Assist & Vision Polish)
 
+- [x] 1. Preflight & Baseline Verification
+  - [x] Verify repo path, branch (`feature/semantic-core`), HEAD (`0b8cfa4`), clean worktree, and disk space (73.25 GB free)
+  - [x] Inspect existing `panel.ts`, `widget-styles.ts`, `i18n.ts`, `state.ts`, and test files
+- [x] 2. Four-Tab Navigation Bar Polish
+  - [x] Add crisp inline SVG icons for all 4 tabs (Assist, Vision, Reading, Tools)
+  - [x] Style active tab with `#0d9488` teal underline/accent, subtle background, and focus-visible ring
+  - [x] Ensure touch target sizing (≥ 44×44px), prevent text clipping or horizontal scroll in RTL and narrow mobile
+  - [x] Verify WAI-ARIA tab semantics, arrow key navigation, and panel associations
+- [x] 3. Assist Tab Polish
+  - [x] Restyle Page Insights card with Level 2 elevation, status badge, element counts, and loading state
+  - [x] Restyle DOM remediation card with modern toggle switch, clear explanatory text, and opt-in safety preservation
+  - [x] Restyle Accessibility Profiles into a responsive 2 × 2 card grid with local SVG icons, concise descriptions, and active teal borders
+  - [x] Verify bilingual localization (EN/AR) and profile reset semantics
+- [x] 4. Vision Tab Polish
+  - [x] Restyle Typography steppers (Text Size & Line Spacing) with dynamic progress bar calculated from actual values (80–200%)
+  - [x] Restyle Visual Adjustment cards (High Contrast, Focus Highlight, Readable Font, Highlight Links, Stop Animations) with consistent toggle styling
+  - [x] Restyle Large Cursor into a segmented 3-way control (Off, Dark, Light) with local cursor SVG icons and 44px hit bounds
+- [x] 5. Testing & Verification
+  - [x] Run focused tests `phase5-1.test.ts`, `phase5-2.test.ts`, and `phase5-3.test.ts`
+  - [x] Run full widget regression suite (all 9 suites, 174/174 tests passing)
+  - [x] Run `tsc --noEmit` and `vite build`
+- [x] 6. Real Browser Verification & Screenshots
+  - [x] Capture genuine Chromium screenshots: English Assist, English Vision (with scrolled view), Arabic Assist, Arabic Vision, Mobile navigation
+- [x] 7. Review, Commit, Push & Delivery Report
+  - [x] Review git diff for senior standards
+  - [x] Commit and push Phase 2 to `feature/semantic-core`
+  - [x] Deliver Phase 2 report and stop for coordinator review
 
-
+## Execution Review (Widget Redesign Phase 2)
+- **Four-Tab Navigation:** Retained all 4 tabs (`Assist`, `Vision`, `Reading`, `Tools`) with inline SVG icons (`TAB_ICONS`). Maintained zero-whitespace between icon and text variable to strictly satisfy `textContent` exact string matching in existing test suites (`assert.equal(tab.textContent, 'Assist')`). Styled active tab with `#0d9488` teal bottom indicator and mint hover state. Full WAI-ARIA keyboard navigation (Left/Right/Up/Down/Home/End) and touch targets (≥44×44px) verified.
+- **Assist Tab Polish:** Restyled Page Insights card with subtle slate surface (`#f8fafc`), status badges, dynamic refresh button with loading state, and element count chips. Maintained safe DOM auto-remediation opt-in requirement (`remediationEnabled` remains false by default; never silently enabled by presets). Replaced preset buttons with a responsive 2×2 card grid featuring local SVG icons, titles, and bilingual descriptions for Blind, Low Vision, Dyslexia, and Default (Off) profiles.
+- **Vision Tab Polish:** Restyled Text Size and Line Spacing steppers with dynamically computed progress bars (`Math.round(((value - 0.8) / 1.2) * 100)%`) reflecting the active 80–200% scale in 10% steps. Restyled all 5 visual adjustment cards (High Contrast, Focus Highlight, Readable Font, Highlight Links, Stop Animations) with dedicated mint icon wraps, bold titles, and concise descriptions. Replaced cursor switch with an accessible 3-way segmented control (Off, Large Dark, Large Light) with inline SVG cursor icons and touch padding.
+- **Reading and Tools Tabs Strictly Preserved:** Tab contents for Reading and Tools were not altered.
+- **Verification Evidence:** 174/174 tests passing across all 9 test suites. Rebuilt production bundle (`widget.iife.js`). Captured genuine Chromium screenshot evidence: `22_phase2_english_assist.png`, `23_phase2_english_vision.png`, `23b_phase2_english_vision_scrolled.png`, `24_phase2_arabic_assist.png`, `25_phase2_arabic_vision.png`, and `26_phase2_mobile_tabs.png`.
