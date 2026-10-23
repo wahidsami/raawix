@@ -1435,7 +1435,44 @@
   3. Explicit Arabic language elements (`[lang^="ar"]`, `:lang(ar)`) use `'Cairo'` even when embedded in English pages.
   4. Explicit English language elements (`[lang^="en"]`, `:lang(en)`) use clean Latin sans-serif even when embedded in Arabic/RTL pages.
 - **Verification Evidence:** 146/146 automated tests passed across all 8 test files (including 21 Phase 2B/2B.1 tests). Zero type errors in `tsc --noEmit`. Clean Vite IIFE production build.
+# Tasks - Phase 2B.2: Targeted Font-Cascade Verification
 
+- [x] 1. Cascade Inspection & CSS Correction
+  - [x] Inspect current commit (`448889a`) and clean worktree
+  - [x] Remove `html[dir="rtl"]` from Cairo font rules so text direction alone is NEVER conflated with Arabic language
+  - [x] Implement robust specificity rules guaranteeing all 7 required cases:
+    1. Arabic document (`<html lang="ar" dir="rtl">`) -> Cairo
+    2. English document (`<html lang="en" dir="ltr">`) -> Latin font stack
+    3. English document with RTL direction (`<html lang="en" dir="rtl">`) -> Latin font stack
+    4. Explicit Arabic embedded in English document -> Cairo
+    5. Explicit English embedded in Arabic document -> Latin font stack
+    6. Non-Arabic RTL document (e.g. `<html lang="he" dir="rtl">`) -> Latin/fallback, not Cairo
+    7. Missing language metadata (`<html dir="rtl">` or `<html>`) -> Safe Latin/fallback, not Cairo
+- [x] 2. Dependency & Asset Review
+  - [x] Confirm Cairo woff2 assets in `apps/widget/assets/fonts/cairo/` and base64 embedding in `cairo-data.ts`
+  - [x] Remove redundant `@fontsource/cairo` devDependency from `package.json`
+  - [x] Preserve OFL 1.1 license text, attribution, and metadata
+- [x] 3. Targeted Regression Tests & Verification
+  - [x] Add explicit cascade tests for all 7 required language/direction combinations in `phase2b-visual-tools.test.ts`
+  - [x] Label JSDOM computed-style limitations accurately while testing CSS rule resolution
+  - [x] Run full widget regression test suite (all 8 test files: 147/147 passed)
+  - [x] Run `tsc --noEmit` and `vite build`
+- [x] 4. Review, Commit & Delivery Report
+  - [x] Check git diff for cleanliness and minimal impact
+  - [x] Commit and push to `feature/semantic-core`
+  - [x] Provide concise report and await coordinator review
 
+## Execution Review (Widget Phase 2B.2)
+- **Cascade Specificity & Language-Direction Decoupling:** Completely eliminated `html[dir="rtl"]` from Cairo font-family rules in `display-manager.ts`. Text direction alone (`dir="rtl"`) never triggers Arabic font overrides.
+- **7-Case Cascade Guarantee:**
+  1. `<html lang="ar" dir="rtl">`: Arabic content accurately resolves to bundled `'Cairo'`.
+  2. `<html lang="en" dir="ltr">`: English content resolves to Latin system sans-serif stack.
+  3. `<html lang="en" dir="rtl">`: English content in RTL direction strictly retains Latin system sans-serif stack.
+  4. Explicit Arabic in English document (`<p lang="ar">` in `<html lang="en">`): Element-tagged and descendant selectors (`p[lang^="ar"]`, `p:lang(ar)`) apply Cairo with isolated specificity.
+  5. Explicit English in Arabic document (`<p lang="en">` in `<html lang="ar">`): Scoped rule strictly targets Arabic roots (`html[lang^="ar"] [lang^="en"]`, `html:lang(ar) :lang(en)`), applying Latin stack without leaking into English documents.
+  6. Non-Arabic RTL document (`<html lang="he" dir="rtl">`): Hebrew/other RTL content retains safe Latin/system fallback without misclassification as Arabic.
+  7. Missing language metadata (`<html dir="rtl">` or `<html>`): Safe Latin/system fallback; direction alone never establishes Arabic language.
+- **Dependency Optimization:** Confirmed self-contained base64 embedding in `cairo-data.ts` and local woff2 assets + OFL 1.1 license in `apps/widget/assets/fonts/cairo/`. Safely removed `@fontsource/cairo` devDependency from `apps/widget/package.json` and `pnpm-lock.yaml`.
+- **Test Evidence:** 147/147 automated tests passed across all 8 widget test files (22/22 in `phase2b-visual-tools.test.ts`). Computed styles evaluated across all 7 cases with documented JSDOM limitations. Zero TypeScript errors and clean production Vite bundle build.
 
 

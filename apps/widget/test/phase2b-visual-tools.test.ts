@@ -227,23 +227,102 @@ describe('Phase 2B: Standalone Visual & Content Tools', () => {
       assert.ok(styleEl);
       const css = styleEl.textContent || '';
 
-      // Check that [lang^="en"] and :lang(en) override any root or parent [dir="rtl"] / Arabic styling
+      // Check that [lang^="en"] and :lang(en) override any root or parent Arabic styling
       assert.ok(
-        css.includes('html[data-raawi-readable-font="true"] [lang^="en"]'),
+        css.includes('html[data-raawi-readable-font="true"] [lang^="en"]') ||
+        css.includes('html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"]'),
         'Must explicitly support English sections [lang^="en"] embedded in Arabic pages'
       );
       assert.ok(
-        css.includes('html[data-raawi-readable-font="true"] :lang(en)'),
+        css.includes('html[data-raawi-readable-font="true"] :lang(en)') ||
+        css.includes('html[data-raawi-readable-font="true"][lang^="ar"] :lang(en)'),
         'Must explicitly support English sections :lang(en) embedded in Arabic pages'
       );
 
       // Check that [lang^="ar"] and :lang(ar) apply Cairo even when embedded in English pages
       assert.ok(
-        css.includes('html[data-raawi-readable-font="true"] [lang^="ar"]'),
+        css.includes('html[data-raawi-readable-font="true"] [lang^="ar"]') ||
+        css.includes('html[data-raawi-readable-font="true"][lang^="en"] [lang^="ar"]'),
         'Must explicitly support Arabic sections [lang^="ar"] embedded in English pages'
       );
 
+      // Verify dir="rtl" is NOT used to establish Arabic language
+      assert.ok(
+        !css.includes('html[data-raawi-readable-font="true"][dir="rtl"]'),
+        'Must NEVER use dir="rtl" alone to establish Arabic language'
+      );
+
       display.destroy();
+    });
+
+    it('verifies all 7 required language/direction cascade cases with computed-style evaluation', () => {
+      // JSDOM Limitation Note: JSDOM evaluates CSS rules and specificity in getComputedStyle,
+      // but lacks actual browser font rasterization and layout reflow.
+      function evaluateCascade(htmlSnippet: string, selector: string): string {
+        const testDom = new JSDOM(htmlSnippet);
+        const win = testDom.window;
+        const doc = win.document;
+        const testState = new StateManager('ar');
+        const host = doc.createElement('div');
+        const hostShadow = host.attachShadow({ mode: 'open' });
+
+        const originalWindow = (global as any).window;
+        const originalDocument = (global as any).document;
+        (global as any).window = win;
+        (global as any).document = doc;
+
+        const testDisplay = new DisplayManager(testState, hostShadow);
+        testState.updateSetting('readableFont', true);
+
+        const targetEl = doc.querySelector(selector);
+        assert.ok(targetEl, `Target element matching "${selector}" must exist`);
+        const computedFont = win.getComputedStyle(targetEl).fontFamily || '';
+
+        testDisplay.destroy();
+        (global as any).window = originalWindow;
+        (global as any).document = originalDocument;
+
+        return computedFont;
+      }
+
+      // Case 1: Arabic document: <html lang="ar" dir="rtl"> — Arabic content uses bundled Cairo
+      const fontCase1 = evaluateCascade('<html lang="ar" dir="rtl"><body><p>محتوى عربي</p></body></html>', 'p');
+      assert.ok(fontCase1.includes('Cairo'), `Case 1 must use Cairo: got ${fontCase1}`);
+
+      // Case 2: English document: <html lang="en" dir="ltr"> — English content uses Latin font stack
+      const fontCase2 = evaluateCascade('<html lang="en" dir="ltr"><body><p>English content</p></body></html>', 'p');
+      assert.ok(!fontCase2.includes('Cairo'), `Case 2 must NOT use Cairo: got ${fontCase2}`);
+      assert.ok(fontCase2.includes('sans-serif'), `Case 2 must use Latin sans-serif stack: got ${fontCase2}`);
+
+      // Case 3: English document with RTL direction: <html lang="en" dir="rtl"> — English content still uses Latin font stack
+      const fontCase3 = evaluateCascade('<html lang="en" dir="rtl"><body><p>English in RTL</p></body></html>', 'p');
+      assert.ok(!fontCase3.includes('Cairo'), `Case 3 must NOT use Cairo solely due to dir="rtl": got ${fontCase3}`);
+      assert.ok(fontCase3.includes('sans-serif'), `Case 3 must use Latin sans-serif stack: got ${fontCase3}`);
+
+      // Case 4: Arabic content embedded in an English document — explicit Arabic content uses Cairo
+      const fontCase4 = evaluateCascade(
+        '<html lang="en" dir="ltr"><body><section><p lang="ar">محتوى عربي داخل إنجليزي</p></section></body></html>',
+        'p[lang="ar"]'
+      );
+      assert.ok(fontCase4.includes('Cairo'), `Case 4 must use Cairo for embedded Arabic: got ${fontCase4}`);
+
+      // Case 5: English content embedded in an Arabic document — explicit English content uses Latin stack
+      const fontCase5 = evaluateCascade(
+        '<html lang="ar" dir="rtl"><body><section><p lang="en">English section inside Arabic</p></section></body></html>',
+        'p[lang="en"]'
+      );
+      assert.ok(!fontCase5.includes('Cairo'), `Case 5 must NOT use Cairo for embedded English: got ${fontCase5}`);
+      assert.ok(fontCase5.includes('sans-serif'), `Case 5 must use Latin sans-serif stack: got ${fontCase5}`);
+
+      // Case 6: RTL document with non-Arabic language: <html lang="he" dir="rtl"> — do not automatically classify as Arabic
+      const fontCase6 = evaluateCascade('<html lang="he" dir="rtl"><body><p>שלום עולם</p></body></html>', 'p');
+      assert.ok(!fontCase6.includes('Cairo'), `Case 6 (Hebrew RTL) must NOT use Cairo: got ${fontCase6}`);
+      assert.ok(fontCase6.includes('sans-serif'), `Case 6 must use safe fallback: got ${fontCase6}`);
+
+      // Case 7: Missing language metadata: <html dir="rtl"> — safe fallback, direction alone does not establish language
+      const fontCase7 = evaluateCascade('<html dir="rtl"><body><p>Missing language metadata</p></body></html>', 'p');
+      assert.ok(!fontCase7.includes('Cairo'), `Case 7 (missing lang) must NOT use Cairo: got ${fontCase7}`);
+      assert.ok(fontCase7.includes('sans-serif'), `Case 7 must use safe fallback: got ${fontCase7}`);
     });
 
     it('toggles readable font via Panel UI checkbox control', () => {

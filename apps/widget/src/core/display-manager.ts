@@ -616,8 +616,8 @@ export class DisplayManager {
         box-shadow: 0 0 0 6px #000000, 0 0 0 8px #00ffff !important;
       }
 
-      /* Standalone Legible Typography Override (Phase 2B.1 Language-Aware Selection) */
-      /* 1. Base readable font for Latin/default host content */
+      /* Standalone Legible Typography Override (Phase 2B.2 Language-Aware Selection & Cascade) */
+      /* 1. Base readable typography (Latin/English/fallback for unclassified or other languages) */
       html[data-raawi-readable-font="true"] body,
       html[data-raawi-readable-font="true"] p,
       html[data-raawi-readable-font="true"] h1,
@@ -637,7 +637,7 @@ export class DisplayManager {
         letter-spacing: 0.015em;
       }
 
-      /* 2. Arabic document root or RTL context: primary font is Cairo */
+      /* 2. Arabic document root: primary font is Cairo (strictly requires lang="ar", direction alone is NEVER conflated) */
       html[data-raawi-readable-font="true"][lang^="ar"] body,
       html[data-raawi-readable-font="true"][lang^="ar"] p,
       html[data-raawi-readable-font="true"][lang^="ar"] h1,
@@ -653,26 +653,26 @@ export class DisplayManager {
       html[data-raawi-readable-font="true"][lang^="ar"] figcaption,
       html[data-raawi-readable-font="true"][lang^="ar"] span:not(raawi-accessibility-widget *):not(.raawi-theme *),
       html[data-raawi-readable-font="true"][lang^="ar"] a:not(raawi-accessibility-widget *):not(.raawi-theme *),
-      html[data-raawi-readable-font="true"][dir="rtl"] body,
-      html[data-raawi-readable-font="true"][dir="rtl"] p,
-      html[data-raawi-readable-font="true"][dir="rtl"] h1,
-      html[data-raawi-readable-font="true"][dir="rtl"] h2,
-      html[data-raawi-readable-font="true"][dir="rtl"] h3,
-      html[data-raawi-readable-font="true"][dir="rtl"] h4,
-      html[data-raawi-readable-font="true"][dir="rtl"] h5,
-      html[data-raawi-readable-font="true"][dir="rtl"] h6,
-      html[data-raawi-readable-font="true"][dir="rtl"] li,
-      html[data-raawi-readable-font="true"][dir="rtl"] dd,
-      html[data-raawi-readable-font="true"][dir="rtl"] dt,
-      html[data-raawi-readable-font="true"][dir="rtl"] blockquote,
-      html[data-raawi-readable-font="true"][dir="rtl"] figcaption,
-      html[data-raawi-readable-font="true"][dir="rtl"] span:not(raawi-accessibility-widget *):not(.raawi-theme *),
-      html[data-raawi-readable-font="true"][dir="rtl"] a:not(raawi-accessibility-widget *):not(.raawi-theme *) {
+      html[data-raawi-readable-font="true"]:lang(ar) body,
+      html[data-raawi-readable-font="true"]:lang(ar) p,
+      html[data-raawi-readable-font="true"]:lang(ar) h1,
+      html[data-raawi-readable-font="true"]:lang(ar) h2,
+      html[data-raawi-readable-font="true"]:lang(ar) h3,
+      html[data-raawi-readable-font="true"]:lang(ar) h4,
+      html[data-raawi-readable-font="true"]:lang(ar) h5,
+      html[data-raawi-readable-font="true"]:lang(ar) h6,
+      html[data-raawi-readable-font="true"]:lang(ar) li,
+      html[data-raawi-readable-font="true"]:lang(ar) dd,
+      html[data-raawi-readable-font="true"]:lang(ar) dt,
+      html[data-raawi-readable-font="true"]:lang(ar) blockquote,
+      html[data-raawi-readable-font="true"]:lang(ar) figcaption,
+      html[data-raawi-readable-font="true"]:lang(ar) span:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"]:lang(ar) a:not(raawi-accessibility-widget *):not(.raawi-theme *) {
         font-family: 'Cairo', 'Noto Naskh Arabic', 'Tahoma', Arial, sans-serif !important;
         letter-spacing: 0.015em;
       }
 
-      /* 3. Explicit Arabic language sections or elements (including inside LTR/English pages) */
+      /* 3. Explicit Arabic language sections or elements (including inside LTR/English documents) */
       html[data-raawi-readable-font="true"] [lang^="ar"]:not(raawi-accessibility-widget *):not(.raawi-theme *),
       html[data-raawi-readable-font="true"] [lang^="ar"] p,
       html[data-raawi-readable-font="true"] [lang^="ar"] h1,
@@ -682,8 +682,22 @@ export class DisplayManager {
       html[data-raawi-readable-font="true"] [lang^="ar"] h5,
       html[data-raawi-readable-font="true"] [lang^="ar"] h6,
       html[data-raawi-readable-font="true"] [lang^="ar"] li,
+      html[data-raawi-readable-font="true"] [lang^="ar"] dd,
+      html[data-raawi-readable-font="true"] [lang^="ar"] dt,
+      html[data-raawi-readable-font="true"] [lang^="ar"] blockquote,
+      html[data-raawi-readable-font="true"] [lang^="ar"] figcaption,
       html[data-raawi-readable-font="true"] [lang^="ar"] span:not(raawi-accessibility-widget *):not(.raawi-theme *),
       html[data-raawi-readable-font="true"] [lang^="ar"] a:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"] p[lang^="ar"],
+      html[data-raawi-readable-font="true"] h1[lang^="ar"],
+      html[data-raawi-readable-font="true"] h2[lang^="ar"],
+      html[data-raawi-readable-font="true"] h3[lang^="ar"],
+      html[data-raawi-readable-font="true"] h4[lang^="ar"],
+      html[data-raawi-readable-font="true"] h5[lang^="ar"],
+      html[data-raawi-readable-font="true"] h6[lang^="ar"],
+      html[data-raawi-readable-font="true"] li[lang^="ar"],
+      html[data-raawi-readable-font="true"] span[lang^="ar"]:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"] a[lang^="ar"]:not(raawi-accessibility-widget *):not(.raawi-theme *),
       html[data-raawi-readable-font="true"] :lang(ar):not(raawi-accessibility-widget *):not(.raawi-theme *),
       html[data-raawi-readable-font="true"] :lang(ar) p,
       html[data-raawi-readable-font="true"] :lang(ar) h1,
@@ -694,34 +708,74 @@ export class DisplayManager {
       html[data-raawi-readable-font="true"] :lang(ar) h6,
       html[data-raawi-readable-font="true"] :lang(ar) li,
       html[data-raawi-readable-font="true"] :lang(ar) span:not(raawi-accessibility-widget *):not(.raawi-theme *),
-      html[data-raawi-readable-font="true"] :lang(ar) a:not(raawi-accessibility-widget *):not(.raawi-theme *) {
+      html[data-raawi-readable-font="true"] :lang(ar) a:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"] p:lang(ar),
+      html[data-raawi-readable-font="true"] h1:lang(ar),
+      html[data-raawi-readable-font="true"] h2:lang(ar),
+      html[data-raawi-readable-font="true"] h3:lang(ar),
+      html[data-raawi-readable-font="true"] h4:lang(ar),
+      html[data-raawi-readable-font="true"] h5:lang(ar),
+      html[data-raawi-readable-font="true"] h6:lang(ar),
+      html[data-raawi-readable-font="true"] li:lang(ar),
+      html[data-raawi-readable-font="true"] span:lang(ar):not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"] a:lang(ar):not(raawi-accessibility-widget *):not(.raawi-theme *) {
         font-family: 'Cairo', 'Noto Naskh Arabic', 'Tahoma', Arial, sans-serif !important;
         letter-spacing: 0.015em;
       }
 
-      /* 4. Explicit English/Latin language sections or elements (including inside RTL/Arabic pages) */
-      html[data-raawi-readable-font="true"] [lang^="en"]:not(raawi-accessibility-widget *):not(.raawi-theme *),
-      html[data-raawi-readable-font="true"] [lang^="en"] p,
-      html[data-raawi-readable-font="true"] [lang^="en"] h1,
-      html[data-raawi-readable-font="true"] [lang^="en"] h2,
-      html[data-raawi-readable-font="true"] [lang^="en"] h3,
-      html[data-raawi-readable-font="true"] [lang^="en"] h4,
-      html[data-raawi-readable-font="true"] [lang^="en"] h5,
-      html[data-raawi-readable-font="true"] [lang^="en"] h6,
-      html[data-raawi-readable-font="true"] [lang^="en"] li,
-      html[data-raawi-readable-font="true"] [lang^="en"] span:not(raawi-accessibility-widget *):not(.raawi-theme *),
-      html[data-raawi-readable-font="true"] [lang^="en"] a:not(raawi-accessibility-widget *):not(.raawi-theme *),
-      html[data-raawi-readable-font="true"] :lang(en):not(raawi-accessibility-widget *):not(.raawi-theme *),
-      html[data-raawi-readable-font="true"] :lang(en) p,
-      html[data-raawi-readable-font="true"] :lang(en) h1,
-      html[data-raawi-readable-font="true"] :lang(en) h2,
-      html[data-raawi-readable-font="true"] :lang(en) h3,
-      html[data-raawi-readable-font="true"] :lang(en) h4,
-      html[data-raawi-readable-font="true"] :lang(en) h5,
-      html[data-raawi-readable-font="true"] :lang(en) h6,
-      html[data-raawi-readable-font="true"] :lang(en) li,
-      html[data-raawi-readable-font="true"] :lang(en) span:not(raawi-accessibility-widget *):not(.raawi-theme *),
-      html[data-raawi-readable-font="true"] :lang(en) a:not(raawi-accessibility-widget *):not(.raawi-theme *) {
+      /* 4. Explicit English/Latin language sections or elements embedded inside Arabic documents */
+      html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"]:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"] p,
+      html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"] h1,
+      html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"] h2,
+      html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"] h3,
+      html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"] h4,
+      html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"] h5,
+      html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"] h6,
+      html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"] li,
+      html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"] dd,
+      html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"] dt,
+      html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"] blockquote,
+      html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"] figcaption,
+      html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"] span:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"][lang^="ar"] [lang^="en"] a:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"][lang^="ar"] p[lang^="en"],
+      html[data-raawi-readable-font="true"][lang^="ar"] h1[lang^="en"],
+      html[data-raawi-readable-font="true"][lang^="ar"] h2[lang^="en"],
+      html[data-raawi-readable-font="true"][lang^="ar"] h3[lang^="en"],
+      html[data-raawi-readable-font="true"][lang^="ar"] h4[lang^="en"],
+      html[data-raawi-readable-font="true"][lang^="ar"] h5[lang^="en"],
+      html[data-raawi-readable-font="true"][lang^="ar"] h6[lang^="en"],
+      html[data-raawi-readable-font="true"][lang^="ar"] li[lang^="en"],
+      html[data-raawi-readable-font="true"][lang^="ar"] span[lang^="en"]:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"][lang^="ar"] a[lang^="en"]:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"][lang^="ar"] :lang(en):not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"][lang^="ar"] :lang(en) p,
+      html[data-raawi-readable-font="true"][lang^="ar"] :lang(en) h1,
+      html[data-raawi-readable-font="true"][lang^="ar"] :lang(en) h2,
+      html[data-raawi-readable-font="true"][lang^="ar"] :lang(en) h3,
+      html[data-raawi-readable-font="true"][lang^="ar"] :lang(en) h4,
+      html[data-raawi-readable-font="true"][lang^="ar"] :lang(en) h5,
+      html[data-raawi-readable-font="true"][lang^="ar"] :lang(en) h6,
+      html[data-raawi-readable-font="true"][lang^="ar"] :lang(en) li,
+      html[data-raawi-readable-font="true"][lang^="ar"] :lang(en) span:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"][lang^="ar"] :lang(en) a:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"][lang^="ar"] p:lang(en),
+      html[data-raawi-readable-font="true"][lang^="ar"] h1:lang(en),
+      html[data-raawi-readable-font="true"][lang^="ar"] h2:lang(en),
+      html[data-raawi-readable-font="true"][lang^="ar"] h3:lang(en),
+      html[data-raawi-readable-font="true"][lang^="ar"] h4:lang(en),
+      html[data-raawi-readable-font="true"][lang^="ar"] h5:lang(en),
+      html[data-raawi-readable-font="true"][lang^="ar"] h6:lang(en),
+      html[data-raawi-readable-font="true"][lang^="ar"] li:lang(en),
+      html[data-raawi-readable-font="true"][lang^="ar"] span:lang(en):not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"][lang^="ar"] a:lang(en):not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"]:lang(ar) [lang^="en"]:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"]:lang(ar) [lang^="en"] p,
+      html[data-raawi-readable-font="true"]:lang(ar) p[lang^="en"],
+      html[data-raawi-readable-font="true"]:lang(ar) :lang(en):not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"]:lang(ar) :lang(en) p,
+      html[data-raawi-readable-font="true"]:lang(ar) p:lang(en) {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
         letter-spacing: 0.015em;
       }
