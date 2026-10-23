@@ -52,6 +52,22 @@ const CURSOR_ICONS = {
   light: '<svg viewBox="0 0 16 16" fill="#ffffff" stroke="#0f172a" stroke-width="1.5" aria-hidden="true"><path d="M2 1l7 14 3-5 5-3L2 1z"/></svg>',
 };
 
+const READING_ICONS = {
+  guide: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="16" height="8" rx="1.5"/><line x1="6" y1="6" x2="6" y2="9"/><line x1="10" y1="6" x2="10" y2="10"/><line x1="14" y1="6" x2="14" y2="9"/></svg>',
+  mask: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="16" height="14" rx="2"/><line x1="2" y1="7" x2="18" y2="7"/><line x1="2" y1="13" x2="18" y2="13"/><circle cx="10" cy="10" r="1.5" fill="currentColor"/></svg>',
+  magnifier: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="m13.5 13.5 4.5 4.5"/><path d="M7 9h4M9 7v4"/></svg>',
+  hideImages: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2"/><circle cx="7.5" cy="7.5" r="1.5"/><path d="m17 13-3.5-3.5L6 17"/><path d="m2 2 16 16"/></svg>',
+};
+
+const TOOLS_ICONS = {
+  tts: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="3 8 7 8 12 4 12 16 7 12 3 12 3 8" fill="currentColor" fill-opacity="0.2"/><path d="M15 7a4 4 0 0 1 0 6M17.5 4.5a8 8 0 0 1 0 11"/></svg>',
+  headings: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h4v12H4M12 4h4v12h-4M4 10h12"/></svg>',
+  play: '<svg viewBox="0 0 16 16" fill="currentColor" style="width:13px;height:13px;" aria-hidden="true"><path d="M4 2.5l9 5.5-9 5.5V2.5z"/></svg>',
+  pause: '<svg viewBox="0 0 16 16" fill="currentColor" style="width:13px;height:13px;" aria-hidden="true"><rect x="3.5" y="2.5" width="3.5" height="11" rx="1"/><rect x="9" y="2.5" width="3.5" height="11" rx="1"/></svg>',
+  stop: '<svg viewBox="0 0 16 16" fill="currentColor" style="width:13px;height:13px;" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="1.5"/></svg>',
+  refresh: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;" aria-hidden="true"><path d="M2.5 8a5.5 5.5 0 0 1 9.3-4M13.5 8a5.5 5.5 0 0 1-9.3 4"/><path d="M12 2v3h-3M4 14v-3h3"/></svg>',
+};
+
 export class PanelComponent {
   private element: HTMLElement;
   private state: StateManager;
@@ -452,71 +468,92 @@ export class PanelComponent {
 
       <!-- Tab Content: Reading -->
       <div id="raawi-tabpanel-reading" class="raawi-tab-body" role="tabpanel" aria-labelledby="raawi-tab-reading" tabindex="0" style="display: ${activeTab === 'reading' ? 'flex' : 'none'};">
-        <!-- Reading Guide Ruler -->
+        <!-- 1. Reading Guide Ruler -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
-            <span class="raawi-control-title">${t.readingGuide}</span>
+            <div class="raawi-control-header-left">
+              <div class="raawi-control-icon-wrap" aria-hidden="true">${READING_ICONS.guide}</div>
+              <div>
+                <div class="raawi-control-title">${t.readingGuide}</div>
+                <div class="raawi-control-desc">${t.readingGuideDesc}</div>
+              </div>
+            </div>
             <label class="raawi-toggle">
               <input type="checkbox" id="raawi-toggle-reading-guide" data-testid="raawi-tool-reading-guide" ${settings.readingGuide ? 'checked' : ''} aria-label="${t.toggleReadingGuide}">
               <span class="raawi-toggle-slider"></span>
             </label>
           </div>
-          <div id="raawi-guide-thickness-container" style="display: ${settings.readingGuide ? 'flex' : 'none'}; margin-top: 10px; justify-content: space-between; align-items: center;">
-            <span style="font-size: 12px; color: var(--text-secondary);">${t.guideThickness}</span>
-            <div class="raawi-lang-switch">
-              <button type="button" class="raawi-lang-btn ${settings.readingGuideThickness === 'thin' ? 'active' : ''}" data-guide-thickness="thin" data-testid="raawi-guide-thin">${t.thin}</button>
-              <button type="button" class="raawi-lang-btn ${settings.readingGuideThickness === 'medium' ? 'active' : ''}" data-guide-thickness="medium" data-testid="raawi-guide-medium">${t.medium}</button>
-              <button type="button" class="raawi-lang-btn ${settings.readingGuideThickness === 'thick' ? 'active' : ''}" data-guide-thickness="thick" data-testid="raawi-guide-thick">${t.thick}</button>
+          <div id="raawi-guide-thickness-container" class="raawi-subcontrol-row" style="display: ${settings.readingGuide ? 'flex' : 'none'};">
+            <span class="raawi-subcontrol-label">${t.guideThickness}</span>
+            <div class="raawi-segmented-control" role="group" aria-label="${t.guideThickness}">
+              <button type="button" class="raawi-segmented-btn ${settings.readingGuideThickness === 'thin' ? 'active' : ''}" data-guide-thickness="thin" data-testid="raawi-guide-thin" aria-pressed="${settings.readingGuideThickness === 'thin' ? 'true' : 'false'}">${t.thin}</button>
+              <button type="button" class="raawi-segmented-btn ${settings.readingGuideThickness === 'medium' ? 'active' : ''}" data-guide-thickness="medium" data-testid="raawi-guide-medium" aria-pressed="${settings.readingGuideThickness === 'medium' ? 'true' : 'false'}">${t.medium}</button>
+              <button type="button" class="raawi-segmented-btn ${settings.readingGuideThickness === 'thick' ? 'active' : ''}" data-guide-thickness="thick" data-testid="raawi-guide-thick" aria-pressed="${settings.readingGuideThickness === 'thick' ? 'true' : 'false'}">${t.thick}</button>
             </div>
           </div>
         </div>
 
-        <!-- Reading Focus Mask -->
+        <!-- 2. Reading Focus Mask -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
-            <span class="raawi-control-title">${t.readingMask}</span>
+            <div class="raawi-control-header-left">
+              <div class="raawi-control-icon-wrap" aria-hidden="true">${READING_ICONS.mask}</div>
+              <div>
+                <div class="raawi-control-title">${t.readingMask}</div>
+                <div class="raawi-control-desc">${t.readingMaskDesc}</div>
+              </div>
+            </div>
             <label class="raawi-toggle">
               <input type="checkbox" id="raawi-toggle-reading-mask" data-testid="raawi-tool-reading-mask" ${settings.readingMask ? 'checked' : ''} aria-label="${t.toggleReadingMask}">
               <span class="raawi-toggle-slider"></span>
             </label>
           </div>
-          <div id="raawi-mask-height-container" style="display: ${settings.readingMask ? 'flex' : 'none'}; margin-top: 10px; justify-content: space-between; align-items: center;">
-            <span style="font-size: 12px; color: var(--text-secondary);">${t.maskWindowHeight}</span>
-            <div class="raawi-lang-switch">
-              <button type="button" class="raawi-lang-btn ${settings.readingMaskWindowHeight === 'small' ? 'active' : ''}" data-mask-height="small">${t.small}</button>
-              <button type="button" class="raawi-lang-btn ${settings.readingMaskWindowHeight === 'medium' ? 'active' : ''}" data-mask-height="medium">${t.medium}</button>
-              <button type="button" class="raawi-lang-btn ${settings.readingMaskWindowHeight === 'large' ? 'active' : ''}" data-mask-height="large">${t.large}</button>
+          <div id="raawi-mask-height-container" class="raawi-subcontrol-row" style="display: ${settings.readingMask ? 'flex' : 'none'};">
+            <span class="raawi-subcontrol-label">${t.maskWindowHeight}</span>
+            <div class="raawi-segmented-control" role="group" aria-label="${t.maskWindowHeight}">
+              <button type="button" class="raawi-segmented-btn ${settings.readingMaskWindowHeight === 'small' ? 'active' : ''}" data-mask-height="small" aria-pressed="${settings.readingMaskWindowHeight === 'small' ? 'true' : 'false'}">${t.small}</button>
+              <button type="button" class="raawi-segmented-btn ${settings.readingMaskWindowHeight === 'medium' ? 'active' : ''}" data-mask-height="medium" aria-pressed="${settings.readingMaskWindowHeight === 'medium' ? 'true' : 'false'}">${t.medium}</button>
+              <button type="button" class="raawi-segmented-btn ${settings.readingMaskWindowHeight === 'large' ? 'active' : ''}" data-mask-height="large" aria-pressed="${settings.readingMaskWindowHeight === 'large' ? 'true' : 'false'}">${t.large}</button>
             </div>
           </div>
         </div>
 
-        <!-- Phase 2C: Standalone Magnified Reading Strip -->
+        <!-- 3. Standalone Magnified Reading Strip (Phase 2C card) -->
         <div class="raawi-control-card" id="raawi-magnifier-strip-card">
           <div class="raawi-control-header">
-            <div>
-              <div class="raawi-control-title">${t.magnifierStrip}</div>
-              <div class="raawi-control-desc">${t.magnifierFallback}</div>
+            <div class="raawi-control-header-left">
+              <div class="raawi-control-icon-wrap" aria-hidden="true">${READING_ICONS.magnifier}</div>
+              <div>
+                <div class="raawi-control-title">${t.magnifierStrip}</div>
+                <div class="raawi-control-desc">${t.magnifierFallback}</div>
+              </div>
             </div>
             <label class="raawi-toggle">
               <input type="checkbox" id="raawi-toggle-magnifier-strip" data-testid="raawi-tool-magnifier-strip" ${settings.magnifierStrip ? 'checked' : ''} aria-label="${t.toggleMagnifierStrip}">
               <span class="raawi-toggle-slider"></span>
             </label>
           </div>
-          <div id="raawi-magnifier-scale-container" style="display: ${settings.magnifierStrip ? 'flex' : 'none'}; margin-top: 10px; justify-content: space-between; align-items: center;">
-            <span style="font-size: 12px; color: var(--text-secondary);">${t.magnifierScale}</span>
-            <div class="raawi-lang-switch">
-              <button type="button" class="raawi-lang-btn ${settings.magnifierScale === 1.5 ? 'active' : ''}" data-panel-magnifier-scale="1.5" data-testid="raawi-panel-scale-150">${t.magnifierZoom150}</button>
-              <button type="button" class="raawi-lang-btn ${settings.magnifierScale === 2.0 ? 'active' : ''}" data-panel-magnifier-scale="2.0" data-testid="raawi-panel-scale-200">${t.magnifierZoom200}</button>
-              <button type="button" class="raawi-lang-btn ${settings.magnifierScale === 2.5 ? 'active' : ''}" data-panel-magnifier-scale="2.5" data-testid="raawi-panel-scale-250">${t.magnifierZoom250}</button>
-              <button type="button" class="raawi-lang-btn ${settings.magnifierScale === 3.0 ? 'active' : ''}" data-panel-magnifier-scale="3.0" data-testid="raawi-panel-scale-300">${t.magnifierZoom300}</button>
+          <div id="raawi-magnifier-scale-container" class="raawi-subcontrol-row" style="display: ${settings.magnifierStrip ? 'flex' : 'none'};">
+            <span class="raawi-subcontrol-label">${t.magnifierScale}</span>
+            <div class="raawi-segmented-control" role="group" aria-label="${t.magnifierScale}">
+              <button type="button" class="raawi-segmented-btn ${settings.magnifierScale === 1.5 ? 'active' : ''}" data-panel-magnifier-scale="1.5" data-testid="raawi-panel-scale-150" aria-pressed="${settings.magnifierScale === 1.5 ? 'true' : 'false'}">${t.magnifierZoom150}</button>
+              <button type="button" class="raawi-segmented-btn ${settings.magnifierScale === 2.0 ? 'active' : ''}" data-panel-magnifier-scale="2.0" data-testid="raawi-panel-scale-200" aria-pressed="${settings.magnifierScale === 2.0 ? 'true' : 'false'}">${t.magnifierZoom200}</button>
+              <button type="button" class="raawi-segmented-btn ${settings.magnifierScale === 2.5 ? 'active' : ''}" data-panel-magnifier-scale="2.5" data-testid="raawi-panel-scale-250" aria-pressed="${settings.magnifierScale === 2.5 ? 'true' : 'false'}">${t.magnifierZoom250}</button>
+              <button type="button" class="raawi-segmented-btn ${settings.magnifierScale === 3.0 ? 'active' : ''}" data-panel-magnifier-scale="3.0" data-testid="raawi-panel-scale-300" aria-pressed="${settings.magnifierScale === 3.0 ? 'true' : 'false'}">${t.magnifierZoom300}</button>
             </div>
           </div>
         </div>
 
-        <!-- Hide Images -->
+        <!-- 4. Hide Images -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
-            <span class="raawi-control-title">${t.hideImages}</span>
+            <div class="raawi-control-header-left">
+              <div class="raawi-control-icon-wrap" aria-hidden="true">${READING_ICONS.hideImages}</div>
+              <div>
+                <div class="raawi-control-title">${t.hideImages}</div>
+                <div class="raawi-control-desc">${t.hideImagesDesc}</div>
+              </div>
+            </div>
             <label class="raawi-toggle">
               <input type="checkbox" id="raawi-toggle-hide-images" ${settings.hideImages ? 'checked' : ''} aria-label="${t.toggleHideImages}">
               <span class="raawi-toggle-slider"></span>
@@ -530,9 +567,12 @@ export class PanelComponent {
         <!-- 1. Standalone TTS Read Aloud -->
         <div class="raawi-control-card" id="raawi-tts-card" data-testid="raawi-tts-card">
           <div class="raawi-control-header">
-            <div>
-              <div class="raawi-control-title">${t.readAloud}</div>
-              <div class="raawi-control-desc">${t.readAloudDesc}</div>
+            <div class="raawi-control-header-left">
+              <div class="raawi-control-icon-wrap" aria-hidden="true">${TOOLS_ICONS.tts}</div>
+              <div>
+                <div class="raawi-control-title">${t.readAloud}</div>
+                <div class="raawi-control-desc">${t.readAloudDesc}</div>
+              </div>
             </div>
             <span class="raawi-badge raawi-badge-${this.getSpeechStatusBadgeType()}" id="raawi-tts-status-badge">
               ${this.getSpeechStatusBadgeText(t)}
@@ -542,28 +582,28 @@ export class PanelComponent {
           <!-- Playback Action Buttons -->
           <div class="raawi-tts-controls">
             <button type="button" class="raawi-tts-btn raawi-tts-btn-primary" id="raawi-btn-tts-play" data-testid="raawi-btn-tts-play" aria-label="${t.readPage}">
-              <span aria-hidden="true">${this.speechReader?.getState() === 'playing' ? '🔊' : '▶'}</span>
+              <span class="raawi-tts-btn-icon" aria-hidden="true">${this.speechReader?.getState() === 'playing' ? TOOLS_ICONS.pause : TOOLS_ICONS.play}</span>
               <span>${this.speechReader?.getState() === 'paused' ? t.resume : t.play}</span>
             </button>
             <button type="button" class="raawi-tts-btn" id="raawi-btn-tts-pause" data-testid="raawi-btn-tts-pause" aria-label="${t.pause}" ${this.speechReader?.getState() !== 'playing' ? 'disabled' : ''}>
-              <span aria-hidden="true">⏸</span>
+              <span class="raawi-tts-btn-icon" aria-hidden="true">${TOOLS_ICONS.pause}</span>
               <span>${t.pause}</span>
             </button>
             <button type="button" class="raawi-tts-btn" id="raawi-btn-tts-stop" data-testid="raawi-btn-tts-stop" aria-label="${t.stop}" ${this.speechReader?.getState() !== 'playing' && this.speechReader?.getState() !== 'paused' ? 'disabled' : ''}>
-              <span aria-hidden="true">⏹</span>
+              <span class="raawi-tts-btn-icon" aria-hidden="true">${TOOLS_ICONS.stop}</span>
               <span>${t.stop}</span>
             </button>
           </div>
 
           <!-- Rate and Voice Options -->
           <div class="raawi-tts-options">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 12px; color: var(--text-secondary);">${t.speechRate}</span>
-              <div class="raawi-lang-switch">
-                <button type="button" class="raawi-lang-btn ${(this.speechReader?.getRate() ?? 1.0) === 0.75 ? 'active' : ''}" data-speech-rate="0.75">0.75x</button>
-                <button type="button" class="raawi-lang-btn ${(this.speechReader?.getRate() ?? 1.0) === 1.0 ? 'active' : ''}" data-speech-rate="1.0">1.0x</button>
-                <button type="button" class="raawi-lang-btn ${(this.speechReader?.getRate() ?? 1.0) === 1.25 ? 'active' : ''}" data-speech-rate="1.25">1.25x</button>
-                <button type="button" class="raawi-lang-btn ${(this.speechReader?.getRate() ?? 1.0) === 1.5 ? 'active' : ''}" data-speech-rate="1.5">1.5x</button>
+            <div class="raawi-tts-subrow">
+              <span class="raawi-subcontrol-label">${t.speechRate}</span>
+              <div class="raawi-segmented-control" role="group" aria-label="${t.speechRate}">
+                <button type="button" class="raawi-segmented-btn ${(this.speechReader?.getRate() ?? 1.0) === 0.75 ? 'active' : ''}" data-speech-rate="0.75" aria-pressed="${(this.speechReader?.getRate() ?? 1.0) === 0.75 ? 'true' : 'false'}">0.75x</button>
+                <button type="button" class="raawi-segmented-btn ${(this.speechReader?.getRate() ?? 1.0) === 1.0 ? 'active' : ''}" data-speech-rate="1.0" aria-pressed="${(this.speechReader?.getRate() ?? 1.0) === 1.0 ? 'true' : 'false'}">1.0x</button>
+                <button type="button" class="raawi-segmented-btn ${(this.speechReader?.getRate() ?? 1.0) === 1.25 ? 'active' : ''}" data-speech-rate="1.25" aria-pressed="${(this.speechReader?.getRate() ?? 1.0) === 1.25 ? 'true' : 'false'}">1.25x</button>
+                <button type="button" class="raawi-segmented-btn ${(this.speechReader?.getRate() ?? 1.0) === 1.5 ? 'active' : ''}" data-speech-rate="1.5" aria-pressed="${(this.speechReader?.getRate() ?? 1.0) === 1.5 ? 'true' : 'false'}">1.5x</button>
               </div>
             </div>
 
@@ -574,12 +614,16 @@ export class PanelComponent {
         <!-- 2. Page Headings Navigator -->
         <div class="raawi-control-card" id="raawi-headings-card" data-testid="raawi-headings-card">
           <div class="raawi-control-header">
-            <div>
-              <div class="raawi-control-title">${t.headingsNavTitle}</div>
-              <div class="raawi-control-desc">${this.headingsCache.length} ${t.headingsCount}</div>
+            <div class="raawi-control-header-left">
+              <div class="raawi-control-icon-wrap" aria-hidden="true">${TOOLS_ICONS.headings}</div>
+              <div>
+                <div class="raawi-control-title">${t.headingsNavTitle}</div>
+                <div class="raawi-control-desc">${this.headingsCache.length} ${t.headingsCount}</div>
+              </div>
             </div>
             <button type="button" class="raawi-btn-refresh" id="raawi-btn-headings-refresh" data-testid="raawi-btn-headings-refresh" aria-label="${t.refreshHeadings}">
-              🔄 ${t.refresh}
+              <span aria-hidden="true">${TOOLS_ICONS.refresh}</span>
+              <span>${t.refresh}</span>
             </button>
           </div>
 
@@ -1061,6 +1105,13 @@ export class PanelComponent {
         const t = this.i18n.t();
         if (res.success) {
           this.element.dispatchEvent(
+            new CustomEvent('raawi-close-dialog', {
+              bubbles: true,
+              composed: true,
+              detail: { skipFocusRestore: true },
+            })
+          );
+          this.element.dispatchEvent(
             new CustomEvent('raawi-announce', {
               bubbles: true,
               composed: true,
@@ -1114,8 +1165,8 @@ export class PanelComponent {
     const voices = this.speechReader.getVoices();
     if (voices.length === 0) {
       return `
-        <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
-          <span>🎙️</span> <span>${t.defaultVoice}</span>
+        <div class="raawi-voice-fallback" data-testid="raawi-voice-fallback">
+          <span>${t.defaultVoice}</span>
         </div>
       `;
     }
@@ -1123,16 +1174,23 @@ export class PanelComponent {
     const selectedUri = this.speechReader.getSelectedVoiceUri();
 
     return `
-      <div style="display: flex; flex-direction: column; gap: 4px;">
-        <label for="raawi-tts-voice-select" style="font-size: 12px; color: var(--text-secondary);">${t.speechVoice}</label>
-        <select id="raawi-tts-voice-select" class="raawi-select" aria-label="${t.speechVoice}">
-          <option value="">${t.defaultVoice}</option>
-          ${voices.map((v) => `
-            <option value="${escapeHtml(v.voiceURI)}" ${v.voiceURI === selectedUri ? 'selected' : ''}>
-              ${escapeHtml(v.name)} (${escapeHtml(v.lang)})
-            </option>
-          `).join('')}
-        </select>
+      <div class="raawi-voice-select-wrap">
+        <label for="raawi-tts-voice-select" class="raawi-subcontrol-label">${t.speechVoice}</label>
+        <div class="raawi-select-container">
+          <select id="raawi-tts-voice-select" class="raawi-select" aria-label="${t.speechVoice}">
+            <option value="">${t.defaultVoice}</option>
+            ${voices.map((v) => `
+              <option value="${escapeHtml(v.voiceURI)}" ${v.voiceURI === selectedUri ? 'selected' : ''}>
+                ${escapeHtml(v.name)} (${escapeHtml(v.lang)})
+              </option>
+            `).join('')}
+          </select>
+          <div class="raawi-select-arrow" aria-hidden="true">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -1140,21 +1198,29 @@ export class PanelComponent {
   private renderHeadingsList(t: TranslationDictionary): string {
     if (this.headingsCache.length === 0) {
       return `
-        <div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 14px 8px;" data-testid="raawi-no-headings">
-          ${t.noHeadingsFound}
+        <div class="raawi-headings-empty" data-testid="raawi-no-headings">
+          <div class="raawi-headings-empty-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 6h16M4 12h10M4 18h6" />
+            </svg>
+          </div>
+          <div class="raawi-headings-empty-text">${t.noHeadingsFound}</div>
         </div>
       `;
     }
 
-    return this.headingsCache.map((h, idx) => `
-      <div class="raawi-heading-item" data-testid="raawi-heading-item-${idx}">
-        <span class="raawi-heading-badge">H${h.level}</span>
-        <span class="raawi-heading-text" title="${escapeHtml(h.text)}">${escapeHtml(h.text)}</span>
-        <button type="button" class="raawi-heading-jump-btn" data-heading-id="${escapeHtml(h.id)}" data-testid="raawi-heading-jump-${idx}" aria-label="${t.jumpToHeading}: ${escapeHtml(h.text)}">
-          ${t.jumpToLandmark || 'Jump'} ↗
-        </button>
-      </div>
-    `).join('');
+    return this.headingsCache.map((h, idx) => {
+      const indentPx = Math.max(0, (h.level - 1) * 8);
+      return `
+        <div class="raawi-heading-item" data-testid="raawi-heading-item-${idx}" style="margin-inline-start: ${indentPx}px;">
+          <span class="raawi-heading-badge raawi-heading-badge-${h.level}">H${h.level}</span>
+          <span class="raawi-heading-text" title="${escapeHtml(h.text)}">${escapeHtml(h.text)}</span>
+          <button type="button" class="raawi-heading-jump-btn" data-heading-id="${escapeHtml(h.id)}" data-testid="raawi-heading-jump-${idx}" aria-label="${t.jumpToHeading}: ${escapeHtml(h.text)}">
+            ${t.jumpToLandmark || 'Jump'} ↗
+          </button>
+        </div>
+      `;
+    }).join('');
   }
 
   private getStatusBadgeType(status?: string): string {

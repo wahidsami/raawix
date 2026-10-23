@@ -64,17 +64,20 @@ export interface TranslationDictionary {
   readingMode: string;
   toggleReadingMode: string;
   readingGuide: string;
+  readingGuideDesc: string;
   toggleReadingGuide: string;
   guideThickness: string;
   thin: string;
   thick: string;
   readingMask: string;
+  readingMaskDesc: string;
   toggleReadingMask: string;
   maskWindowHeight: string;
   small: string;
   medium: string;
   large: string;
   hideImages: string;
+  hideImagesDesc: string;
   toggleHideImages: string;
   imageCaptions: string;
   toggleImageCaptions: string;
@@ -225,17 +228,20 @@ export const translations: Record<Locale, TranslationDictionary> = {
     readingMode: 'وضع القراءة المركزة',
     toggleReadingMode: 'تبديل وضع القراءة',
     readingGuide: 'مسطرة القراءة الأفقية',
+    readingGuideDesc: 'مسطرة أفقية تتبع مؤشر الفأرة وتركيز القراءة',
     toggleReadingGuide: 'تبديل مسطرة القراءة',
     guideThickness: 'سماكة مسطرة القراءة',
     thin: 'رفيع',
     thick: 'عريض',
     readingMask: 'قناع حجب وتظليل القراءة',
+    readingMaskDesc: 'تعتيم أجزاء الصفحة للتركيز على مقطع محدد',
     toggleReadingMask: 'تبديل قناع القراءة',
     maskWindowHeight: 'ارتفاع نافذة القراءة',
     small: 'صغير',
     medium: 'متوسط',
     large: 'كبير',
     hideImages: 'إخفاء الصور',
+    hideImagesDesc: 'إخفاء الصور والعناصر المرئية لقراءة هادئة',
     toggleHideImages: 'تبديل إخفاء الصور',
     imageCaptions: 'عرض التسميات التوضيحية للصور',
     toggleImageCaptions: 'تبديل عرض التسميات التوضيحية',
@@ -380,17 +386,20 @@ export const translations: Record<Locale, TranslationDictionary> = {
     readingMode: 'Reading Mode',
     toggleReadingMode: 'Toggle reading mode',
     readingGuide: 'Reading Guide Ruler',
+    readingGuideDesc: 'Horizontal guide line following cursor and focus',
     toggleReadingGuide: 'Toggle reading guide ruler',
     guideThickness: 'Guide Line Thickness',
     thin: 'Thin',
     thick: 'Thick',
     readingMask: 'Reading Focus Mask',
+    readingMaskDesc: 'Dim surrounding page content to isolate focus',
     toggleReadingMask: 'Toggle reading mask',
     maskWindowHeight: 'Mask Window Height',
     small: 'Small',
     medium: 'Medium',
     large: 'Large',
     hideImages: 'Hide Images',
+    hideImagesDesc: 'Hide decorative and content images for clean reading',
     toggleHideImages: 'Toggle hide images',
     imageCaptions: 'Show Image Captions',
     toggleImageCaptions: 'Toggle show image captions',

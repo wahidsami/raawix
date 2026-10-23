@@ -1734,3 +1734,47 @@
 - **Blind Profile Copy Accuracy:** Inspected `applyPreset('blind')`. Verified that the preset resets visual preferences to default values for standard screen reader interoperability, but does not activate speech synthesis or audio prompts. Corrected English and Arabic descriptions from claiming audio guidance to `'Standard layout optimized for native screen readers'` / `'تنسيق قياسي مهيّأ لقارئات الشاشة'`.
 - **Verification Evidence:** 183/183 unit and integration tests passing across all 10 test suites, including 9/9 new tests in `phase2-1-closeout.test.ts`. TypeScript clean (exit code 0). Real-browser screenshots refreshed and inspected.
 
+# Tasks - Raawi X Widget Redesign: Phase 3 (Reading and Tools Tab Polish)
+
+- [x] 1. Preflight & Issue Inspection
+  - [x] Verify repo path, branch (`feature/semantic-core`), HEAD (`ad1c0ca`), clean worktree, and disk space
+  - [x] Inspect existing Reading and Tools controls in `panel.ts`, `widget-styles.ts`, `speech-reader.ts`, `headings-navigator.ts`
+  - [x] Verify speech speed presentation issue: investigate rate change while idle
+- [x] 2. Core Fix: SpeechReader Idle Speed Selection Feedback
+  - [x] Update `SpeechReader.setRate()` to notify listeners immediately on rate changes
+  - [x] Update `SpeechReader.setSelectedVoice()` to notify listeners on voice change
+  - [x] Update `panel.ts` rate buttons click handler for instantaneous visual feedback and active state sync
+- [x] 3. Reading Tab Polish (Inclusion Shield UI)
+  - [x] Restyle Reading Guide Ruler card with icon wrap, title, description, and segmented thickness controls (thin, medium, thick)
+  - [x] Restyle Reading Focus Mask card with icon wrap, title, description, and segmented aperture height controls (small, medium, large)
+  - [x] Restyle Magnified Reading Strip control card (toggle, scale segmented buttons: 150%, 200%, 250%, 300%) without changing docked strip
+  - [x] Restyle Hide Images toggle card with consistent styling and SVG icon
+  - [x] Preserve all existing IDs, test attributes, and state logic
+- [x] 4. Tools Tab Polish (Inclusion Shield UI)
+  - [x] Restyle TTS Read Aloud card with icon wrap, title, description, dynamic status badge
+  - [x] Polish transport controls: Play/Resume (primary teal), Pause, Stop with touch targets (≥44px)
+  - [x] Polish speech rate segmented buttons (0.75x, 1.0x, 1.25x, 1.5x) with immediate active feedback
+  - [x] Polish voice selection dropdown with custom arrow and leading audio glyph
+  - [x] Restyle Headings Navigator card: icon wrap, title, count subtitle, refresh action
+  - [x] Style headings list with color-coded badges (H1 teal, H2 blue, H3 indigo, H4-H6 slate), hierarchical indentation, single-line ellipsis, and jump buttons (44px touch target)
+  - [x] Style localized empty state when no headings are found
+- [x] 5. Localization & Parity
+  - [x] Add `readingGuideDesc`, `readingMaskDesc`, `hideImagesDesc` to `TranslationDictionary` in `i18n.ts` with 100% AR/EN key parity
+- [x] 6. Testing & Browser Verification
+  - [x] Create focused test suite `apps/widget/test/phase3-reading-tools.test.ts`
+  - [x] Run full widget regression suite (all 11 test files, 198 tests passing)
+  - [x] Run TypeScript check (`tsc --noEmit` exits 0) and build production bundle (`vite build` 220.57 kB)
+  - [x] Capture genuine local Chromium screenshots (EN Reading, EN Tools, EN Tools Scrolled, AR Reading, AR Tools, Mobile Reading, Mobile Tools)
+- [x] 7. Review, Commit, Push & Delivery Report
+  - [x] Review git diff for senior standards
+  - [x] Commit and push Phase 3 to `feature/semantic-core`
+  - [x] Create `PHASE_3_READING_TOOLS_POLISH_REPORT.md` and stop for coordinator review
+
+## Execution Review (Widget Redesign Phase 3: Reading and Tools Tab Polish)
+- **Idle Speech Rate Selection Feedback Verified & Resolved:** Root cause was identified in `SpeechReader.setRate()` and `setSelectedVoice()`, which mutated local state without dispatching `notifyListeners()`. Fixed by calling `notifyListeners()` on rate and voice updates. In `panel.ts`, the segmented speed button handler triggers state update and re-render. Genuine headless Chromium execution verified instant visual toggle (`active` class and `aria-pressed="true"`) upon clicking `1.5x` while playback state remains `idle`.
+- **Reading Tab Inclusion Shield UI Polish:** Reading Guide Ruler, Reading Focus Mask, Magnified Reading Strip control card, and Hide Images restyled with matching card hierarchies, subtle slate borders, mint SVG icon badges, accessible switch toggles, and segmented thickness/aperture/scale button groups. Docked strip remains untouched for Phase 4.
+- **Tools Tab Inclusion Shield UI Polish:** Restyled TTS transport controls (Play, Pause, Stop) with touch targets (≥44px), speed options (`0.75x`, `1.0x`, `1.25x`, `1.5x`), custom arrow dropdown with leading audio glyph, and graceful fallback when no browser voices are reported. Headings Navigator updated with count badge, SVG reload action, color-coded level badges (`H1`–`H6`), hierarchical indentation (`(level - 1) * 8px`), single-line text ellipsis, 44px hit bound jump buttons, and styled empty state.
+- **Verification Evidence:** 198/198 unit and integration tests passing across all 11 test files (including 15/15 in `phase3-reading-tools.test.ts`). TypeScript check clean with 0 errors. Production bundle compiled cleanly (`dist/widget.iife.js` 220.57 kB, gzip 68.88 kB). 7 genuine Chromium screenshots captured and verified.
+
+
+

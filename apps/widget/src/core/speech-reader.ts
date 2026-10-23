@@ -88,7 +88,13 @@ export class SpeechReader {
 
   public setRate(newRate: number): void {
     this.rate = Math.min(2.0, Math.max(0.5, newRate));
-    // If currently playing, we can restart from current text or let next utterance use rate
+    for (const listener of this.listeners) {
+      try {
+        listener(this.state, { text: this.currentText, source: this.currentSource });
+      } catch (err) {
+        console.error('[RaawiX SpeechReader] Listener error:', err);
+      }
+    }
   }
 
   public setLocale(locale: Locale): void {
@@ -101,6 +107,13 @@ export class SpeechReader {
 
   public setSelectedVoice(voiceUri: string): void {
     this.selectedVoiceUri = voiceUri;
+    for (const listener of this.listeners) {
+      try {
+        listener(this.state, { text: this.currentText, source: this.currentSource });
+      } catch (err) {
+        console.error('[RaawiX SpeechReader] Listener error:', err);
+      }
+    }
   }
 
   /**

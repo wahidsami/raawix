@@ -998,6 +998,24 @@ export const WIDGET_CSS = `
      Phase 2A: Standalone TTS Read Aloud & Headings Navigator
      ========================================================================= */
 
+  /* Subcontrol Row (Ruler thickness, Mask height, Zoom level) */
+  .raawi-subcontrol-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 10px;
+    margin-top: 10px;
+    border-top: 1px solid var(--border);
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .raawi-subcontrol-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
   /* TTS Controls Row */
   .raawi-tts-controls {
     display: flex;
@@ -1021,6 +1039,20 @@ export const WIDGET_CSS = `
     background: var(--surface-elevated);
     color: var(--text-primary);
     transition: all 0.15s ease;
+  }
+
+  .raawi-tts-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  .raawi-tts-btn-icon svg {
+    width: 100%;
+    height: 100%;
   }
 
   .raawi-tts-btn:hover:not(:disabled) {
@@ -1050,29 +1082,193 @@ export const WIDGET_CSS = `
     color: #ffffff;
   }
 
+  .raawi-tts-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    background: var(--surface-elevated);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+
+  .raawi-tts-status-playing {
+    background: var(--primary-light);
+    color: var(--primary-hover);
+    border-color: rgba(13, 148, 136, 0.25);
+  }
+
+  .raawi-tts-status-paused {
+    background: #fef3c7;
+    color: #b45309;
+    border-color: rgba(245, 158, 11, 0.25);
+  }
+
+  .raawi-tts-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--text-muted);
+  }
+
+  .raawi-tts-status-playing .raawi-tts-status-dot {
+    background-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.25);
+  }
+
+  .raawi-tts-status-paused .raawi-tts-status-dot {
+    background-color: #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+  }
+
   /* TTS Options Row */
   .raawi-tts-options {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding-top: 6px;
+    gap: 12px;
+    padding-top: 10px;
+    margin-top: 10px;
     border-top: 1px solid var(--border);
+  }
+
+  .raawi-tts-subrow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .raawi-tts-subrow-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .raawi-tts-rate-group {
+    display: inline-flex;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 2px;
+    gap: 2px;
+  }
+
+  .raawi-tts-rate-btn {
+    border: none;
+    background: transparent;
+    min-height: 32px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .raawi-tts-rate-btn:hover {
+    color: var(--text-primary);
+  }
+
+  .raawi-tts-rate-btn.active {
+    background: var(--primary);
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .raawi-tts-rate-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
+  }
+
+  .raawi-voice-select-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+  }
+
+  .raawi-select-container {
+    position: relative;
+    width: 100%;
   }
 
   .raawi-select {
     width: 100%;
     min-height: 40px;
-    padding: 6px 10px;
+    padding: 6px 30px 6px 12px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--surface-elevated);
     color: var(--text-primary);
     font-size: 12px;
     cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  :host([dir="rtl"]) .raawi-select {
+    padding: 6px 12px 6px 30px;
+  }
+
+  .raawi-select-arrow {
+    position: absolute;
+    inset-inline-end: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
   }
 
   .raawi-select:focus-visible {
     outline: 2px solid var(--primary);
+    border-color: var(--primary);
+  }
+
+  .raawi-voice-fallback {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 6px 10px;
+    background: var(--surface-elevated);
+    border-radius: var(--radius-sm);
+    border: 1px dashed var(--border);
+  }
+
+  /* Headings Header Refresh Button */
+  .raawi-btn-refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface-elevated);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    padding: 5px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 32px;
+    transition: all 0.15s ease;
+  }
+
+  .raawi-btn-refresh:hover {
+    background: var(--surface);
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .raawi-btn-refresh:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 1px;
   }
 
   /* Headings List */
@@ -1080,7 +1276,7 @@ export const WIDGET_CSS = `
     display: flex;
     flex-direction: column;
     gap: 6px;
-    max-height: 220px;
+    max-height: 240px;
     overflow-y: auto;
     padding-inline-end: 2px;
   }
@@ -1094,10 +1290,11 @@ export const WIDGET_CSS = `
     background: var(--surface-elevated);
     border: 1px solid var(--border);
     gap: 8px;
+    transition: border-color 0.15s ease;
   }
 
   .raawi-heading-item:hover {
-    border-color: var(--border-hover);
+    border-color: var(--primary);
   }
 
   .raawi-heading-badge {
@@ -1105,10 +1302,34 @@ export const WIDGET_CSS = `
     font-weight: 700;
     padding: 2px 6px;
     border-radius: 4px;
-    background: #e0f2fe;
-    color: #0369a1;
     text-transform: uppercase;
     flex-shrink: 0;
+  }
+
+  .raawi-heading-badge-1 {
+    background: #ccfbf1;
+    color: #0f766e;
+    border: 1px solid rgba(13, 148, 136, 0.2);
+  }
+
+  .raawi-heading-badge-2 {
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid rgba(3, 105, 161, 0.2);
+  }
+
+  .raawi-heading-badge-3 {
+    background: #e0e7ff;
+    color: #4338ca;
+    border: 1px solid rgba(67, 56, 202, 0.2);
+  }
+
+  .raawi-heading-badge-4,
+  .raawi-heading-badge-5,
+  .raawi-heading-badge-6 {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid rgba(71, 85, 105, 0.2);
   }
 
   .raawi-heading-text {
@@ -1135,6 +1356,17 @@ export const WIDGET_CSS = `
     white-space: nowrap;
     transition: all 0.15s ease;
     flex-shrink: 0;
+    position: relative;
+  }
+
+  .raawi-heading-jump-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .raawi-heading-jump-btn:hover {
@@ -1144,6 +1376,32 @@ export const WIDGET_CSS = `
   .raawi-heading-jump-btn:focus-visible {
     outline: 2px solid var(--primary);
     outline-offset: 2px;
+  }
+
+  .raawi-headings-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    gap: 8px;
+    background: var(--surface-elevated);
+    border-radius: var(--radius-sm);
+    border: 1px dashed var(--border);
+    color: var(--text-muted);
+    text-align: center;
+  }
+
+  .raawi-headings-empty-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+  }
+
+  .raawi-headings-empty-text {
+    font-size: 12px;
+    line-height: 1.4;
   }
 
   /* Screen reader utility */

@@ -112,13 +112,19 @@ export class HeadingsNavigator {
 
     const shouldReduceMotion = Boolean(options.reduceMotion || prefersReducedMotion);
 
-    try {
-      el.scrollIntoView({
-        behavior: shouldReduceMotion ? 'auto' : 'smooth',
-        block: 'start',
-      });
-    } catch {
-      el.scrollIntoView();
+    if (typeof el.scrollIntoView === 'function') {
+      try {
+        el.scrollIntoView({
+          behavior: shouldReduceMotion ? 'auto' : 'smooth',
+          block: 'start',
+        });
+      } catch {
+        try {
+          el.scrollIntoView();
+        } catch {
+          // Ignore
+        }
+      }
     }
 
     // 2. Manage accessible focus without permanent DOM mutations
