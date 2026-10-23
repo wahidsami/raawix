@@ -1777,4 +1777,67 @@
 - **Verification Evidence:** 198/198 unit and integration tests passing across all 11 test files (including 15/15 in `phase3-reading-tools.test.ts`). TypeScript check clean with 0 errors. Production bundle compiled cleanly (`dist/widget.iife.js` 220.57 kB, gzip 68.88 kB). 7 genuine Chromium screenshots captured and verified.
 
 
+# Tasks - Raawi X Widget Redesign: Phase 4 (Magnified Reading Strip & Mobile Experience Polish)
 
+- [x] 1. Preflight & Baseline Verification
+  - [x] Verify repo path, branch (`feature/semantic-core`), expected HEAD (`6fce21af4bc194f8e0a6f669f351654c85f30b6f`), clean working tree, free disk space
+  - [x] Run baseline test suites (198 tests passing across 11 test files), type-check (0 errors), and build
+  - [x] Inspect `panel.ts`, `reading-strip.ts`, `widget-styles.ts`, `i18n.ts`, and `shadow-container.ts`
+- [x] 2. Heading-Jump Double-Close Event Cleanup (Fix Section 8)
+  - [x] Inspect `raawi-close-dialog` dispatch in `panel.ts` heading jump handler
+  - [x] Consolidate to single dispatch before focus handoff; remove redundant second dispatch
+  - [x] Verify heading navigation still scrolls, transfers focus to heading, removes temp focus on blur, closes dialog without restoring launcher focus, and regular close restores launcher focus
+- [x] 3. Reading Strip Inclusion Shield UI Redesign & Top/Bottom Docking (Fix Section 3, 4, 5)
+  - [x] Add dock position state (`dockPosition: 'bottom' | 'top'`) to `ReadingStripComponent`
+  - [x] Add dock toggle button (`data-testid="raawi-strip-dock-btn"`, `⬆`/`⬇`) with accessible labeling and localization
+  - [x] Add active zoom badge in strip toolbar (`<span class="raawi-strip-badge">...</span>`)
+  - [x] Update `i18n.ts` with dock toggle strings (`dockTop`, `dockBottom`, `toggleDockPosition`) with 100% AR/EN key parity
+  - [x] Restyle `.raawi-reading-strip` with Direction C dark slate surface (`#0f172a`), teal accent border (`#0d9488`), and crisp toolbar
+  - [x] Add `.raawi-strip-dock-top` styles (`top: 0; bottom: auto; border-top: none; border-bottom: 3px solid var(--primary); box-shadow: 0 4px 20px rgba(0,0,0,0.2)`)
+  - [x] Restyle segmented scale controls (150%, 200%, 250%, 300%) with 44px hit bounds and clear active/hover/focus states
+  - [x] Restyle close button (`✕`) with 44px touch target, hover state (`#ef4444`), and keyboard focus
+  - [x] Verify content scrolling (`overflow-y: auto`), line heights, word wrapping, zero page layout jumps, and immediate viewport restoration on close
+  - [x] Support High Contrast Mode (`.raawi-strip-contrast` pure black `#000` with `#ffff00` border/active state)
+- [x] 4. Responsive & Mobile Refinement (< 768px) (Fix Section 6)
+  - [x] Implement mobile drawer / bottom-sheet styling for `.raawi-panel-container` at `@media (max-width: 768px)`
+  - [x] Add mobile grab handle (`.raawi-grab-handle`) in panel top
+  - [x] Respect mobile safe areas (`env(safe-area-inset-bottom, 12px)`)
+  - [x] Ensure touch targets for toolbar buttons meet ≥ 44×44px hit bounds
+  - [x] Prevent panel and reading strip collision (dock strip to top or elevate appropriately)
+- [x] 5. Automated Testing & Verification
+  - [x] Create comprehensive test suite `apps/widget/test/phase4-reading-strip.test.ts` covering:
+    - Magnification scale tiers (150%, 200%, 250%, 300%) and styling
+    - Top/bottom dock toggling and classes
+    - Viewport restoration on strip close
+    - Single `raawi-close-dialog` dispatch during heading jump
+    - Focus transfer and launcher restoration semantics
+    - Bilingual localization parity
+  - [x] Run full regression suite across all 12 test files (216/216 passing)
+  - [x] Run TypeScript type-check (`tsc --noEmit` exits 0)
+  - [x] Build production widget bundle (`vite build` 226.67 kB)
+- [x] 6. Real-Browser Visual Verification (Genuine Chromium Screenshots)
+  - [x] Create `test-results/phase2c-evidence/capture-phase4-redesign.js` using local Chromium
+  - [x] Capture 9 required screenshots:
+    1. Strip active at 150% (`34_phase4_strip_150.png`)
+    2. Strip active at 200% (`35_phase4_strip_200.png`)
+    3. Strip active at 250% (`36_phase4_strip_250.png`)
+    4. Strip active at 300% (`37_phase4_strip_300.png`)
+    5. Long English content scrolling with sticky toolbar (`38_phase4_long_english_scroll.png`)
+    6. Arabic content with Cairo font and RTL (`39_phase4_arabic_cairo_strip.png`)
+    7. Narrow/mobile viewport (< 768px) with bottom sheet (`40_phase4_mobile_strip_active.png`)
+    8. Sticky footer collision resolved with top docking (`41_phase4_sticky_footer_collision_dock_top.png`)
+    9. Closed state showing restored viewport (`42_phase4_closed_viewport_restored.png`)
+  - [x] Copy screenshots to artifacts directory and inspect via `view_file`
+- [x] 7. Review, Commit, Push & Delivery Report
+  - [x] Review git diff for senior standards
+  - [x] Commit and push Phase 4 to `feature/semantic-core`
+  - [x] Create `PHASE_4_READING_STRIP_MOBILE_REPORT.md` artifact
+  - [x] Stop for coordinator review
+
+## Execution Review (Widget Redesign Phase 4: Magnified Reading Strip & Mobile Experience Polish)
+- **Close-Dialog Dispatch Cleanup (Section 8):** In `apps/widget/src/components/panel.ts`, the heading jump click handler previously dispatched `raawi-close-dialog` twice: first unconditionally at line 1092, and second inside `if (res.success)` at line 1108. The first dispatch releases the dialog's modal focus trap before `HeadingsNavigator.navigateToHeading()` transfers focus to the host heading. The second redundant dispatch inside `if (res.success)` was removed. Focus handoff, temporary `tabindex="-1"` injection, blur cleanup, and modal dismissal were verified with 18/18 tests in `phase4-reading-strip.test.ts`.
+- **Magnified Reading Strip Visual Redesign (Section 3):** Applied Inclusion Shield UI (Direction C) styling: dark slate background (`#0f172a`), teal accent border (`3px solid var(--primary, #0d9488)`), slate toolbar (`#1e293b`), off-white content text (`#f8fafc`, 14.5:1 contrast), and mint SVG magnifier icon (`#2dd4bf`). Toolbar features strip title, active zoom badge, segmented scale controls (150%, 200%, 250%, 300%), dock toggle button, and close button (`✕`) with 44px hit bounds and clear hover/focus-visible states. High-contrast mode (`.raawi-strip-contrast`) renders pure black (`#000000`) with high-visibility yellow (`#ffff00`).
+- **Magnification Content Layout (Section 4):** Validated at 150%, 200%, 250%, and 300%. Toolbar remains sticky at top of strip; mirror container scrolls vertically (`overflow-y: auto`) without layout jumps; words wrap cleanly (`overflow-wrap: break-word`, `word-break: break-word`) to avoid horizontal overflow; host page dimensions and transforms remain untouched. Dismissing strip immediately removes `.raawi-strip-active` and restores host page viewport.
+- **Viewport Collision & Reversible Docking (Section 5):** Bottom-fixed strips can collide with host sticky footers, mobile bottom bars, or cookie banners. A user-operable Dock Toggle (`#raawi-strip-dock-toggle`, `data-testid="raawi-strip-dock-btn"`, SVG `⬆`/`⬇`) was implemented. Toggling adds `.raawi-strip-dock-top`, pinning the strip to `top: 0` with a bottom teal border and shadow. Tested in real browser: host bottom sticky footer remains 100% visible and interactive when top-docked. Fully reversible and zero host `body` padding mutations.
+- **Mobile Experience Polish (Section 6):** For viewports < 768px, `.raawi-panel-container` renders as an accessible bottom sheet (`width: 100vw`, `border-radius: 18px 18px 0 0`, `max-height: 85vh`, `padding-bottom: env(safe-area-inset-bottom, 12px)`). Added `.raawi-grab-handle` (44×4px pill handle) at panel top. Zoom and dock buttons maintain ≥44px touch targets. Reading strip and widget panel coexist cleanly.
+- **Verification Evidence:** 216/216 total widget unit tests passing across all 12 test files (including 18/18 in `phase4-reading-strip.test.ts`). TypeScript check clean (0 errors). Production bundle rebuilt cleanly (`dist/widget.iife.js` 226.67 kB, gzip 69.98 kB). 9 genuine Chromium screenshots captured and verified across desktop, mobile, Arabic RTL (Cairo), long English scroll, and collision resolution.

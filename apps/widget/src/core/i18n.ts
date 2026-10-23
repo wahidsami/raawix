@@ -159,7 +159,7 @@ export interface TranslationDictionary {
   refreshHeadings: string;
   toolsDescription: string;
 
-  // Phase 2C: Standalone Magnified Reading Strip
+  // Phase 2C / Phase 4: Standalone Magnified Reading Strip
   magnifierStrip: string;
   toggleMagnifierStrip: string;
   magnifierScale: string;
@@ -170,6 +170,9 @@ export interface TranslationDictionary {
   magnifierZoom250: string;
   magnifierZoom300: string;
   protectedContentHidden: string;
+  dockTop: string;
+  dockBottom: string;
+  toggleDockPosition: string;
 }
 
 export const translations: Record<Locale, TranslationDictionary> = {
@@ -330,6 +333,9 @@ export const translations: Record<Locale, TranslationDictionary> = {
     magnifierZoom250: '250%',
     magnifierZoom300: '300%',
     protectedContentHidden: 'محتوى محمي لا يمكن عرضه',
+    dockTop: 'تثبيت في الأعلى',
+    dockBottom: 'تثبيت في الأسفل',
+    toggleDockPosition: 'تبديل موضع الشريط (أعلى / أسفل)',
   },
   en: {
     widgetTitle: 'Accessibility & Usability Options',
@@ -488,6 +494,9 @@ export const translations: Record<Locale, TranslationDictionary> = {
     magnifierZoom250: '250%',
     magnifierZoom300: '300%',
     protectedContentHidden: 'Protected content hidden',
+    dockTop: 'Dock to top',
+    dockBottom: 'Dock to bottom',
+    toggleDockPosition: 'Toggle strip dock position (top / bottom)',
   },
 };
 

@@ -30,6 +30,7 @@ export class ReadingStripComponent {
   private mirrorTextElement: HTMLElement | null = null;
   private currentContent: ExtractedContent;
   private currentScale: MagnifierScale = 2.0;
+  private dockPosition: 'bottom' | 'top' = 'bottom';
 
   // Tracking state & guards
   private lastKeyboardTime: number = 0;
@@ -140,16 +141,24 @@ export class ReadingStripComponent {
     const highContrastClass = settings.contrastMode ? 'raawi-strip-contrast' : '';
     // Reduced motion class
     const reducedMotionClass = settings.reduceMotion || settings.stopAnimations ? 'raawi-strip-reduced-motion' : '';
+    // Dock position class
+    const dockClass = this.dockPosition === 'top' ? 'raawi-strip-dock-top' : '';
 
-    this.stripElement.className = `raawi-reading-strip ${highContrastClass} ${reducedMotionClass}`.trim();
+    this.stripElement.className = `raawi-reading-strip ${highContrastClass} ${reducedMotionClass} ${dockClass}`.trim();
     this.stripElement.setAttribute('dir', this.state.getDirection());
     this.stripElement.setAttribute('aria-label', t.magnifierStrip);
+
+    const dockLabel = this.dockPosition === 'bottom' ? t.dockTop : t.dockBottom;
 
     this.stripElement.innerHTML = `
       <div class="raawi-strip-toolbar">
         <div class="raawi-strip-brand">
-          <span class="raawi-strip-icon" aria-hidden="true">🔍</span>
+          <svg class="raawi-strip-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="9" cy="9" r="6"/>
+            <path d="m13.5 13.5 4.5 4.5"/>
+          </svg>
           <span class="raawi-strip-title">${t.magnifierStrip}</span>
+          <span class="raawi-strip-badge" data-testid="raawi-strip-badge">${Math.round(scale * 100)}%</span>
         </div>
         <div class="raawi-strip-controls">
           <div class="raawi-strip-scale-group" role="group" aria-label="${t.magnifierScale}">
@@ -158,7 +167,15 @@ export class ReadingStripComponent {
             <button type="button" class="raawi-strip-scale-btn ${scale === 2.5 ? 'active' : ''}" data-scale="2.5" aria-pressed="${scale === 2.5}" data-testid="raawi-scale-250">${t.magnifierZoom250}</button>
             <button type="button" class="raawi-strip-scale-btn ${scale === 3.0 ? 'active' : ''}" data-scale="3.0" aria-pressed="${scale === 3.0}" data-testid="raawi-scale-300">${t.magnifierZoom300}</button>
           </div>
-          <button type="button" class="raawi-strip-close-btn" id="raawi-strip-close" data-testid="raawi-strip-close" aria-label="${t.closeReadingStrip}" title="${t.closeReadingStrip}">✕</button>
+          <button type="button" class="raawi-strip-dock-btn" id="raawi-strip-dock-toggle" data-testid="raawi-strip-dock-btn" aria-label="${dockLabel}" title="${dockLabel}">
+            ${this.dockPosition === 'bottom'
+              ? '<svg class="raawi-strip-action-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12V4M4 7l4-4 4 4"/></svg>'
+              : '<svg class="raawi-strip-action-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4v8M4 9l4 4 4-4"/></svg>'
+            }
+          </button>
+          <button type="button" class="raawi-strip-close-btn" id="raawi-strip-close" data-testid="raawi-strip-close" aria-label="${t.closeReadingStrip}" title="${t.closeReadingStrip}">
+            <svg class="raawi-strip-action-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          </button>
         </div>
       </div>
       <div class="raawi-strip-mirror" id="raawi-strip-mirror" data-testid="raawi-strip-mirror" aria-hidden="true">
@@ -208,6 +225,16 @@ export class ReadingStripComponent {
         }
       });
     });
+
+    // Dock toggle button
+    const dockBtn = this.stripElement.querySelector<HTMLButtonElement>('#raawi-strip-dock-toggle');
+    if (dockBtn) {
+      dockBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.dockPosition = this.dockPosition === 'bottom' ? 'top' : 'bottom';
+        this.render();
+      });
+    }
 
     // Close button
     const closeBtn = this.stripElement.querySelector<HTMLButtonElement>('#raawi-strip-close');
@@ -539,6 +566,23 @@ export class ReadingStripComponent {
    */
   public getElement(): HTMLElement | null {
     return this.stripElement;
+  }
+
+  /**
+   * Public getter for the current dock position ('bottom' | 'top')
+   */
+  public getDockPosition(): 'bottom' | 'top' {
+    return this.dockPosition;
+  }
+
+  /**
+   * Public setter for the dock position ('bottom' | 'top')
+   */
+  public setDockPosition(pos: 'bottom' | 'top'): void {
+    if (this.dockPosition !== pos) {
+      this.dockPosition = pos;
+      this.render();
+    }
   }
 
   /**

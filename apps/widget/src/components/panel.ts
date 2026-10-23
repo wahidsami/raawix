@@ -238,6 +238,7 @@ export class PanelComponent {
     this.element.setAttribute('dir', this.state.getDirection());
 
     this.element.innerHTML = `
+      <div class="raawi-grab-handle" aria-hidden="true"></div>
       <!-- Topbar Header -->
       <header class="raawi-panel-header">
         <div class="raawi-brand-group">
@@ -1104,13 +1105,6 @@ export class PanelComponent {
 
         const t = this.i18n.t();
         if (res.success) {
-          this.element.dispatchEvent(
-            new CustomEvent('raawi-close-dialog', {
-              bubbles: true,
-              composed: true,
-              detail: { skipFocusRestore: true },
-            })
-          );
           this.element.dispatchEvent(
             new CustomEvent('raawi-announce', {
               bubbles: true,

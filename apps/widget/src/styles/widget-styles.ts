@@ -171,6 +171,11 @@ export const WIDGET_CSS = `
     transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
+  /* Mobile Sheet Grab Handle (Hidden on Desktop) */
+  .raawi-grab-handle {
+    display: none;
+  }
+
   :host([dir="rtl"]) .raawi-panel-container {
     right: 24px;
     left: auto;
@@ -1417,7 +1422,7 @@ export const WIDGET_CSS = `
     border-width: 0;
   }
 
-  /* Phase 2C: Standalone Magnified Reading Strip */
+  /* Phase 2C / Phase 4: Standalone Magnified Reading Strip (Inclusion Shield UI - Direction C) */
   .raawi-reading-strip {
     position: fixed;
     bottom: 0;
@@ -1425,11 +1430,9 @@ export const WIDGET_CSS = `
     right: 0;
     z-index: 2147483646;
     pointer-events: auto;
-    background: rgba(255, 255, 255, 0.98);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: #0f172a;
     border-top: 3px solid var(--primary, #0d9488);
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 -6px 25px rgba(0, 0, 0, 0.35);
     display: flex;
     flex-direction: column;
     max-height: 35vh;
@@ -1438,34 +1441,77 @@ export const WIDGET_CSS = `
     transition: transform 0.2s ease, opacity 0.2s ease;
   }
 
+  /* Top Docking (Collision avoidance with sticky footers/action bars) */
+  .raawi-reading-strip.raawi-strip-dock-top {
+    top: 0;
+    bottom: auto;
+    border-top: none;
+    border-bottom: 3px solid var(--primary, #0d9488);
+    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.35);
+  }
+
   .raawi-strip-toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 14px;
-    background: var(--surface-elevated, #f8fafc);
-    border-bottom: 1px solid var(--border, #e2e8f0);
+    padding: 6px 16px;
+    background: #1e293b;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     flex-shrink: 0;
+    gap: 8px;
+  }
+
+  .raawi-reading-strip.raawi-strip-dock-top .raawi-strip-toolbar {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   .raawi-strip-brand {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 12px;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .raawi-strip-icon {
+    width: 18px;
+    height: 18px;
+    color: #2dd4bf;
+    flex-shrink: 0;
+  }
+
+  .raawi-strip-title {
+    font-size: 12.5px;
     font-weight: 700;
-    color: var(--text-primary, #0f172a);
+    color: #f8fafc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .raawi-strip-badge {
+    font-size: 11px;
+    font-weight: 700;
+    color: #2dd4bf;
+    background: rgba(45, 212, 191, 0.12);
+    border: 1px solid rgba(45, 212, 191, 0.3);
+    border-radius: var(--radius-full, 9999px);
+    padding: 1px 7px;
+    line-height: 1.4;
+    flex-shrink: 0;
   }
 
   .raawi-strip-controls {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-shrink: 0;
   }
 
   .raawi-strip-scale-group {
     display: flex;
-    background: var(--border, #e2e8f0);
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: var(--radius-sm, 6px);
     padding: 2px;
     gap: 2px;
@@ -1474,90 +1520,154 @@ export const WIDGET_CSS = `
   .raawi-strip-scale-btn {
     border: none;
     background: transparent;
-    padding: 3px 8px;
+    padding: 4px 10px;
     border-radius: 4px;
-    font-size: 11px;
+    font-size: 11.5px;
     font-weight: 600;
     cursor: pointer;
-    color: var(--text-secondary, #475569);
-    transition: all 0.15s ease;
-  }
-
-  .raawi-strip-scale-btn:hover {
-    color: var(--text-primary, #0f172a);
-  }
-
-  .raawi-strip-scale-btn.active {
-    background: var(--primary, #0d9488);
-    color: #ffffff;
-  }
-
-  .raawi-strip-scale-btn:focus-visible {
-    outline: 2px solid var(--primary, #0d9488);
-    outline-offset: 1px;
-  }
-
-  .raawi-strip-close-btn {
-    border: none;
-    background: transparent;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    color: var(--text-muted, #64748b);
-    padding: 3px 8px;
-    border-radius: var(--radius-sm, 6px);
-    min-height: 28px;
+    color: #94a3b8;
+    min-height: 32px;
+    min-width: 44px;
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.15s ease;
   }
 
+  .raawi-strip-scale-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .raawi-strip-scale-btn.active {
+    background: var(--primary, #0d9488);
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: 0 1px 4px rgba(13, 148, 136, 0.4);
+  }
+
+  .raawi-strip-scale-btn:focus-visible {
+    outline: 2px solid #2dd4bf;
+    outline-offset: 1px;
+  }
+
+  .raawi-strip-dock-btn,
+  .raawi-strip-close-btn {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+    color: #94a3b8;
+    padding: 4px;
+    border-radius: var(--radius-sm, 6px);
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.15s ease;
+  }
+
+  /* 44px hit bounds for touch targets */
+  .raawi-strip-dock-btn::after,
+  .raawi-strip-close-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .raawi-strip-action-icon {
+    width: 15px;
+    height: 15px;
+    display: block;
+    pointer-events: none;
+  }
+
+  .raawi-strip-dock-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+  }
+
+  .raawi-strip-dock-btn:focus-visible {
+    outline: 2px solid #2dd4bf;
+    outline-offset: 1px;
+  }
+
   .raawi-strip-close-btn:hover {
-    background: #fee2e2;
-    color: #e11d48;
+    background: #ef4444;
+    border-color: #ef4444;
+    color: #ffffff;
   }
 
   .raawi-strip-close-btn:focus-visible {
-    outline: 2px solid #e11d48;
+    outline: 2px solid #ef4444;
     outline-offset: 1px;
   }
 
   .raawi-strip-mirror {
-    padding: 10px 18px 14px 18px;
+    padding: 12px 20px 16px 20px;
     overflow-y: auto;
+    overflow-x: hidden;
     flex: 1;
     min-height: 40px;
     box-sizing: border-box;
+    background: #0f172a;
+    scrollbar-width: thin;
+    scrollbar-color: #475569 #0f172a;
+  }
+
+  .raawi-strip-mirror::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .raawi-strip-mirror::-webkit-scrollbar-track {
+    background: #0f172a;
+  }
+
+  .raawi-strip-mirror::-webkit-scrollbar-thumb {
+    background: #475569;
+    border-radius: 3px;
   }
 
   .raawi-strip-text {
-    line-height: 1.45;
-    color: var(--text-primary, #0f172a);
+    color: #f8fafc;
     word-break: break-word;
+    overflow-wrap: break-word;
     transition: font-size 0.15s ease;
   }
 
   .raawi-strip-text.raawi-scale-150 {
     font-size: 1.5rem;
+    line-height: 1.55;
   }
 
   .raawi-strip-text.raawi-scale-200 {
     font-size: 2.0rem;
+    line-height: 1.5;
   }
 
   .raawi-strip-text.raawi-scale-250 {
     font-size: 2.5rem;
+    line-height: 1.45;
   }
 
   .raawi-strip-text.raawi-scale-300 {
     font-size: 3.0rem;
+    line-height: 1.4;
   }
 
   .raawi-strip-text.fallback {
-    color: var(--text-muted, #64748b);
+    color: #94a3b8;
     font-style: italic;
     font-size: 1.25rem !important;
+    line-height: 1.5;
   }
 
   .raawi-strip-text.raawi-font-cairo {
@@ -1566,7 +1676,7 @@ export const WIDGET_CSS = `
   }
 
   .raawi-strip-text.raawi-font-latin {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
   }
 
   /* High contrast mode for reading strip */
@@ -1576,9 +1686,19 @@ export const WIDGET_CSS = `
     box-shadow: 0 -4px 20px rgba(255, 255, 255, 0.2) !important;
   }
 
+  .raawi-strip-contrast.raawi-strip-dock-top {
+    border-top: none !important;
+    border-bottom: 3px solid #ffff00 !important;
+    box-shadow: 0 4px 20px rgba(255, 255, 255, 0.2) !important;
+  }
+
+  .raawi-strip-contrast .raawi-strip-toolbar,
+  .raawi-strip-contrast .raawi-strip-mirror {
+    background: #000000 !important;
+  }
+
   .raawi-strip-contrast .raawi-strip-toolbar {
-    background: #111111 !important;
-    border-bottom: 1px solid #333333 !important;
+    border-bottom: 1px solid #ffff00 !important;
   }
 
   .raawi-strip-contrast .raawi-strip-brand,
@@ -1587,13 +1707,23 @@ export const WIDGET_CSS = `
     color: #ffffff !important;
   }
 
+  .raawi-strip-contrast .raawi-strip-icon {
+    color: #ffff00 !important;
+  }
+
+  .raawi-strip-contrast .raawi-strip-badge {
+    background: #000000 !important;
+    border: 1px solid #ffff00 !important;
+    color: #ffff00 !important;
+  }
+
   .raawi-strip-contrast .raawi-strip-text.fallback {
     color: #ffff00 !important;
   }
 
   .raawi-strip-contrast .raawi-strip-scale-group {
-    background: #222222 !important;
-    border: 1px solid #444444 !important;
+    background: #111111 !important;
+    border: 1px solid #ffff00 !important;
   }
 
   .raawi-strip-contrast .raawi-strip-scale-btn {
@@ -1606,10 +1736,14 @@ export const WIDGET_CSS = `
     font-weight: 700 !important;
   }
 
+  .raawi-strip-contrast .raawi-strip-dock-btn,
   .raawi-strip-contrast .raawi-strip-close-btn {
+    border: 1px solid #ffff00 !important;
     color: #ffff00 !important;
+    background: #000000 !important;
   }
 
+  .raawi-strip-contrast .raawi-strip-dock-btn:hover,
   .raawi-strip-contrast .raawi-strip-close-btn:hover {
     background: #ffff00 !important;
     color: #000000 !important;
@@ -1622,26 +1756,71 @@ export const WIDGET_CSS = `
     animation: none !important;
   }
 
-  @media (max-width: 640px) {
+  /* Responsive Mobile Refinement (< 768px) */
+  @media (max-width: 768px) {
+    .raawi-grab-handle {
+      display: block;
+      width: 44px;
+      height: 4px;
+      border-radius: 9999px;
+      background: var(--border-hover, #cbd5e1);
+      margin: 8px auto 0 auto;
+      flex-shrink: 0;
+    }
+
+    .raawi-panel-container {
+      width: 100vw !important;
+      max-width: 100vw !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      border-radius: 18px 18px 0 0 !important;
+      max-height: 85vh !important;
+      border-left: none !important;
+      border-right: none !important;
+      border-bottom: none !important;
+      padding-bottom: env(safe-area-inset-bottom, 12px);
+      box-shadow: 0 -8px 30px rgba(15, 23, 42, 0.25) !important;
+    }
+
+    :host([dir="rtl"]) .raawi-panel-container,
+    :host([dir="ltr"]) .raawi-panel-container {
+      left: 0 !important;
+      right: 0 !important;
+    }
+
+    .raawi-launcher-container {
+      bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    }
+
+    :host([dir="rtl"]) .raawi-launcher-container {
+      right: 16px;
+    }
+
+    :host([dir="ltr"]) .raawi-launcher-container {
+      left: 16px;
+    }
+
     .raawi-reading-strip {
-      max-height: 45vh;
+      max-height: 40vh;
     }
 
     .raawi-strip-toolbar {
-      padding: 4px 8px;
+      padding: 6px 10px;
     }
 
     .raawi-strip-scale-btn {
-      padding: 2px 5px;
-      font-size: 10px;
+      padding: 4px 6px;
+      font-size: 11px;
+      min-width: 38px;
     }
 
     .raawi-strip-text.raawi-scale-250 {
-      font-size: 2.1rem;
+      font-size: 2.2rem;
     }
 
     .raawi-strip-text.raawi-scale-300 {
-      font-size: 2.4rem;
+      font-size: 2.6rem;
     }
   }
 
