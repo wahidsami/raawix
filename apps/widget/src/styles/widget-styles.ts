@@ -21,12 +21,12 @@ export const WIDGET_CSS = `
     padding: 0;
   }
 
-  /* Design Tokens */
+  /* Design Tokens - Inclusion Shield UI */
   .raawi-theme {
-    --primary: #27ae60;
-    --primary-hover: #219653;
-    --primary-light: #e8f8f0;
-    --primary-focus: rgba(39, 174, 96, 0.4);
+    --primary: #0d9488;
+    --primary-hover: #0f766e;
+    --primary-light: #f0fdfa;
+    --primary-focus: rgba(13, 148, 136, 0.4);
     --surface: #ffffff;
     --surface-elevated: #f8fafc;
     --border: #e2e8f0;
@@ -34,13 +34,20 @@ export const WIDGET_CSS = `
     --text-primary: #0f172a;
     --text-secondary: #475569;
     --text-muted: #64748b;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
+    --shadow-lg: 0 20px 35px -8px rgba(15, 23, 42, 0.16), 0 8px 16px -4px rgba(15, 23, 42, 0.08);
     --radius-sm: 6px;
-    --radius-md: 10px;
+    --radius-md: 8px;
     --radius-lg: 16px;
     --radius-full: 9999px;
+
+    /* Semantic Status Colors (Preserved) */
+    --status-success: #16a34a;
+    --status-warning: #f59e0b;
+    --status-error: #ef4444;
+    --status-info: #0284c7;
+    --status-offline: #94a3b8;
   }
 
   /* Host Positioning Containers */
@@ -66,9 +73,9 @@ export const WIDGET_CSS = `
     width: 60px;
     height: 60px;
     border-radius: var(--radius-full);
-    background: linear-gradient(135deg, var(--primary) 0%, #1e824c 100%);
-    border: 2px solid rgba(255, 255, 255, 0.8);
-    box-shadow: 0 8px 20px rgba(39, 174, 96, 0.35), var(--shadow-md);
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    box-shadow: 0 10px 25px -5px rgba(13, 148, 136, 0.4), 0 8px 10px -6px rgba(13, 148, 136, 0.2);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -81,11 +88,12 @@ export const WIDGET_CSS = `
 
   .raawi-launcher-btn:hover {
     transform: scale(1.08);
-    box-shadow: 0 12px 24px rgba(39, 174, 96, 0.45), var(--shadow-lg);
+    background: linear-gradient(135deg, var(--primary-hover) 0%, #115e59 100%);
+    box-shadow: 0 14px 28px -4px rgba(13, 148, 136, 0.5), 0 10px 14px -6px rgba(13, 148, 136, 0.3);
   }
 
   .raawi-launcher-btn:focus-visible {
-    outline: 3px solid #2563eb;
+    outline: 3px solid var(--primary);
     outline-offset: 3px;
     box-shadow: 0 0 0 4px var(--primary-focus);
   }
@@ -154,7 +162,7 @@ export const WIDGET_CSS = `
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-lg), 0 0 0 1px rgba(15, 23, 42, 0.05);
     display: none;
     flex-direction: column;
     overflow: hidden;
@@ -172,7 +180,7 @@ export const WIDGET_CSS = `
   :host([dir="ltr"]) .raawi-panel-container {
     left: 24px;
     right: auto;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   }
 
   .raawi-panel-container.open {
@@ -196,80 +204,125 @@ export const WIDGET_CSS = `
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 18px;
+    padding: 12px 16px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
+    gap: 10px;
   }
 
   .raawi-brand-group {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
   }
 
   .raawi-brand-icon {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
   }
 
   .raawi-brand-title {
-    font-size: 15px;
+    font-size: 13.5px;
     font-weight: 700;
     color: var(--text-primary);
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .raawi-header-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    flex-shrink: 0;
   }
 
   /* Language Switcher */
   .raawi-lang-switch {
     display: inline-flex;
+    align-items: center;
     background: var(--surface-elevated);
     border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-full);
     padding: 2px;
+    box-sizing: border-box;
   }
 
   .raawi-lang-btn {
     border: none;
     background: transparent;
-    padding: 3px 8px;
-    font-size: 12px;
+    min-height: 28px;
+    padding: 2px 8px;
+    font-size: 11px;
     font-weight: 600;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: var(--radius-full);
     color: var(--text-secondary);
     transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  /* Accessible touch target 44x44px */
+  .raawi-lang-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .raawi-lang-btn.active {
-    background: var(--surface);
-    color: var(--primary);
+    background: var(--primary);
+    color: #ffffff;
     box-shadow: var(--shadow-sm);
   }
 
+  .raawi-lang-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
   .raawi-icon-btn {
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    min-height: 36px;
-    border-radius: var(--radius-sm);
-    display: flex;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    border-radius: var(--radius-md);
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     color: var(--text-secondary);
-    font-size: 16px;
-    transition: background 0.15s ease;
+    font-size: 15px;
+    transition: all 0.15s ease;
+    position: relative;
+  }
+
+  /* Accessible touch target 44x44px */
+  .raawi-icon-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .raawi-icon-btn:hover {
     background: var(--surface-elevated);
+    border-color: var(--border);
     color: var(--text-primary);
   }
 
@@ -683,17 +736,17 @@ export const WIDGET_CSS = `
 
   /* Panel Footer */
   .raawi-panel-footer {
-    padding: 12px 18px;
+    padding: 14px 18px;
     background: var(--surface-elevated);
     border-top: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
 
   .raawi-disclaimer {
     font-size: 11px;
-    line-height: 1.4;
+    line-height: 1.5;
     color: var(--text-muted);
     text-align: center;
   }
@@ -705,9 +758,10 @@ export const WIDGET_CSS = `
     gap: 6px;
     font-size: 11px;
     font-weight: 600;
-    color: var(--primary);
+    color: var(--primary-hover);
     background: var(--primary-light);
-    padding: 3px 8px;
+    border: 1px solid rgba(13, 148, 136, 0.2);
+    padding: 4px 12px;
     border-radius: var(--radius-full);
   }
 
@@ -716,6 +770,7 @@ export const WIDGET_CSS = `
     height: 6px;
     border-radius: 50%;
     background-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.25);
   }
 
   /* =========================================================================
@@ -894,7 +949,7 @@ export const WIDGET_CSS = `
     background: rgba(255, 255, 255, 0.98);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border-top: 3px solid var(--primary, #27ae60);
+    border-top: 3px solid var(--primary, #0d9488);
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
     display: flex;
     flex-direction: column;
@@ -954,12 +1009,12 @@ export const WIDGET_CSS = `
   }
 
   .raawi-strip-scale-btn.active {
-    background: var(--primary, #27ae60);
+    background: var(--primary, #0d9488);
     color: #ffffff;
   }
 
   .raawi-strip-scale-btn:focus-visible {
-    outline: 2px solid var(--primary, #27ae60);
+    outline: 2px solid var(--primary, #0d9488);
     outline-offset: 1px;
   }
 
@@ -1108,6 +1163,14 @@ export const WIDGET_CSS = `
 
     .raawi-strip-text.raawi-scale-300 {
       font-size: 2.4rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
     }
   }
 `;

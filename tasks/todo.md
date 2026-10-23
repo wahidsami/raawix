@@ -1528,7 +1528,139 @@
 - **Predictable Context Tracking:** Prioritizes active text selections (`selectionchange`) and keyboard focus (`focusin`) over mouse hover. Suppresses pointer hover updates for 1200ms following keyboard navigation (`Tab`, arrow keys). Ignores ambient hover on touch-first devices. Resolves nested icons/spans to semantic parent containers (`button`, `a`, `h1`-`h6`, `p`, `li`, etc.).
 - **Typography & Localization:** Preserves bundled `'Cairo'` font and `rtl` direction for Arabic text (detected via explicit `lang="ar"` or Arabic script Unicode range, never by `dir="rtl"` alone), with Latin system sans-serif for English content. All 10 new translation keys maintain 1:1 parity across Arabic and English dictionaries.
 - **Underlying Website Protection:** Zero permanent host DOM mutations, zero inline style modifications, and zero interference with page click handlers (`pointer-events: auto` strictly isolated to strip controls). Complete teardown of all listeners, timers, and DOM nodes on disable, reset, or widget destroy.
-- **Test Evidence:** 174/174 automated tests passed across all 9 widget test files (27/27 in `phase2c-magnifier-strip.test.ts`). Zero TypeScript errors and clean production Vite bundle build (`dist/widget.iife.js` 192.02 kB).
+
+
+# Tasks - Phase 2C: Real-Browser Verification & Screenshot Evidence
+
+- [x] 1. Preflight & Safety Checks
+  - [x] Verify repo path, branch (`feature/semantic-core`), HEAD (`cda5efa`), clean worktree, and disk space
+  - [x] Verify presence and integrity of compiled Phase 2C widget bundle (`apps/widget/dist/widget.iife.js`)
+  - [x] Enforce read-only constraint on application code
+- [x] 2. Test Fixture & Automation Harness Setup (Untracked)
+  - [x] Create standalone HTML fixture in `test-results/phase2c-evidence/fixture.html`
+  - [x] Incorporate English content, Arabic content with Cairo/RTL, mixed text, headings H1-H4, links, buttons, form controls, sensitive inputs (password, file, hidden, contenteditable), and sticky header/footer
+  - [x] Create Playwright browser execution script to exercise real Chromium and capture genuine screenshots
+- [x] 3. Real-Browser Verification & Evidence Capture
+  - [x] Capture State 1: Widget closed (launcher placement) (`01_widget_closed_launcher.png`)
+  - [x] Capture State 2: Widget open (full panel, tabs, controls) (`02_widget_open_full_panel.png`)
+  - [x] Capture State 3: Reading tab (TTS, ruler/mask, magnifier controls) (`03_reading_tab_controls.png`)
+  - [x] Capture State 4: Strip active at 150% (`04_strip_active_150.png`)
+  - [x] Capture State 5: Strip active at 200% (`05_strip_active_200.png`)
+  - [x] Capture State 6: Strip active at 250% (`06_strip_active_250.png`)
+  - [x] Capture State 7: Strip active at 300% (text clipping, overflow, dock height check) (`07_strip_active_300.png`)
+  - [x] Capture State 8: Arabic state (Cairo rendering, RTL text in strip) (`08_arabic_state_cairo_rtl.png`)
+  - [x] Capture State 9: English state (Latin stack, LTR text in strip) (`09_english_state_latin_ltr.png`)
+  - [x] Capture State 10: Narrow / mobile viewport (390x844 responsive behavior) (`10_narrow_mobile_viewport.png`)
+  - [x] Capture State 11: Long-content & sticky-footer collision inspection (`11_sticky_footer_collision.png`)
+- [x] 4. Interactive Behavioral & Privacy Verification
+  - [x] Verify keyboard navigation (`Tab` / focus) takes priority over ambient pointer hover (`14_keyboard_priority_over_hover.png`)
+  - [x] Verify sensitive inputs (password, file, hidden, contenteditable) strictly hide values and show safe descriptions (`12_privacy_password_masked.png`, `13_privacy_contenteditable_safe.png`)
+  - [x] Verify immediate close button, toggle off, and widget reset completely remove strip and listeners
+  - [x] Inspect browser console logs for any unhandled errors or warnings (graceful fallback on offline 404, zero unhandled errors)
+- [x] 5. Comprehensive Evidence Report
+  - [x] Record exact commit (`cda5efa753785b6a6b27f68746007e6a874cb17e`), browser version (Chromium 143.0.7499.4), OS (Windows 11), viewport dimensions (1280x800 desktop, 390x844 mobile)
+  - [x] Compile complete screenshot inventory with absolute local paths in `test-results/phase2c-evidence/`
+  - [x] Record pass/fail results, layout observations, and operational stopping point for coordinator review
+
+## Execution Review (Phase 2C Real-Browser Verification)
+- **Real-Browser Execution:** Ran automated verification inside genuine Chromium (version 143.0.7499.4) hosted locally via built-in Node HTTP server on `http://127.0.0.1:4182`, serving `fixture.html` with the compiled Phase 2C bundle `widget.iife.js`.
+- **Screenshot Evidence:** Captured 14 high-resolution screenshots spanning all 11 required states plus 3 deep-dive privacy and keyboard priority states. Stored in untracked local directory `test-results/phase2c-evidence/`.
+- **Cairo Font Rendering:** Arabic text visibly rendered with bundled Cairo font and `rtl` direction, maintaining smooth cursive joining across all zoom scales up to 300%. English content correctly preserved the clean Latin system font stack and `ltr` direction.
+- **Form Privacy & Interaction Safety:** Passwords, hidden tokens, file upload names, and unselected contenteditable notes were strictly excluded from display. The strip emitted `[Protected content hidden]` for high-risk inputs.
+- **Keyboard Priority:** Verified that `Tab` focus takes priority over mouse movement, maintaining the focused element during ambient mouse moves within the 1200ms quiet window.
+- **Clean Teardown:** Verified that clicking the strip's close button `✕` or toggling it off completely removes the `.raawi-reading-strip` element from the Shadow DOM.
+
+# Tasks - Phase 2C.1: Missing Widget Tab Evidence
+
+- [x] 1. Setup Evidence Capture Script
+  - [x] Extend/create capture script in untracked `test-results/phase2c-evidence/`
+  - [x] Keep application source read-only and preserve commit `cda5efa753785b6a6b27f68746007e6a874cb17e`
+- [x] 2. Capture Vision Tab (`15_vision_tab.png`)
+  - [x] Activate Vision tab (`[data-tab="vision"]`)
+  - [x] Capture initial visible content and scrolled content within panel container (`15_vision_tab.png`, `15b_vision_tab_scrolled.png`)
+  - [x] Inventory all 8 visible controls, labels, and demonstrably functional status
+- [x] 3. Capture Tools Tab (`16_tools_tab.png`)
+  - [x] Activate Tools tab (`[data-tab="tools"]`)
+  - [x] Capture initial visible content and scrolled content (`16_tools_tab.png`, `16b_tools_tab_scrolled.png`)
+  - [x] Inventory all visible controls, labels, and demonstrably functional status
+- [x] 4. Capture Arabic Panel State (`17_arabic_panel.png`)
+  - [x] Switch widget locale to Arabic via `[data-lang="ar"]`
+  - [x] Capture complete Arabic panel layout, RTL alignment, and Cairo typography (`17_arabic_panel.png`, `17b_arabic_assist_tab.png`)
+  - [x] Verify RTL dock shift to right: 24px and Cairo font cascade
+- [x] 5. Comprehensive Evidence Report
+  - [x] Document exact file paths, viewport dimensions, controls inventory, and stopping point
+
+## Execution Review (Phase 2C.1 Missing Widget Tab Evidence)
+- **Browser & Target:** Real Chromium `143.0.7499.4` on Windows 11 x64, Desktop HiDPI @2x (1280x800), serving local fixture on `http://127.0.0.1:4183`. Application source was kept strictly read-only at commit `cda5efa753785b6a6b27f68746007e6a874cb17e`.
+- **Vision Tab:** Documented 8 controls (Text Size, Line Spacing, High Contrast, Focus Highlight, Readable Font, Highlight Links, Stop Animations, Large Cursor). Verified stepper and contrast toggle functionality.
+- **Tools Tab:** Documented 2 feature cards (Text-to-Speech Read Aloud with 7 control buttons and voice dropdown, and Page Headings Navigator with 6 extracted fixture headings and Jump-to buttons). Verified heading extraction and navigation.
+- **Arabic Panel:** Documented localized RTL panel layout, right-docked positioning (`right: 24px`), and Cairo typography (`'Cairo', 'Segoe UI', Tahoma, sans-serif`).
+- **Evidence Output:** 6 new genuine screenshots (`15`, `15b`, `16`, `16b`, `17`, `17b`) and structured `missing-tabs-inventory.json` saved in `test-results/phase2c-evidence/`.
+
+# Tasks - Raawi X Widget Redesign: Stitch Project Audit & Implementation Mapping
+
+- [x] 1. Preflight & Verification
+  - [x] Verify repo path, branch (`feature/semantic-core`), HEAD (`cda5efa`), clean worktree, and disk space
+  - [x] Verify no unexpected commits beyond Phase 2C baseline
+- [x] 2. Google Stitch Project Inspection
+  - [x] Locate exact project `projects/3379199596456361018` (*"Raawi X Widget Redesign"*)
+  - [x] Extract design theme: *Inclusion Shield UI* (Teal `#0d9488`, Dark Slate `#0f172a`, Roundness 8px, 44px min touch bounds)
+  - [x] Inventory all 7 project screens (Exploration Board, All Tabs Spec, Screen A, and Standalone Menus 1-4)
+  - [x] Download and inspect raw HTML and DOM structure for all 7 screens
+- [x] 3. Widget Source Code Audit
+  - [x] Inspect real implementation under `apps/widget/src/` (`panel.ts`, `reading-strip.ts`, `shadow-container.ts`, `types.ts`, `state.ts`, `display-manager.ts`, `i18n.ts`, `widget-styles.ts`, `cairo-data.ts`)
+  - [x] Audit functional features vs mocked features across Assist, Vision, Reading, Tools, and Shared components
+- [x] 4. Design-to-Code Mapping & Architectural Evaluation
+  - [x] Map every Stitch component to widget source files and lines
+  - [x] Analyze the structural conflict: Unified 4-Tab Panel vs. Four Standalone Menus
+  - [x] Formulate technical recommendation: Retain Unified 4-Tab Panel architecture styled with *Inclusion Shield UI* tokens
+- [x] 5. Deliverables & Next Steps
+  - [x] Author comprehensive report `RAAWI_X_WIDGET_REDESIGN_AUDIT.md`
+  - [x] Document 4-phase rollout plan, risks, regression coverage, and coordinator decisions
+  - [x] Stop and await coordinator review before implementing redesign
+
+## Execution Review (Widget Redesign Audit)
+- **Stitch Project:** Analyzed project `3379199596456361018` with 7 screens. Identified that the project contains both a unified 4-tab panel (`Screen A`, `Direction A/B/C`, `All Tabs Spec`) and four standalone tabless menu presentations (`Menu 1` to `Menu 4`).
+- **Architecture Recommendation:** Recommends retaining the unified 4-tab panel architecture inside a single WAI-ARIA `dialog` container to preserve keyboard focus trapping, mobile responsiveness, and multi-tool workflows, while adopting the *Inclusion Shield UI* design system tokens (emerald teal `#0d9488`, slate typography, 8px/16px radii, 44×44px hit bounds, and Cairo RTL).
+- **Report Produced:** `RAAWI_X_WIDGET_REDESIGN_AUDIT.md` written to repository root. Application source remained strictly read-only.
+
+# Tasks - Raawi X Widget Redesign: Phase 1 (Tokens & Base Shell Polish)
+
+- [x] 1. Preflight & Baseline Verification
+  - [x] Verify repo path, branch (`feature/semantic-core`), HEAD (`cda5efa`), clean worktree, and disk space (73.25 GB free)
+  - [x] Confirm baseline and review approved Phase 1 scope
+- [x] 2. Implement Inclusion Shield UI Design Tokens
+  - [x] Update `.raawi-theme` CSS custom properties in `widget-styles.ts`: primary `#0d9488`, primary hover `#0f766e`, mint surface `#f0fdfa`, slate text `#0f172a`, muted `#64748b`, border `#e2e8f0`, subtle surface `#f8fafc`, 8px/16px/9999px radii
+  - [x] Preserve semantic status colors (success `#16a34a`, warning `#f59e0b`, offline `#94a3b8`, error `#ef4444`)
+  - [x] Preserve Cairo offline font bundling & Phase 2B.2 language-aware font rules
+- [x] 3. Polish Launcher FAB
+  - [x] Update launcher button styling with `#0d9488` teal gradient, refined shadow, and focus-visible ring
+  - [x] Ensure high-contrast Universal Access icon
+  - [x] Preserve open/close toggle, keyboard activation (`Enter`/`Space`), and LTR/RTL placement
+- [x] 4. Polish Panel Shell, Header & Footer
+  - [x] Restyle panel container (`#raawi-accessibility-panel`) with Level 3 elevation, 16px radius, and subtle border
+  - [x] Restyle header with refined Raawi X emblem, title typography, 44×44px language pill, reset button, and close button
+  - [x] Restyle footer status indicator (`Active & Ready` / `جاهز ونشط`) and legal disclaimer
+  - [x] Keep 4-tab bar and existing tab contents untouched
+- [x] 5. Testing & Verification
+  - [x] Run focused tests `phase5-1.test.ts` and `phase5-2.test.ts`
+  - [x] Run complete widget regression suite (174/174 tests passing)
+  - [x] Run `tsc --noEmit` and `vite build` (bundle `widget.iife.js` built in 254ms)
+- [x] 6. Real Browser Verification & Screenshots
+  - [x] Capture genuine desktop and mobile screenshots of redesigned launcher and panel shell using local Chromium fixture
+  - [x] Captured `18_phase1_launcher_teal.png`, `19_phase1_panel_shell.png`, `20_phase1_arabic_shell.png`, and `21_phase1_mobile_shell.png`
+- [x] 7. Review, Commit, Push & Delivery Report
+  - [x] Review git diff for senior standards and cleanliness
+  - [x] Commit and push Phase 1 to `feature/semantic-core`
+  - [x] Deliver Phase 1 report and stop for coordinator review
+
+## Execution Review (Widget Redesign Phase 1)
+- **Design Tokens Implemented:** Applied the approved Stitch *Inclusion Shield UI* palette using scoped CSS custom properties in Shadow DOM: Primary Teal (`#0d9488`), Hover/Darker Teal (`#0f766e`), Light Mint (`#f0fdfa`), Slate Text (`#0f172a`), Muted Slate (`#64748b`), Border (`#e2e8f0`), Subtle Surface (`#f8fafc`), Radii (8px base, 16px container, 9999px pill). Preserved all semantic status colors.
+- **Launcher Polish:** Redesigned floating launcher FAB with 135deg teal gradient, subtle circular halo, high-contrast white Universal Access symbol, soft shadow, active scaling, and a 3px teal `:focus-visible` ring.
+- **Panel Shell & Header:** Updated container with 16px radius and Level 3 elevation. Polished header topbar with teal `#0d9488` brand emblem, balanced typography, 44×44px accessible touch pseudo-targets on all interactive controls (language pill, reset button, close button).
+- **Footer Polish:** Implemented `Active & Ready` (`جاهز ونشط`) pill with subtle teal border and green/teal status dot, and muted disclaimer.
+- **Tab Content Unchanged:** Tab bodies, presets, sliders, and navigation controls remained strictly untouched as authorized for Phase 1.
+- **Verification Evidence:** 174/174 unit and integration tests passing. Generated genuine Chromium screenshots `18_phase1_launcher_teal.png`, `19_phase1_panel_shell.png`, `20_phase1_arabic_shell.png`, and `21_phase1_mobile_shell.png`.
 
 
 

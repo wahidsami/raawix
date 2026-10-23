@@ -192,12 +192,12 @@ export class PanelComponent {
       <header class="raawi-panel-header">
         <div class="raawi-brand-group">
           <svg class="raawi-brand-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <circle cx="12" cy="12" r="10" fill="#27ae60" fill-opacity="0.15"/>
-            <circle cx="12" cy="7" r="2.5" fill="#27ae60"/>
-            <path d="M6 11C9 10 15 10 18 11" stroke="#27ae60" stroke-width="2" stroke-linecap="round"/>
-            <path d="M12 9.5V16" stroke="#27ae60" stroke-width="2" stroke-linecap="round"/>
-            <path d="M12 16L8.5 21" stroke="#27ae60" stroke-width="2" stroke-linecap="round"/>
-            <path d="M12 16L15.5 21" stroke="#27ae60" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="12" cy="12" r="10" fill="#0d9488" fill-opacity="0.15"/>
+            <circle cx="12" cy="7" r="2.5" fill="#0d9488"/>
+            <path d="M6 11C9 10 15 10 18 11" stroke="#0d9488" stroke-width="2" stroke-linecap="round"/>
+            <path d="M12 9.5V16" stroke="#0d9488" stroke-width="2" stroke-linecap="round"/>
+            <path d="M12 16L8.5 21" stroke="#0d9488" stroke-width="2" stroke-linecap="round"/>
+            <path d="M12 16L15.5 21" stroke="#0d9488" stroke-width="2" stroke-linecap="round"/>
           </svg>
           <h2 id="raawi-panel-title" class="raawi-brand-title" tabindex="-1">${t.widgetTitle}</h2>
         </div>
