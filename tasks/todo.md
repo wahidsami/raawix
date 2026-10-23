@@ -1397,10 +1397,44 @@
 - **Feature C (Configurable Reading Guide & Mask):** Added `readingGuideThickness: 'thin' | 'medium' | 'thick'` (default `'medium'`). Dynamic ruler thickness (thin: 3px, medium: 6px, thick: 12px) with full reduced-motion support (`transition: none` when reduced motion or stop animations is active). Ruler thickness and mask height remain 100% independent. Settings sanitized against corrupted `localStorage` state.
 - **Test Evidence:** 142/142 automated tests passed across all 8 test files (17 new Phase 2B tests + 125 legacy tests). Clean TypeScript check and production Vite build.
 
+# Tasks - Phase 2B.1: Font Consistency Correction
 
+- [x] 1. Asset & License Preflight
+  - [x] Inspect current branch (`feature/semantic-core`), HEAD (`8c2fbcf`), and worktree status
+  - [x] Verify licensed Cairo font asset (`@fontsource/cairo` under SIL Open Font License 1.1)
+  - [x] Bundle Cairo Arabic woff2 font files (`cairo-arabic-400-normal.woff2`, `cairo-arabic-700-normal.woff2`), `OFL.txt`, and `METADATA.json` in `apps/widget/assets/fonts/cairo/`
+- [x] 2. Implementation: Distinct Language-Aware Font Selection & Self-Contained Embedding
+  - [x] Embed `@font-face` for Cairo (400 and 700) self-contained in widget managed styles without any CDN/remote font request
+  - [x] Implement language-aware CSS rules in `display-manager.ts`:
+    - Arabic content (`:lang(ar)`, `[lang^="ar"]`, and `html[lang^="ar"]` root) uses `'Cairo'` as the first primary font
+    - English/Latin content (`:lang(en)`, `[lang^="en"]`, and non-Arabic default) uses readable Latin sans-serif
+    - Mixed-language pages correctly preserve Cairo for Arabic and Latin font for English
+    - Support `dir="rtl"` fallback while allowing `:lang(en)` to take precedence for English sub-elements
+  - [x] Preserve default-off behavior, user toggle, preference persistence, reversible CSS, and Shadow DOM isolation
+  - [x] Ensure host website is never forced to override fonts when readable-font is disabled
+- [x] 3. Targeted Regression Tests & Verification
+  - [x] Update `test/phase2b-visual-tools.test.ts` to test:
+    - Arabic font selection (`'Cairo'` first in stack)
+    - English font selection (clean Latin sans-serif)
+    - Mixed-language and mixed-direction documents
+    - Reversibility upon toggle-off / reset
+    - Asset bundling and availability in production widget build
+  - [x] Run full widget test suite (all 8 test files: 146/146 passed)
+  - [x] Run `tsc --noEmit` (clean code 0) and `vite build` (168.41 kB, gzip: 59.99 kB)
+- [x] 4. Commit, Push & Delivery Report
+  - [x] Review diff for cleanliness and senior engineering standards
+  - [x] Commit and push to `feature/semantic-core`
+  - [x] Provide delivery report detailing font assets, license, and next steps
 
-
-
+## Execution Review (Widget Phase 2B.1)
+- **Cairo Font Asset & OFL 1.1 Licensing:** Bundled official Cairo font assets (`cairo-arabic-400-normal.woff2` and `cairo-arabic-700-normal.woff2`) alongside `OFL.txt` (SIL Open Font License 1.1) and `METADATA.json` in `apps/widget/assets/fonts/cairo/`.
+- **Self-Contained Offline Embedding:** Embedded `@font-face` for Cairo 400 and 700 using base64 data URIs directly in widget managed styles. Zero external network requests to Google Fonts or CDN; zero risk of 404 from customer host-page domain.
+- **Language-Aware Font Selection:** Implemented 4 discrete CSS rules in `display-manager.ts`:
+  1. Base host content gets clean system sans-serif (`-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important`).
+  2. Arabic root (`html[lang^="ar"]`) and RTL document (`html[dir="rtl"]`) use `'Cairo'` as primary in the stack (`'Cairo', 'Noto Naskh Arabic', 'Tahoma', Arial, sans-serif !important`).
+  3. Explicit Arabic language elements (`[lang^="ar"]`, `:lang(ar)`) use `'Cairo'` even when embedded in English pages.
+  4. Explicit English language elements (`[lang^="en"]`, `:lang(en)`) use clean Latin sans-serif even when embedded in Arabic/RTL pages.
+- **Verification Evidence:** 146/146 automated tests passed across all 8 test files (including 21 Phase 2B/2B.1 tests). Zero type errors in `tsc --noEmit`. Clean Vite IIFE production build.
 
 
 

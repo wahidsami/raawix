@@ -10,6 +10,7 @@
 
 import type { StateManager } from './state';
 import type { WidgetSettings } from './types';
+import { CAIRO_FONT_FACE_CSS } from '../assets/fonts/cairo-data';
 
 export class DisplayManager {
   public static readonly MANAGED_ATTRIBUTES = [
@@ -513,6 +514,8 @@ export class DisplayManager {
     );
 
     return `
+      ${CAIRO_FONT_FACE_CSS}
+
       /* =========================================================================
          RAAWI X MANAGED DISPLAY PREFERENCES (Phase 5.3)
          Scoped strictly to [data-raawi-*] attributes. Fully reversible.
@@ -613,7 +616,8 @@ export class DisplayManager {
         box-shadow: 0 0 0 6px #000000, 0 0 0 8px #00ffff !important;
       }
 
-      /* Standalone Legible Typography Override */
+      /* Standalone Legible Typography Override (Phase 2B.1 Language-Aware Selection) */
+      /* 1. Base readable font for Latin/default host content */
       html[data-raawi-readable-font="true"] body,
       html[data-raawi-readable-font="true"] p,
       html[data-raawi-readable-font="true"] h1,
@@ -629,7 +633,96 @@ export class DisplayManager {
       html[data-raawi-readable-font="true"] figcaption,
       html[data-raawi-readable-font="true"] span:not(raawi-accessibility-widget *):not(.raawi-theme *),
       html[data-raawi-readable-font="true"] a:not(raawi-accessibility-widget *):not(.raawi-theme *) {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Cairo', 'Noto Naskh Arabic', 'Tahoma', Arial, sans-serif !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+        letter-spacing: 0.015em;
+      }
+
+      /* 2. Arabic document root or RTL context: primary font is Cairo */
+      html[data-raawi-readable-font="true"][lang^="ar"] body,
+      html[data-raawi-readable-font="true"][lang^="ar"] p,
+      html[data-raawi-readable-font="true"][lang^="ar"] h1,
+      html[data-raawi-readable-font="true"][lang^="ar"] h2,
+      html[data-raawi-readable-font="true"][lang^="ar"] h3,
+      html[data-raawi-readable-font="true"][lang^="ar"] h4,
+      html[data-raawi-readable-font="true"][lang^="ar"] h5,
+      html[data-raawi-readable-font="true"][lang^="ar"] h6,
+      html[data-raawi-readable-font="true"][lang^="ar"] li,
+      html[data-raawi-readable-font="true"][lang^="ar"] dd,
+      html[data-raawi-readable-font="true"][lang^="ar"] dt,
+      html[data-raawi-readable-font="true"][lang^="ar"] blockquote,
+      html[data-raawi-readable-font="true"][lang^="ar"] figcaption,
+      html[data-raawi-readable-font="true"][lang^="ar"] span:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"][lang^="ar"] a:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"][dir="rtl"] body,
+      html[data-raawi-readable-font="true"][dir="rtl"] p,
+      html[data-raawi-readable-font="true"][dir="rtl"] h1,
+      html[data-raawi-readable-font="true"][dir="rtl"] h2,
+      html[data-raawi-readable-font="true"][dir="rtl"] h3,
+      html[data-raawi-readable-font="true"][dir="rtl"] h4,
+      html[data-raawi-readable-font="true"][dir="rtl"] h5,
+      html[data-raawi-readable-font="true"][dir="rtl"] h6,
+      html[data-raawi-readable-font="true"][dir="rtl"] li,
+      html[data-raawi-readable-font="true"][dir="rtl"] dd,
+      html[data-raawi-readable-font="true"][dir="rtl"] dt,
+      html[data-raawi-readable-font="true"][dir="rtl"] blockquote,
+      html[data-raawi-readable-font="true"][dir="rtl"] figcaption,
+      html[data-raawi-readable-font="true"][dir="rtl"] span:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"][dir="rtl"] a:not(raawi-accessibility-widget *):not(.raawi-theme *) {
+        font-family: 'Cairo', 'Noto Naskh Arabic', 'Tahoma', Arial, sans-serif !important;
+        letter-spacing: 0.015em;
+      }
+
+      /* 3. Explicit Arabic language sections or elements (including inside LTR/English pages) */
+      html[data-raawi-readable-font="true"] [lang^="ar"]:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"] [lang^="ar"] p,
+      html[data-raawi-readable-font="true"] [lang^="ar"] h1,
+      html[data-raawi-readable-font="true"] [lang^="ar"] h2,
+      html[data-raawi-readable-font="true"] [lang^="ar"] h3,
+      html[data-raawi-readable-font="true"] [lang^="ar"] h4,
+      html[data-raawi-readable-font="true"] [lang^="ar"] h5,
+      html[data-raawi-readable-font="true"] [lang^="ar"] h6,
+      html[data-raawi-readable-font="true"] [lang^="ar"] li,
+      html[data-raawi-readable-font="true"] [lang^="ar"] span:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"] [lang^="ar"] a:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"] :lang(ar):not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"] :lang(ar) p,
+      html[data-raawi-readable-font="true"] :lang(ar) h1,
+      html[data-raawi-readable-font="true"] :lang(ar) h2,
+      html[data-raawi-readable-font="true"] :lang(ar) h3,
+      html[data-raawi-readable-font="true"] :lang(ar) h4,
+      html[data-raawi-readable-font="true"] :lang(ar) h5,
+      html[data-raawi-readable-font="true"] :lang(ar) h6,
+      html[data-raawi-readable-font="true"] :lang(ar) li,
+      html[data-raawi-readable-font="true"] :lang(ar) span:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"] :lang(ar) a:not(raawi-accessibility-widget *):not(.raawi-theme *) {
+        font-family: 'Cairo', 'Noto Naskh Arabic', 'Tahoma', Arial, sans-serif !important;
+        letter-spacing: 0.015em;
+      }
+
+      /* 4. Explicit English/Latin language sections or elements (including inside RTL/Arabic pages) */
+      html[data-raawi-readable-font="true"] [lang^="en"]:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"] [lang^="en"] p,
+      html[data-raawi-readable-font="true"] [lang^="en"] h1,
+      html[data-raawi-readable-font="true"] [lang^="en"] h2,
+      html[data-raawi-readable-font="true"] [lang^="en"] h3,
+      html[data-raawi-readable-font="true"] [lang^="en"] h4,
+      html[data-raawi-readable-font="true"] [lang^="en"] h5,
+      html[data-raawi-readable-font="true"] [lang^="en"] h6,
+      html[data-raawi-readable-font="true"] [lang^="en"] li,
+      html[data-raawi-readable-font="true"] [lang^="en"] span:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"] [lang^="en"] a:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"] :lang(en):not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"] :lang(en) p,
+      html[data-raawi-readable-font="true"] :lang(en) h1,
+      html[data-raawi-readable-font="true"] :lang(en) h2,
+      html[data-raawi-readable-font="true"] :lang(en) h3,
+      html[data-raawi-readable-font="true"] :lang(en) h4,
+      html[data-raawi-readable-font="true"] :lang(en) h5,
+      html[data-raawi-readable-font="true"] :lang(en) h6,
+      html[data-raawi-readable-font="true"] :lang(en) li,
+      html[data-raawi-readable-font="true"] :lang(en) span:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"] :lang(en) a:not(raawi-accessibility-widget *):not(.raawi-theme *) {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
         letter-spacing: 0.015em;
       }
 

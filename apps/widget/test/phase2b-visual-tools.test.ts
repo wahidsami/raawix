@@ -140,7 +140,7 @@ describe('Phase 2B: Standalone Visual & Content Tools', () => {
       display.destroy();
     });
 
-    it('injects scoped CSS rule with Latin sans-serif and Arabic Naskh fallback stack', () => {
+    it('embeds self-contained Cairo @font-face with Arabic unicode-range without external CDN requests', () => {
       const state = new StateManager('ar');
       const container = document.createElement('div');
       const shadow = container.attachShadow({ mode: 'open' });
@@ -150,23 +150,97 @@ describe('Phase 2B: Standalone Visual & Content Tools', () => {
       assert.ok(styleEl, 'raawi-display-styles element must exist in document.head');
       const css = styleEl.textContent || '';
 
-      // Verify rule selector
+      // Verify @font-face definition for Cairo exists and is self-contained via base64 data URI
+      assert.ok(css.includes('@font-face'), 'Managed CSS must define @font-face');
+      assert.ok(css.includes("font-family: 'Cairo'"), "Managed CSS must declare font-family: 'Cairo'");
+      assert.ok(css.includes('data:font/woff2;base64,'), 'Managed CSS must embed font asset via base64 data URI');
+      assert.ok(css.includes('unicode-range: U+0600-06FF'), 'Managed CSS must include Arabic unicode range');
+
+      // Verify ZERO remote CDN links are injected
+      const links = document.head.querySelectorAll('link[rel="stylesheet"]');
+      for (const link of Array.from(links)) {
+        assert.ok(!link.getAttribute('href')?.includes('fonts.googleapis.com'), 'Must never request Google Fonts CDN');
+      }
+
+      display.destroy();
+    });
+
+    it('ensures Arabic text consistently uses Cairo as the primary font family in the stack', () => {
+      const state = new StateManager('ar');
+      const container = document.createElement('div');
+      const shadow = container.attachShadow({ mode: 'open' });
+      const display = new DisplayManager(state, shadow);
+
+      const styleEl = document.head.querySelector('style#raawi-display-styles');
+      assert.ok(styleEl, 'raawi-display-styles element must exist in document.head');
+      const css = styleEl.textContent || '';
+
+      // Check Arabic document root and language selectors
       assert.ok(
-        css.includes('html[data-raawi-readable-font="true"] body') &&
-        css.includes('html[data-raawi-readable-font="true"] p') &&
-        css.includes('html[data-raawi-readable-font="true"] h1'),
-        'Readable font must apply to body, paragraphs, and headings'
+        css.includes('html[data-raawi-readable-font="true"][lang^="ar"]'),
+        'Must contain Arabic document root selector [lang^="ar"]'
+      );
+      assert.ok(
+        css.includes('html[data-raawi-readable-font="true"] :lang(ar)'),
+        'Must contain :lang(ar) selector for Arabic elements'
       );
 
-      // Verify Latin and Arabic font stack
-      assert.ok(css.includes("'Cairo'"), 'Font stack must include Cairo for Arabic');
-      assert.ok(css.includes("'Noto Naskh Arabic'"), 'Font stack must include Noto Naskh Arabic fallback');
-      assert.ok(css.includes('sans-serif'), 'Font stack must include generic sans-serif fallback');
-
-      // Verify widget internal exclusion
+      // Verify Cairo is the FIRST font in the Arabic font stack
       assert.ok(
-        css.includes(':not(raawi-accessibility-widget *)'),
-        'Readable font rule must strictly exclude the Raawi widget'
+        css.includes("font-family: 'Cairo', 'Noto Naskh Arabic', 'Tahoma', Arial, sans-serif !important;"),
+        "Arabic text must use 'Cairo' as the first font in the stack, followed by Naskh fallback"
+      );
+
+      display.destroy();
+    });
+
+    it('ensures English/Latin text uses clean sans-serif font family', () => {
+      const state = new StateManager('ar');
+      const container = document.createElement('div');
+      const shadow = container.attachShadow({ mode: 'open' });
+      const display = new DisplayManager(state, shadow);
+
+      const styleEl = document.head.querySelector('style#raawi-display-styles');
+      assert.ok(styleEl);
+      const css = styleEl.textContent || '';
+
+      // Base Latin selector
+      assert.ok(
+        css.includes('html[data-raawi-readable-font="true"] body'),
+        'Must contain base readable font rule'
+      );
+      assert.ok(
+        css.includes("font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;"),
+        'Latin text must use clean sans-serif system font stack'
+      );
+
+      display.destroy();
+    });
+
+    it('handles mixed-language and mixed-direction documents by prioritizing explicit language selectors over direction', () => {
+      const state = new StateManager('ar');
+      const container = document.createElement('div');
+      const shadow = container.attachShadow({ mode: 'open' });
+      const display = new DisplayManager(state, shadow);
+
+      const styleEl = document.head.querySelector('style#raawi-display-styles');
+      assert.ok(styleEl);
+      const css = styleEl.textContent || '';
+
+      // Check that [lang^="en"] and :lang(en) override any root or parent [dir="rtl"] / Arabic styling
+      assert.ok(
+        css.includes('html[data-raawi-readable-font="true"] [lang^="en"]'),
+        'Must explicitly support English sections [lang^="en"] embedded in Arabic pages'
+      );
+      assert.ok(
+        css.includes('html[data-raawi-readable-font="true"] :lang(en)'),
+        'Must explicitly support English sections :lang(en) embedded in Arabic pages'
+      );
+
+      // Check that [lang^="ar"] and :lang(ar) apply Cairo even when embedded in English pages
+      assert.ok(
+        css.includes('html[data-raawi-readable-font="true"] [lang^="ar"]'),
+        'Must explicitly support Arabic sections [lang^="ar"] embedded in English pages'
       );
 
       display.destroy();
@@ -204,6 +278,33 @@ describe('Phase 2B: Standalone Visual & Content Tools', () => {
       assert.strictEqual(document.documentElement.hasAttribute('data-raawi-readable-font'), false);
 
       display.destroy();
+    });
+
+    it('confirms bundled Cairo font assets and license availability in production widget bundle', () => {
+      const fs = require('fs');
+      const path = require('path');
+      const { fileURLToPath } = require('url');
+      const testDir = path.dirname(fileURLToPath(import.meta.url));
+
+      // 1. Verify source font assets exist locally
+      const fontDir = path.resolve(testDir, '../assets/fonts/cairo');
+      assert.ok(fs.existsSync(path.join(fontDir, 'cairo-arabic-400-normal.woff2')), 'Cairo 400 woff2 must exist');
+      assert.ok(fs.existsSync(path.join(fontDir, 'cairo-arabic-700-normal.woff2')), 'Cairo 700 woff2 must exist');
+      assert.ok(fs.existsSync(path.join(fontDir, 'OFL.txt')), 'OFL.txt must exist');
+      assert.ok(fs.existsSync(path.join(fontDir, 'METADATA.json')), 'METADATA.json must exist');
+
+      // 2. Verify OFL license contains copyright notice
+      const licenseText = fs.readFileSync(path.join(fontDir, 'OFL.txt'), 'utf8');
+      assert.ok(licenseText.includes('Copyright 2009 The Cairo Project Authors'), 'Must contain Cairo Project copyright notice');
+      assert.ok(licenseText.includes('SIL OPEN FONT LICENSE Version 1.1'), 'Must be SIL OFL 1.1');
+
+      // 3. Verify compiled production bundle includes the font data
+      const bundlePath = path.resolve(testDir, '../dist/widget.iife.js');
+      if (fs.existsSync(bundlePath)) {
+        const bundle = fs.readFileSync(bundlePath, 'utf8');
+        assert.ok(bundle.includes("font-family: 'Cairo'"), "Production bundle must contain font-family: 'Cairo'");
+        assert.ok(bundle.includes('data:font/woff2;base64,'), 'Production bundle must contain embedded woff2 font data');
+      }
     });
   });
 

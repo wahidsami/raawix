@@ -1,0 +1,54 @@
+const fs = require('fs');
+const path = require('path');
+
+const baseDir = path.resolve(__dirname, '..');
+const fontDir = path.join(baseDir, 'assets', 'fonts', 'cairo');
+const outDir = path.join(baseDir, 'src', 'assets', 'fonts');
+
+const f400 = fs.readFileSync(path.join(fontDir, 'cairo-arabic-400-normal.woff2')).toString('base64');
+const f700 = fs.readFileSync(path.join(fontDir, 'cairo-arabic-700-normal.woff2')).toString('base64');
+
+const unicodeRange = 'U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0897-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FDFF,U+FE70-FE74,U+FE76-FEFC,U+102E0-102FB,U+10E60-10E7E,U+10EC2-10EC4,U+10EFC-10EFF,U+1EE00-1EE03,U+1EE05-1EE1F,U+1EE21-1EE22,U+1EE24,U+1EE27,U+1EE29-1EE32,U+1EE34-1EE37,U+1EE39,U+1EE3B,U+1EE42,U+1EE47,U+1EE49,U+1EE4B,U+1EE4D-1EE4F,U+1EE51-1EE52,U+1EE54,U+1EE57,U+1EE59,U+1EE5B,U+1EE5D,U+1EE5F,U+1EE61-1EE62,U+1EE64,U+1EE67-1EE6A,U+1EE6C-1EE72,U+1EE74-1EE77,U+1EE79-1EE7C,U+1EE7E,U+1EE80-1EE89,U+1EE8B-1EE9B,U+1EEA1-1EEA3,U+1EEA5-1EEA9,U+1EEAB-1EEBB,U+1EEF0-1EEF1';
+
+const tsContent = `/**
+ * Cairo Font Assets (Arabic Subset)
+ * Copyright 2009 The Cairo Project Authors (https://github.com/Gue3bara/Cairo)
+ * Licensed under the SIL Open Font License, Version 1.1 (OFL-1.1)
+ *
+ * Self-contained font data for deterministic offline/isolated execution
+ * without external CDN requests or remote dependencies.
+ */
+
+export const CAIRO_FONT_LICENSE = 'SIL Open Font License, Version 1.1 (OFL-1.1)';
+export const CAIRO_FONT_AUTHORS = 'Copyright 2009 The Cairo Project Authors (https://github.com/Gue3bara/Cairo)';
+
+export const CAIRO_ARABIC_400_BASE64 = '${f400}';
+export const CAIRO_ARABIC_700_BASE64 = '${f700}';
+
+export const CAIRO_UNICODE_RANGE = '${unicodeRange}';
+
+export const CAIRO_FONT_FACE_CSS = \`
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('data:font/woff2;base64,\${CAIRO_ARABIC_400_BASE64}') format('woff2');
+  unicode-range: \${CAIRO_UNICODE_RANGE};
+}
+
+@font-face {
+  font-family: 'Cairo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('data:font/woff2;base64,\${CAIRO_ARABIC_700_BASE64}') format('woff2');
+  unicode-range: \${CAIRO_UNICODE_RANGE};
+}
+\`;
+`;
+
+fs.mkdirSync(outDir, { recursive: true });
+const targetFile = path.join(outDir, 'cairo-data.ts');
+fs.writeFileSync(targetFile, tsContent, 'utf8');
+console.log(`Generated ${targetFile} successfully (${tsContent.length} bytes).`);
