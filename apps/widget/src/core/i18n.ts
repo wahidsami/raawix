@@ -111,6 +111,33 @@ export interface TranslationDictionary {
   formGuidanceTitle: string;
   formStepsCount: string;
   requiredFieldsCount: string;
+
+  // Phase 2A: Standalone Reading Tools & Headings Navigator
+  readAloud: string;
+  readAloudDesc: string;
+  readPage: string;
+  readSelection: string;
+  play: string;
+  pause: string;
+  resume: string;
+  stop: string;
+  speechRate: string;
+  speechVoice: string;
+  defaultVoice: string;
+  speechPlaying: string;
+  speechPaused: string;
+  speechStopped: string;
+  speechUnsupported: string;
+  noReadableContent: string;
+  readingSourceSelection: string;
+  readingSourcePage: string;
+  headingsNavTitle: string;
+  headingsCount: string;
+  noHeadingsFound: string;
+  jumpToHeading: string;
+  headingNavigated: string;
+  refreshHeadings: string;
+  toolsDescription: string;
 }
 
 export const translations: Record<Locale, TranslationDictionary> = {
@@ -212,6 +239,33 @@ export const translations: Record<Locale, TranslationDictionary> = {
     formGuidanceTitle: 'إرشادات النماذج',
     formStepsCount: 'خطوات النموذج',
     requiredFieldsCount: 'حقول مطلوبة',
+
+    // Phase 2A: Standalone Reading Tools & Headings Navigator
+    readAloud: 'القراءة الصوتية التلقائية',
+    readAloudDesc: 'قراءة محتوى الصفحة أو النص المحدد صوتياً عبر المتصفح',
+    readPage: 'قراءة الصفحة',
+    readSelection: 'قراءة النص المحدد',
+    play: 'تشغيل',
+    pause: 'إيقاف مؤقت',
+    resume: 'استئناف',
+    stop: 'إيقاف',
+    speechRate: 'سرعة القراءة',
+    speechVoice: 'صوت القارئ',
+    defaultVoice: 'الصوت الافتراضي',
+    speechPlaying: 'جاري القراءة الآن...',
+    speechPaused: 'تم الإيقاف المؤقت للقراءة',
+    speechStopped: 'تم إيقاف القراءة',
+    speechUnsupported: 'ميزة القراءة الصوتية غير مدعومة في هذا المتصفح',
+    noReadableContent: 'لم يتم العثور على محتوى نصي للقراءة في هذه الصفحة',
+    readingSourceSelection: 'قراءة النص المحدد',
+    readingSourcePage: 'قراءة الصفحة',
+    headingsNavTitle: 'مستكشف عناوين الصفحة',
+    headingsCount: 'عناوين متوفرة',
+    noHeadingsFound: 'لم يتم العثور على عناوين في هذه الصفحة',
+    jumpToHeading: 'الانتقال إلى العنوان',
+    headingNavigated: 'تم الانتقال إلى العنوان',
+    refreshHeadings: 'تحديث العناوين',
+    toolsDescription: 'أدوات مساعدة مستقلة للقراءة والتصفح والتنقل',
   },
   en: {
     widgetTitle: 'Accessibility & Usability Options',
@@ -311,6 +365,33 @@ export const translations: Record<Locale, TranslationDictionary> = {
     formGuidanceTitle: 'Form Guidance',
     formStepsCount: 'Form Steps',
     requiredFieldsCount: 'Required Fields',
+
+    // Phase 2A: Standalone Reading Tools & Headings Navigator
+    readAloud: 'Text-to-Speech Read Aloud',
+    readAloudDesc: 'Read page content or selected text using browser speech synthesis',
+    readPage: 'Read Page',
+    readSelection: 'Read Selected Text',
+    play: 'Play',
+    pause: 'Pause',
+    resume: 'Resume',
+    stop: 'Stop',
+    speechRate: 'Speed',
+    speechVoice: 'Voice',
+    defaultVoice: 'Default Voice',
+    speechPlaying: 'Reading in progress...',
+    speechPaused: 'Reading paused',
+    speechStopped: 'Reading stopped',
+    speechUnsupported: 'Speech synthesis is not supported in this browser',
+    noReadableContent: 'No readable text content found on this page',
+    readingSourceSelection: 'Reading Selected Text',
+    readingSourcePage: 'Reading Page Content',
+    headingsNavTitle: 'Page Headings Navigator',
+    headingsCount: 'Headings Found',
+    noHeadingsFound: 'No headings found on this page',
+    jumpToHeading: 'Jump to heading',
+    headingNavigated: 'Navigated to heading',
+    refreshHeadings: 'Refresh headings',
+    toolsDescription: 'Standalone assistive reading, speech and outline tools',
   },
 };
 

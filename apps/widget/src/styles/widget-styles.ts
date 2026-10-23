@@ -254,8 +254,10 @@ export const WIDGET_CSS = `
   .raawi-icon-btn {
     border: none;
     background: transparent;
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
     border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
@@ -273,6 +275,7 @@ export const WIDGET_CSS = `
 
   .raawi-icon-btn:focus-visible {
     outline: 2px solid var(--primary);
+    outline-offset: 2px;
   }
 
   /* Tab Bar */
@@ -288,7 +291,8 @@ export const WIDGET_CSS = `
     flex: 1;
     border: none;
     background: transparent;
-    padding: 8px 10px;
+    min-height: 44px;
+    padding: 10px 10px;
     font-size: 13px;
     font-weight: 600;
     color: var(--text-secondary);
@@ -297,10 +301,18 @@ export const WIDGET_CSS = `
     transition: all 0.15s ease;
     white-space: nowrap;
     text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .raawi-tab-btn:hover {
     color: var(--text-primary);
+  }
+
+  .raawi-tab-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
   }
 
   .raawi-tab-btn.active {
@@ -704,6 +716,158 @@ export const WIDGET_CSS = `
     height: 6px;
     border-radius: 50%;
     background-color: var(--primary);
+  }
+
+  /* =========================================================================
+     Phase 2A: Standalone TTS Read Aloud & Headings Navigator
+     ========================================================================= */
+
+  /* TTS Controls Row */
+  .raawi-tts-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .raawi-tts-btn {
+    flex: 1;
+    min-height: 44px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface-elevated);
+    color: var(--text-primary);
+    transition: all 0.15s ease;
+  }
+
+  .raawi-tts-btn:hover:not(:disabled) {
+    background: var(--surface);
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .raawi-tts-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  .raawi-tts-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .raawi-tts-btn-primary {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #ffffff;
+  }
+
+  .raawi-tts-btn-primary:hover:not(:disabled) {
+    background: var(--primary-hover);
+    color: #ffffff;
+  }
+
+  /* TTS Options Row */
+  .raawi-tts-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+
+  .raawi-select {
+    width: 100%;
+    min-height: 40px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated);
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .raawi-select:focus-visible {
+    outline: 2px solid var(--primary);
+  }
+
+  /* Headings List */
+  .raawi-headings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 220px;
+    overflow-y: auto;
+    padding-inline-end: 2px;
+  }
+
+  .raawi-heading-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    gap: 8px;
+  }
+
+  .raawi-heading-item:hover {
+    border-color: var(--border-hover);
+  }
+
+  .raawi-heading-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: #e0f2fe;
+    color: #0369a1;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+
+  .raawi-heading-text {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .raawi-heading-jump-btn {
+    border: none;
+    background: var(--primary);
+    color: #ffffff;
+    border-radius: var(--radius-sm);
+    min-height: 32px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .raawi-heading-jump-btn:hover {
+    background: var(--primary-hover);
+  }
+
+  .raawi-heading-jump-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
   }
 
   /* Screen reader utility */

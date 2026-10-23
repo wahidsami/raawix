@@ -16,6 +16,7 @@ export class DisplayManager {
     'data-raawi-text-size',
     'data-raawi-line-spacing',
     'data-raawi-contrast-mode',
+    'data-raawi-focus-highlight',
     'data-raawi-stop-animations',
     'data-raawi-cursor',
     'data-raawi-hide-images',
@@ -193,7 +194,14 @@ export class DisplayManager {
       this.restoreManagedAttribute('data-raawi-contrast-mode');
     }
 
-    // 4. Stop Animations & Reduced Motion
+    // 4. Standalone High-Visibility Focus Indicator
+    if (settings.focusHighlight) {
+      this.setManagedAttribute('data-raawi-focus-highlight', 'true');
+    } else {
+      this.restoreManagedAttribute('data-raawi-focus-highlight');
+    }
+
+    // 5. Stop Animations & Reduced Motion
     if (settings.stopAnimations) {
       this.setManagedAttribute('data-raawi-stop-animations', 'true');
       this.pauseHostMedia();
@@ -553,7 +561,20 @@ export class DisplayManager {
         outline-offset: 3px !important;
       }
 
-      /* 4. Stop Animations & Reduced Motion */
+      /* Enhanced Standalone Focus Visibility Indicator */
+      html[data-raawi-focus-highlight="true"] :focus-visible:not(raawi-accessibility-widget *):not(.raawi-theme *) {
+        outline: 3px solid #2563eb !important;
+        outline-offset: 3px !important;
+        box-shadow: 0 0 0 5px rgba(37, 99, 235, 0.35) !important;
+      }
+
+      html[data-raawi-contrast-mode="true"][data-raawi-focus-highlight="true"] :focus-visible:not(raawi-accessibility-widget *):not(.raawi-theme *) {
+        outline: 4px solid #ffff00 !important;
+        outline-offset: 4px !important;
+        box-shadow: 0 0 0 6px #000000, 0 0 0 8px #00ffff !important;
+      }
+
+      /* 5. Stop Animations & Reduced Motion */
       html[data-raawi-stop-animations="true"] *,
       html[data-raawi-stop-animations="true"] *::before,
       html[data-raawi-stop-animations="true"] *::after {

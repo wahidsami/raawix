@@ -23,6 +23,8 @@ import {
   type FreshnessStatus,
 } from './core/freshness-engine';
 import { LandmarkNavigator, type NavigationResult, type LandmarkNavigatorOptions } from './core/landmark-navigator';
+import { HeadingsNavigator, type HeadingItem, type NavigationOptions as HeadingNavigationOptions } from './core/headings-navigator';
+import { SpeechReader, type SpeechState, type VoiceInfo, type ReadableContent, type SpeechReaderOptions } from './core/speech-reader';
 import { LiveAnnouncerComponent } from './components/live-announcer';
 import type {
   Locale,
@@ -53,6 +55,8 @@ export {
   getHistoryRegistry,
   resetHistoryRegistryForTests,
   LandmarkNavigator,
+  HeadingsNavigator,
+  SpeechReader,
   computeSha256,
   computeLivePageFingerprint,
   evaluateFreshness,
@@ -78,6 +82,12 @@ export type {
   RaawiHistoryRegistry,
   NavigationResult,
   LandmarkNavigatorOptions,
+  HeadingItem,
+  HeadingNavigationOptions,
+  SpeechState,
+  VoiceInfo,
+  ReadableContent,
+  SpeechReaderOptions,
   ImageDescription,
   LabelOverride,
 };

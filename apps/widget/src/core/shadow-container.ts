@@ -18,6 +18,7 @@ import { PageTracker } from './page-tracker';
 import { LauncherComponent } from '../components/launcher';
 import { PanelComponent } from '../components/panel';
 import { LiveAnnouncerComponent } from '../components/live-announcer';
+import { SpeechReader } from './speech-reader';
 import { WIDGET_CSS } from '../styles/widget-styles';
 import type { Locale } from './types';
 
@@ -34,6 +35,7 @@ export class RaawiAccessibilityWidget extends HTMLElement {
   private apiClient: MapApiClient;
   private remediator: DomRemediator;
   private pageTracker: PageTracker;
+  private speechReader: SpeechReader;
   private backdrop: HTMLElement;
 
   private onDocumentKeyDown: (e: KeyboardEvent) => void;
@@ -78,7 +80,16 @@ export class RaawiAccessibilityWidget extends HTMLElement {
     this.launcher = new LauncherComponent(this.state, this.i18n);
     launcherWrapper.appendChild(this.launcher.getElement());
 
-    this.panel = new PanelComponent(this.state, this.i18n, this.apiClient, this.remediator);
+    // Initialize standalone speech reader
+    this.speechReader = new SpeechReader({ locale: this.state.getLocale() });
+
+    this.panel = new PanelComponent(
+      this.state,
+      this.i18n,
+      this.apiClient,
+      this.remediator,
+      this.speechReader
+    );
 
     container.appendChild(launcherWrapper);
     container.appendChild(this.panel.getElement());
@@ -185,6 +196,9 @@ export class RaawiAccessibilityWidget extends HTMLElement {
     if (this.apiClient) {
       this.apiClient.destroy();
     }
+    if (this.speechReader) {
+      this.speechReader.destroy();
+    }
   }
 
   public open(): void {
@@ -192,6 +206,9 @@ export class RaawiAccessibilityWidget extends HTMLElement {
   }
 
   public close(): void {
+    if (this.speechReader) {
+      this.speechReader.stop();
+    }
     this.state.setOpen(false);
   }
 
@@ -202,6 +219,9 @@ export class RaawiAccessibilityWidget extends HTMLElement {
   public setLocale(locale: Locale): void {
     this.state.setLocale(locale);
     this.i18n.setLocale(locale);
+    if (this.speechReader) {
+      this.speechReader.setLocale(locale);
+    }
   }
 
   public getStateManager(): StateManager {
@@ -234,6 +254,10 @@ export class RaawiAccessibilityWidget extends HTMLElement {
 
   public getPageTracker(): PageTracker {
     return this.pageTracker;
+  }
+
+  public getSpeechReader(): SpeechReader {
+    return this.speechReader;
   }
 
   public getShadowRoot(): ShadowRoot {

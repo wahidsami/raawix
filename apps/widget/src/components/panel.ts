@@ -8,6 +8,8 @@ import type { TabId } from '../core/types';
 import type { MapApiClient } from '../core/api-client';
 import type { DomRemediator } from '../core/dom-remediator';
 import { LandmarkNavigator } from '../core/landmark-navigator';
+import type { SpeechReader } from '../core/speech-reader';
+import { HeadingsNavigator, type HeadingItem } from '../core/headings-navigator';
 
 function escapeHtml(str: string): string {
   return str.replace(/[&<>"']/g, (m) => ({
@@ -25,6 +27,8 @@ export class PanelComponent {
   private i18n: I18nManager;
   private apiClient?: MapApiClient;
   private remediator?: DomRemediator;
+  private speechReader?: SpeechReader;
+  private headingsCache: HeadingItem[] = [];
 
   private lastTab: TabId;
 
@@ -32,12 +36,14 @@ export class PanelComponent {
     state: StateManager,
     i18n: I18nManager,
     apiClient?: MapApiClient,
-    remediator?: DomRemediator
+    remediator?: DomRemediator,
+    speechReader?: SpeechReader
   ) {
     this.state = state;
     this.i18n = i18n;
     this.apiClient = apiClient;
     this.remediator = remediator;
+    this.speechReader = speechReader;
     this.lastTab = this.state.getActiveTab();
 
     this.element = document.createElement('section');
@@ -60,6 +66,19 @@ export class PanelComponent {
       }
     });
     this.i18n.subscribe(() => this.render());
+
+    if (this.speechReader) {
+      this.speechReader.subscribe(() => {
+        if (this.state.getActiveTab() === 'tools') {
+          this.render();
+        }
+      });
+      this.speechReader.onVoicesChanged(() => {
+        if (this.state.getActiveTab() === 'tools') {
+          this.render();
+        }
+      });
+    }
 
     if (this.apiClient) {
       this.apiClient.subscribe(() => {
@@ -162,6 +181,10 @@ export class PanelComponent {
     const settings = this.state.getSettings();
     const activeTab = this.state.getActiveTab();
 
+    if (activeTab === 'tools') {
+      this.headingsCache = HeadingsNavigator.discoverHeadings();
+    }
+
     this.element.setAttribute('dir', this.state.getDirection());
 
     this.element.innerHTML = `
@@ -190,16 +213,16 @@ export class PanelComponent {
         </div>
       </header>
 
-      <!-- Tab Navigation -->
+      <!-- Tab Navigation (WAI-ARIA Tablist Pattern) -->
       <nav class="raawi-tab-bar" role="tablist" aria-label="${t.widgetTitle}">
-        <button type="button" class="raawi-tab-btn ${activeTab === 'assist' ? 'active' : ''}" data-tab="assist" data-testid="raawi-tab-assist" role="tab" aria-selected="${activeTab === 'assist'}">${t.assist}</button>
-        <button type="button" class="raawi-tab-btn ${activeTab === 'vision' ? 'active' : ''}" data-tab="vision" data-testid="raawi-tab-vision" role="tab" aria-selected="${activeTab === 'vision'}">${t.vision}</button>
-        <button type="button" class="raawi-tab-btn ${activeTab === 'reading' ? 'active' : ''}" data-tab="reading" data-testid="raawi-tab-reading" role="tab" aria-selected="${activeTab === 'reading'}">${t.reading}</button>
-        <button type="button" class="raawi-tab-btn ${activeTab === 'tools' ? 'active' : ''}" data-tab="tools" data-testid="raawi-tab-tools" role="tab" aria-selected="${activeTab === 'tools'}">${t.tools}</button>
+        <button type="button" class="raawi-tab-btn ${activeTab === 'assist' ? 'active' : ''}" data-tab="assist" id="raawi-tab-assist" data-testid="raawi-tab-assist" role="tab" aria-selected="${activeTab === 'assist'}" aria-controls="raawi-tabpanel-assist" tabindex="${activeTab === 'assist' ? '0' : '-1'}">${t.assist}</button>
+        <button type="button" class="raawi-tab-btn ${activeTab === 'vision' ? 'active' : ''}" data-tab="vision" id="raawi-tab-vision" data-testid="raawi-tab-vision" role="tab" aria-selected="${activeTab === 'vision'}" aria-controls="raawi-tabpanel-vision" tabindex="${activeTab === 'vision' ? '0' : '-1'}">${t.vision}</button>
+        <button type="button" class="raawi-tab-btn ${activeTab === 'reading' ? 'active' : ''}" data-tab="reading" id="raawi-tab-reading" data-testid="raawi-tab-reading" role="tab" aria-selected="${activeTab === 'reading'}" aria-controls="raawi-tabpanel-reading" tabindex="${activeTab === 'reading' ? '0' : '-1'}">${t.reading}</button>
+        <button type="button" class="raawi-tab-btn ${activeTab === 'tools' ? 'active' : ''}" data-tab="tools" id="raawi-tab-tools" data-testid="raawi-tab-tools" role="tab" aria-selected="${activeTab === 'tools'}" aria-controls="raawi-tabpanel-tools" tabindex="${activeTab === 'tools' ? '0' : '-1'}">${t.tools}</button>
       </nav>
 
       <!-- Tab Content: Assist -->
-      <div id="raawi-tabpanel-assist" class="raawi-tab-body" role="tabpanel" style="display: ${activeTab === 'assist' ? 'flex' : 'none'};">
+      <div id="raawi-tabpanel-assist" class="raawi-tab-body" role="tabpanel" aria-labelledby="raawi-tab-assist" tabindex="0" style="display: ${activeTab === 'assist' ? 'flex' : 'none'};">
         ${this.renderPageInsightsCard(t, settings)}
 
         <!-- Presets -->
@@ -214,28 +237,10 @@ export class PanelComponent {
             <button type="button" class="raawi-preset-btn ${settings.activePreset === 'none' ? 'active' : ''}" data-preset="none">${t.presetNone}</button>
           </div>
         </div>
-
-        <!-- Quick AI Tools -->
-        <div class="raawi-control-card">
-          <div class="raawi-control-header">
-            <span class="raawi-control-title">${t.assist}</span>
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            <button type="button" class="raawi-action-btn" id="raawi-btn-describe-image" data-testid="raawi-tool-describe-image">
-              <span aria-hidden="true">🖼️</span> ${t.describeImage}
-            </button>
-            <button type="button" class="raawi-action-btn" id="raawi-btn-describe-focused" data-testid="raawi-tool-describe-focused">
-              <span aria-hidden="true">🎯</span> ${t.describeFocusedElement}
-            </button>
-            <button type="button" class="raawi-action-btn" id="raawi-btn-what-can-i-do" data-testid="raawi-tool-what-can-i-do">
-              <span aria-hidden="true">🧭</span> ${t.whatCanIDoHere}
-            </button>
-          </div>
-        </div>
       </div>
 
       <!-- Tab Content: Vision -->
-      <div id="raawi-tabpanel-vision" class="raawi-tab-body" role="tabpanel" style="display: ${activeTab === 'vision' ? 'flex' : 'none'};">
+      <div id="raawi-tabpanel-vision" class="raawi-tab-body" role="tabpanel" aria-labelledby="raawi-tab-vision" tabindex="0" style="display: ${activeTab === 'vision' ? 'flex' : 'none'};">
         <!-- Text Size -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
@@ -277,6 +282,17 @@ export class PanelComponent {
           </div>
         </div>
 
+        <!-- Focus Highlight Toggle -->
+        <div class="raawi-control-card">
+          <div class="raawi-control-header">
+            <span class="raawi-control-title">${t.focusHighlight}</span>
+            <label class="raawi-toggle">
+              <input type="checkbox" id="raawi-toggle-focus-highlight" data-testid="raawi-tool-focus-highlight" ${settings.focusHighlight ? 'checked' : ''} aria-label="${t.toggleFocusHighlight}">
+              <span class="raawi-toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
         <!-- Stop Animations Toggle -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
@@ -302,7 +318,7 @@ export class PanelComponent {
       </div>
 
       <!-- Tab Content: Reading -->
-      <div id="raawi-tabpanel-reading" class="raawi-tab-body" role="tabpanel" style="display: ${activeTab === 'reading' ? 'flex' : 'none'};">
+      <div id="raawi-tabpanel-reading" class="raawi-tab-body" role="tabpanel" aria-labelledby="raawi-tab-reading" tabindex="0" style="display: ${activeTab === 'reading' ? 'flex' : 'none'};">
         <!-- Reading Guide Ruler -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
@@ -346,13 +362,65 @@ export class PanelComponent {
       </div>
 
       <!-- Tab Content: Tools -->
-      <div id="raawi-tabpanel-tools" class="raawi-tab-body" role="tabpanel" style="display: ${activeTab === 'tools' ? 'flex' : 'none'};">
-        <div class="raawi-control-card">
+      <div id="raawi-tabpanel-tools" class="raawi-tab-body" role="tabpanel" aria-labelledby="raawi-tab-tools" tabindex="0" style="display: ${activeTab === 'tools' ? 'flex' : 'none'};">
+        <!-- 1. Standalone TTS Read Aloud -->
+        <div class="raawi-control-card" id="raawi-tts-card" data-testid="raawi-tts-card">
           <div class="raawi-control-header">
-            <span class="raawi-control-title">${t.tools}</span>
+            <div>
+              <div class="raawi-control-title">${t.readAloud}</div>
+              <div class="raawi-control-desc">${t.readAloudDesc}</div>
+            </div>
+            <span class="raawi-badge raawi-badge-${this.getSpeechStatusBadgeType()}" id="raawi-tts-status-badge">
+              ${this.getSpeechStatusBadgeText(t)}
+            </span>
           </div>
-          <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
-            ${t.statusReady} • ${t.poweredBy}
+
+          <!-- Playback Action Buttons -->
+          <div class="raawi-tts-controls">
+            <button type="button" class="raawi-tts-btn raawi-tts-btn-primary" id="raawi-btn-tts-play" data-testid="raawi-btn-tts-play" aria-label="${t.readPage}">
+              <span aria-hidden="true">${this.speechReader?.getState() === 'playing' ? '🔊' : '▶'}</span>
+              <span>${this.speechReader?.getState() === 'paused' ? t.resume : t.play}</span>
+            </button>
+            <button type="button" class="raawi-tts-btn" id="raawi-btn-tts-pause" data-testid="raawi-btn-tts-pause" aria-label="${t.pause}" ${this.speechReader?.getState() !== 'playing' ? 'disabled' : ''}>
+              <span aria-hidden="true">⏸</span>
+              <span>${t.pause}</span>
+            </button>
+            <button type="button" class="raawi-tts-btn" id="raawi-btn-tts-stop" data-testid="raawi-btn-tts-stop" aria-label="${t.stop}" ${this.speechReader?.getState() !== 'playing' && this.speechReader?.getState() !== 'paused' ? 'disabled' : ''}>
+              <span aria-hidden="true">⏹</span>
+              <span>${t.stop}</span>
+            </button>
+          </div>
+
+          <!-- Rate and Voice Options -->
+          <div class="raawi-tts-options">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; color: var(--text-secondary);">${t.speechRate}</span>
+              <div class="raawi-lang-switch">
+                <button type="button" class="raawi-lang-btn ${(this.speechReader?.getRate() ?? 1.0) === 0.75 ? 'active' : ''}" data-speech-rate="0.75">0.75x</button>
+                <button type="button" class="raawi-lang-btn ${(this.speechReader?.getRate() ?? 1.0) === 1.0 ? 'active' : ''}" data-speech-rate="1.0">1.0x</button>
+                <button type="button" class="raawi-lang-btn ${(this.speechReader?.getRate() ?? 1.0) === 1.25 ? 'active' : ''}" data-speech-rate="1.25">1.25x</button>
+                <button type="button" class="raawi-lang-btn ${(this.speechReader?.getRate() ?? 1.0) === 1.5 ? 'active' : ''}" data-speech-rate="1.5">1.5x</button>
+              </div>
+            </div>
+
+            ${this.renderVoiceSelect(t)}
+          </div>
+        </div>
+
+        <!-- 2. Page Headings Navigator -->
+        <div class="raawi-control-card" id="raawi-headings-card" data-testid="raawi-headings-card">
+          <div class="raawi-control-header">
+            <div>
+              <div class="raawi-control-title">${t.headingsNavTitle}</div>
+              <div class="raawi-control-desc">${this.headingsCache.length} ${t.headingsCount}</div>
+            </div>
+            <button type="button" class="raawi-btn-refresh" id="raawi-btn-headings-refresh" data-testid="raawi-btn-headings-refresh" aria-label="${t.refreshHeadings}">
+              🔄 ${t.refresh}
+            </button>
+          </div>
+
+          <div class="raawi-headings-list" role="navigation" aria-label="${t.headingsNavTitle}">
+            ${this.renderHeadingsList(t)}
           </div>
         </div>
       </div>
@@ -400,7 +468,49 @@ export class PanelComponent {
       });
     });
 
-    // Tab buttons
+    // Tab buttons click and keyboard navigation (WAI-ARIA tabs pattern)
+    const tabList = this.element.querySelector('.raawi-tab-bar');
+    tabList?.addEventListener('keydown', (e: Event) => {
+      const keyEvent = e as KeyboardEvent;
+      const tabOrder: TabId[] = ['assist', 'vision', 'reading', 'tools'];
+      const isRtl = this.state.getDirection() === 'rtl';
+      let nextTab: TabId | null = null;
+      const currentIndex = tabOrder.indexOf(this.state.getActiveTab());
+
+      if (keyEvent.key === 'ArrowRight') {
+        keyEvent.preventDefault();
+        const nextIndex = isRtl
+          ? (currentIndex - 1 + tabOrder.length) % tabOrder.length
+          : (currentIndex + 1) % tabOrder.length;
+        nextTab = tabOrder[nextIndex];
+      } else if (keyEvent.key === 'ArrowLeft') {
+        keyEvent.preventDefault();
+        const prevIndex = isRtl
+          ? (currentIndex + 1) % tabOrder.length
+          : (currentIndex - 1 + tabOrder.length) % tabOrder.length;
+        nextTab = tabOrder[prevIndex];
+      } else if (keyEvent.key === 'ArrowDown') {
+        keyEvent.preventDefault();
+        nextTab = tabOrder[(currentIndex + 1) % tabOrder.length];
+      } else if (keyEvent.key === 'ArrowUp') {
+        keyEvent.preventDefault();
+        nextTab = tabOrder[(currentIndex - 1 + tabOrder.length) % tabOrder.length];
+      } else if (keyEvent.key === 'Home') {
+        keyEvent.preventDefault();
+        nextTab = tabOrder[0];
+      } else if (keyEvent.key === 'End') {
+        keyEvent.preventDefault();
+        nextTab = tabOrder[tabOrder.length - 1];
+      }
+
+      if (nextTab) {
+        this.state.setActiveTab(nextTab);
+        this.render();
+        const targetBtn = this.element.querySelector<HTMLButtonElement>(`#raawi-tab-${nextTab}`);
+        targetBtn?.focus();
+      }
+    });
+
     const tabBtns = this.element.querySelectorAll<HTMLButtonElement>('.raawi-tab-btn[data-tab]');
     tabBtns.forEach((btn) => {
       btn.addEventListener('click', (e) => {
@@ -468,6 +578,12 @@ export class PanelComponent {
     const contrastToggle = this.element.querySelector('#raawi-toggle-contrast') as HTMLInputElement | null;
     contrastToggle?.addEventListener('change', () => {
       this.state.updateSetting('contrastMode', contrastToggle.checked);
+    });
+
+    // Focus highlight toggle
+    const focusHighlightToggle = this.element.querySelector('#raawi-toggle-focus-highlight') as HTMLInputElement | null;
+    focusHighlightToggle?.addEventListener('change', () => {
+      this.state.updateSetting('focusHighlight', focusHighlightToggle.checked);
     });
 
     // Stop animations toggle
@@ -609,6 +725,223 @@ export class PanelComponent {
         }
       });
     });
+
+    // TTS Controls: Play
+    const ttsPlayBtn = this.element.querySelector('#raawi-btn-tts-play');
+    ttsPlayBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (!this.speechReader) return;
+      const res = this.speechReader.read();
+      const t = this.i18n.t();
+      if (res.success) {
+        this.element.dispatchEvent(
+          new CustomEvent('raawi-announce', {
+            bubbles: true,
+            composed: true,
+            detail: { message: t.speechPlaying, priority: 'polite' },
+          })
+        );
+      } else if (res.message) {
+        this.element.dispatchEvent(
+          new CustomEvent('raawi-announce', {
+            bubbles: true,
+            composed: true,
+            detail: { message: res.message, priority: 'polite' },
+          })
+        );
+      }
+      this.render();
+    });
+
+    // TTS Controls: Pause
+    const ttsPauseBtn = this.element.querySelector('#raawi-btn-tts-pause');
+    ttsPauseBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.speechReader?.pause();
+      const t = this.i18n.t();
+      this.element.dispatchEvent(
+        new CustomEvent('raawi-announce', {
+          bubbles: true,
+          composed: true,
+          detail: { message: t.speechPaused, priority: 'polite' },
+        })
+      );
+      this.render();
+    });
+
+    // TTS Controls: Stop
+    const ttsStopBtn = this.element.querySelector('#raawi-btn-tts-stop');
+    ttsStopBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.speechReader?.stop();
+      const t = this.i18n.t();
+      this.element.dispatchEvent(
+        new CustomEvent('raawi-announce', {
+          bubbles: true,
+          composed: true,
+          detail: { message: t.speechStopped, priority: 'polite' },
+        })
+      );
+      this.render();
+    });
+
+    // TTS Speed Rate Buttons
+    const rateBtns = this.element.querySelectorAll<HTMLButtonElement>('button[data-speech-rate]');
+    rateBtns.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const rateVal = parseFloat(btn.getAttribute('data-speech-rate') || '1.0');
+        this.speechReader?.setRate(rateVal);
+        this.render();
+      });
+    });
+
+    // TTS Voice Select
+    const voiceSelect = this.element.querySelector('#raawi-tts-voice-select') as HTMLSelectElement | null;
+    voiceSelect?.addEventListener('change', () => {
+      if (voiceSelect.value) {
+        this.speechReader?.setSelectedVoice(voiceSelect.value);
+      }
+    });
+
+    // Headings Navigator: Refresh
+    const headingsRefreshBtn = this.element.querySelector('#raawi-btn-headings-refresh');
+    headingsRefreshBtn?.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.headingsCache = HeadingsNavigator.discoverHeadings();
+      this.render();
+      const t = this.i18n.t();
+      this.element.dispatchEvent(
+        new CustomEvent('raawi-announce', {
+          bubbles: true,
+          composed: true,
+          detail: {
+            message: `${this.headingsCache.length} ${t.headingsCount}`,
+            priority: 'polite',
+          },
+        })
+      );
+    });
+
+    // Headings Navigator: Jump
+    const headingJumpBtns = this.element.querySelectorAll<HTMLButtonElement>('.raawi-heading-jump-btn');
+    headingJumpBtns.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const headingId = btn.getAttribute('data-heading-id');
+        const targetHeading = this.headingsCache.find((h) => h.id === headingId);
+        if (!targetHeading) return;
+
+        // Close panel dialog first so modal focus trap releases
+        this.element.dispatchEvent(
+          new CustomEvent('raawi-close-dialog', {
+            bubbles: true,
+            composed: true,
+            detail: { skipFocusRestore: true },
+          })
+        );
+
+        const res = HeadingsNavigator.navigateToHeading(targetHeading, {
+          reduceMotion: this.state.getSettings().reduceMotion,
+        });
+
+        const t = this.i18n.t();
+        if (res.success) {
+          this.element.dispatchEvent(
+            new CustomEvent('raawi-announce', {
+              bubbles: true,
+              composed: true,
+              detail: {
+                message: `${t.headingNavigated}: ${targetHeading.text}`,
+                priority: 'polite',
+              },
+            })
+          );
+        }
+      });
+    });
+  }
+
+  private getSpeechStatusBadgeType(): string {
+    const s = this.speechReader?.getState() || 'idle';
+    switch (s) {
+      case 'playing':
+        return 'success';
+      case 'paused':
+        return 'warning';
+      case 'unsupported':
+      case 'error':
+        return 'danger';
+      default:
+        return 'neutral';
+    }
+  }
+
+  private getSpeechStatusBadgeText(t: TranslationDictionary): string {
+    const s = this.speechReader?.getState() || 'idle';
+    switch (s) {
+      case 'playing':
+        return t.speechPlaying;
+      case 'paused':
+        return t.speechPaused;
+      case 'unsupported':
+        return t.speechUnsupported;
+      case 'error':
+        return t.errorOccurred;
+      default:
+        return t.statusReady;
+    }
+  }
+
+  private renderVoiceSelect(t: TranslationDictionary): string {
+    if (!this.speechReader || this.speechReader.getState() === 'unsupported') {
+      return '';
+    }
+
+    const voices = this.speechReader.getVoices();
+    if (voices.length === 0) {
+      return `
+        <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+          <span>🎙️</span> <span>${t.defaultVoice}</span>
+        </div>
+      `;
+    }
+
+    const selectedUri = this.speechReader.getSelectedVoiceUri();
+
+    return `
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <label for="raawi-tts-voice-select" style="font-size: 12px; color: var(--text-secondary);">${t.speechVoice}</label>
+        <select id="raawi-tts-voice-select" class="raawi-select" aria-label="${t.speechVoice}">
+          <option value="">${t.defaultVoice}</option>
+          ${voices.map((v) => `
+            <option value="${escapeHtml(v.voiceURI)}" ${v.voiceURI === selectedUri ? 'selected' : ''}>
+              ${escapeHtml(v.name)} (${escapeHtml(v.lang)})
+            </option>
+          `).join('')}
+        </select>
+      </div>
+    `;
+  }
+
+  private renderHeadingsList(t: TranslationDictionary): string {
+    if (this.headingsCache.length === 0) {
+      return `
+        <div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 14px 8px;" data-testid="raawi-no-headings">
+          ${t.noHeadingsFound}
+        </div>
+      `;
+    }
+
+    return this.headingsCache.map((h, idx) => `
+      <div class="raawi-heading-item" data-testid="raawi-heading-item-${idx}">
+        <span class="raawi-heading-badge">H${h.level}</span>
+        <span class="raawi-heading-text" title="${escapeHtml(h.text)}">${escapeHtml(h.text)}</span>
+        <button type="button" class="raawi-heading-jump-btn" data-heading-id="${escapeHtml(h.id)}" data-testid="raawi-heading-jump-${idx}" aria-label="${t.jumpToHeading}: ${escapeHtml(h.text)}">
+          ${t.jumpToLandmark || 'Jump'} ↗
+        </button>
+      </div>
+    `).join('');
   }
 
   private getStatusBadgeType(status?: string): string {

@@ -1246,4 +1246,86 @@
 - **Bounded Retries with Physical Slot Accounting:** Confirmed that retries on timeouts consume physical dispatch slots, abide by per-scan limits and rolling-window pacing, and do not produce unbounded retry loops.
 - **Deterministic Test Coverage:** Added Scenarios 39–44 to `gemini-telemetry-regression.test.ts`. Full regression suite (44 tests) and full scanner package suite (189 tests across 26 files) passed with 100% success.
 
+# Tasks - Raawi X Widget Capability Audit
+
+- [x] Stage 0: Environment baseline and scope confirmation
+  - [x] Verify branch (`feature/semantic-core`), clean working tree, and commit SHA (`861a8e95d582dd64e0a2f3e03501751bbba03d7e`)
+- [x] Stage 1: Widget architecture and data-flow mapping
+  - [x] Inspect `apps/widget/` files, bootstrap, Shadow DOM, custom elements, UI components, settings/preferences, semantic engine, and server contracts
+  - [x] Construct verified architecture and data-flow diagram
+- [x] Stage 2: Complete capability inventory
+  - [x] Area A: Installation and lifecycle
+  - [x] Area B: Visitor-facing accessibility tools
+  - [x] Area C: AssistiveMap and remediation engine
+  - [x] Area D: Safety, reversibility, and freshness
+  - [x] Area E: Usability and accessibility of the widget itself
+  - [x] Area F: Integration and operational boundaries
+- [x] Stage 3: Test evidence and verification boundary matrix
+  - [x] Inspect existing widget tests and test fixtures without running test suites
+  - [x] Classify test evidence (real UI, DOM fixture, API mock, inferred, unverified in real browser)
+- [x] Stage 4: Product readiness and prioritized gap analysis
+  - [x] Prioritize gaps (P0 correctness/safety, P1 core product completeness, P2 polish/differentiation)
+  - [x] Detail visitor problem, user-facing behavior, deterministic vs AI requirements, contract changes, and acceptance criteria
+- [x] Deliverable: Author `RAAWI_X_WIDGET_CAPABILITY_AUDIT.md`
+
+## Execution Review (Widget Capability Audit)
+- **Environment & Baseline:** Clean working tree, branch `feature/semantic-core`, HEAD `861a8e95d582dd64e0a2f3e03501751bbba03d7e`. Zero application or test code mutated.
+- **Architectural Trace:** Traced full lifecycle: Open Shadow DOM Web Component `<raawi-accessibility-widget>`, scoped CSS reset, WAI-ARIA modal dialog with backdrop, bidirectional Tab trap, Escape key handling, and ARIA live region.
+- **Audited Capabilities:** Verified 100% deterministic features (proportional text scaling 80-200%, content-only line spacing, high contrast WCAG AAA 21:1, stop animations with HTML5 video pausing, reading ruler/mask in Shadow DOM, large SVG cursors, hide images, bilingual AR/EN dictionary). Verified conservative DOM remediation engine (strictly opt-in, preserves existing alt text, empty `alt=""`, and authored accessible names). Verified synchronous SHA-256 freshness engine and cooperative History API tracking.
+- **Identified Critical Gaps:**
+  - Dead AI buttons in Panel UI (`#raawi-btn-describe-image`, `#raawi-btn-describe-focused`, `#raawi-btn-what-can-i-do` rendered with zero click event listeners).
+  - Empty Tools tab (Tab 4 contains only a static placeholder card).
+  - Complete absence of Web Speech TTS in the active modular widget (legacy prototype had TTS; active widget only has ARIA live text announcements).
+  - Ghost settings (`magnifier`, `imageCaptions` declared in types but unimplemented).
+  - Unused scanner findings (`actionIntents` and `issuesSummary` fetched by API client but never rendered).
+  - Testing boundary: 96/96 automated tests run in JSDOM; zero real browser or screen reader tests exist in CI.
+- **Comprehensive Deliverable:** Authored [RAAWI_X_WIDGET_CAPABILITY_AUDIT.md](file:///d:/Waheed/RaawiX/RAAWI_X_WIDGET_CAPABILITY_AUDIT.md) (21,586 bytes) containing full architecture diagram, 6 capability inventory matrices, test matrix, prioritized P0/P1/P2 gaps, and staged 3-phase roadmap.
+
+# Tasks - Widget Phase 1 + Phase 2A: Integrity Cleanup and Standalone Reading Assistance
+
+- [x] 1. Preflight & Baseline Verification
+  - [x] Verify branch (`feature/semantic-core`), clean working tree, commit (`861a8e95d582dd64e0a2f3e03501751bbba03d7e`), and disk space (73+ GB free)
+  - [x] Run baseline widget tests (99/99 passed)
+- [x] 2. Phase 1: Widget Integrity Cleanup
+  - [x] Remove visible dead AI controls (`#raawi-btn-describe-image`, `#raawi-btn-describe-focused`, `#raawi-btn-what-can-i-do`) from active panel UI
+  - [x] Clean ghost settings (`magnifier`, `magnifierZoom`, `imageCaptions`) from types, presets, and state
+  - [x] Preserve all existing working features and regression baselines
+- [x] 3. Phase 2A: Core Implementations
+  - [x] Create `apps/widget/src/core/speech-reader.ts` (browser-native Web Speech TTS, selection vs page fallback, play/pause/resume/stop, voice rate, voice discovery, spoken highlight, clean teardown)
+  - [x] Create `apps/widget/src/core/headings-navigator.ts` (host page `h1`–`h6` discovery, hierarchical outline, non-destructive focus jump, empty state, refresh)
+  - [x] Implement standalone Focus Visibility in `apps/widget/src/core/display-manager.ts` (`data-raawi-focus-highlight`, ownership tracking, contrast/motion-aware styles, clean restoration)
+- [x] 4. Tab Navigation, Touch Targets, and UI Integration
+  - [x] Rebuild Tab 4 (Tools) in `apps/widget/src/components/panel.ts` to host Read-Aloud Player and Headings Navigator
+  - [x] Add Focus Highlight toggle to Vision tab
+  - [x] Implement WAI-ARIA tab pattern keyboard navigation (Arrow Left/Right/Up/Down, Home, End)
+  - [x] Verify touch targets aim for $\ge 44 \times 44$ CSS px
+  - [x] Add bilingual AR/EN strings with 1:1 translation parity in `i18n.ts`
+  - [x] Connect lifecycle in `shadow-container.ts` (stop speech on panel close/reset/destroy)
+- [x] 5. Testing & Verification
+  - [x] Author targeted test suite `apps/widget/test/phase2a-reading-tools.test.ts` (21/21 tests passed)
+  - [x] Run full widget test suite (120/120 tests passed across 7 test files)
+  - [x] Run type-check (`tsc --noEmit`) and widget build (`vite build` -> 117.24 kB bundle)
+- [x] 6. Review & Delivery
+  - [x] Review git diff for minimal impact and senior standards
+  - [x] Commit and push to `feature/semantic-core`
+  - [x] Report results and await coordinator review
+
+## Execution Review (Widget Phase 1 + Phase 2A)
+- **Zero-AI & Zero-Backend Architecture:** Standalone reading assistance operates completely within the client browser without any Gemini/OpenAI calls, scanner jobs, external TTS services, or audio network requests.
+- **Phase 1 Integrity Cleanup:**
+  - Removed 3 dead AI buttons (`#raawi-btn-describe-image`, `#raawi-btn-describe-focused`, `#raawi-btn-what-can-i-do`) from the active panel DOM.
+  - Eliminated ghost settings (`magnifier`, `magnifierZoom`, `imageCaptions`) from `WidgetSettings`, `DEFAULT_SETTINGS`, and `presetBlind`.
+  - Rebuilt Tab 4 ("Tools") into a fully functional reading assistance panel.
+- **Phase 2A Implementations:**
+  - `SpeechReader`: Full Web Speech (`speechSynthesis` / `SpeechSynthesisUtterance`) engine supporting user selection vs page extraction (excluding widget, nav, footer, and hidden elements), play/pause/resume/stop, rate selection (0.75x–1.75x), voice discovery/locale matching, spoken highlight, and clean teardown on modal close/reset.
+  - `HeadingsNavigator`: Host DOM `h1`–`h6` discovery, hierarchical outline with ARIA level announcements, temporary `tabindex="-1"` jump with blur cleanup, empty states, and dynamic refresh.
+  - `DisplayManager`: Standalone focus highlight mode (`data-raawi-focus-highlight`), scoped multi-layered focus rings excluding widget internals, and ownership-aware restoration.
+  - `WAI-ARIA Tablist`: Keyboard arrow-key navigation (`ArrowRight`, `ArrowLeft`, `ArrowUp`, `ArrowDown`, `Home`, `End`) respecting RTL/LTR visual order, with touch targets sized $\ge 44 \times 44$ CSS px.
+  - `Bilingual Localization`: 100% Arabic and English translation parity for all new UI controls and status announcements.
+- **Test Results:** 120/120 automated tests passed (99 legacy regression tests + 21 new Phase 2A tests). TypeScript compilation (`tsc --noEmit`) and Vite build (`vite build`) exit 0.
+
+
+
+
+
 

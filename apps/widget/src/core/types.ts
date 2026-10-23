@@ -115,6 +115,7 @@ export interface WidgetSettings {
   textSize: number; // 0.8 to 2.0 (1.0 default)
   lineSpacing: number; // 0.8 to 2.0 (1.0 default)
   contrastMode: boolean;
+  focusHighlight: boolean; // Standalone high-visibility focus indicator
   stopAnimations: boolean;
   reduceMotion: boolean;
   bigCursor: 'off' | 'dark' | 'light';
@@ -122,9 +123,6 @@ export interface WidgetSettings {
   readingMask: boolean;
   readingMaskWindowHeight: 'small' | 'medium' | 'large';
   hideImages: boolean;
-  imageCaptions: boolean;
-  magnifier: boolean;
-  magnifierZoom: number;
   activePreset: 'none' | 'blind' | 'low-vision' | 'dyslexia';
   remediationEnabled: boolean; // Phase 5.4: opt-in DOM remediation
 }
@@ -133,6 +131,7 @@ export const DEFAULT_SETTINGS: WidgetSettings = {
   textSize: 1.0,
   lineSpacing: 1.0,
   contrastMode: false,
+  focusHighlight: false,
   stopAnimations: false,
   reduceMotion: false,
   bigCursor: 'off',
@@ -140,9 +139,6 @@ export const DEFAULT_SETTINGS: WidgetSettings = {
   readingMask: false,
   readingMaskWindowHeight: 'medium',
   hideImages: false,
-  imageCaptions: false,
-  magnifier: false,
-  magnifierZoom: 2.0,
   activePreset: 'none',
   remediationEnabled: false,
 };
