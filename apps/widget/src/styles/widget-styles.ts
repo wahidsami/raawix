@@ -460,6 +460,12 @@ export const WIDGET_CSS = `
     line-height: 1.35;
   }
 
+  .raawi-numeric-range {
+    direction: ltr;
+    unicode-bidi: isolate;
+    display: inline-block;
+  }
+
   /* Badges & Page Insights */
   .raawi-badge {
     display: inline-flex;

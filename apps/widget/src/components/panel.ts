@@ -298,7 +298,7 @@ export class PanelComponent {
               <div class="raawi-control-icon-wrap" aria-hidden="true">${VISION_ICONS.textSize}</div>
               <div>
                 <div class="raawi-control-title">${t.textSize}</div>
-                <div class="raawi-control-desc">80% – 200%</div>
+                <div class="raawi-control-desc"><bdi class="raawi-numeric-range" dir="ltr">80% – 200%</bdi></div>
               </div>
             </div>
             <div class="raawi-stepper-group">
@@ -321,7 +321,7 @@ export class PanelComponent {
               <div class="raawi-control-icon-wrap" aria-hidden="true">${VISION_ICONS.lineSpacing}</div>
               <div>
                 <div class="raawi-control-title">${t.lineSpacing}</div>
-                <div class="raawi-control-desc">80% – 200%</div>
+                <div class="raawi-control-desc"><bdi class="raawi-numeric-range" dir="ltr">80% – 200%</bdi></div>
               </div>
             </div>
             <div class="raawi-stepper-group">

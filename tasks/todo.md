@@ -1697,3 +1697,40 @@
 - **Vision Tab Polish:** Restyled Text Size and Line Spacing steppers with dynamically computed progress bars (`Math.round(((value - 0.8) / 1.2) * 100)%`) reflecting the active 80–200% scale in 10% steps. Restyled all 5 visual adjustment cards (High Contrast, Focus Highlight, Readable Font, Highlight Links, Stop Animations) with dedicated mint icon wraps, bold titles, and concise descriptions. Replaced cursor switch with an accessible 3-way segmented control (Off, Large Dark, Large Light) with inline SVG cursor icons and touch padding.
 - **Reading and Tools Tabs Strictly Preserved:** Tab contents for Reading and Tools were not altered.
 - **Verification Evidence:** 174/174 tests passing across all 9 test suites. Rebuilt production bundle (`widget.iife.js`). Captured genuine Chromium screenshot evidence: `22_phase2_english_assist.png`, `23_phase2_english_vision.png`, `23b_phase2_english_vision_scrolled.png`, `24_phase2_arabic_assist.png`, `25_phase2_arabic_vision.png`, and `26_phase2_mobile_tabs.png`.
+
+# Tasks - Raawi X Widget Redesign: Phase 2.1 Closeout (RTL Numeric Range & Assist Copy Accuracy)
+
+- [x] 1. Preflight & Issue Inspection
+  - [x] Preflight branch (`feature/semantic-core`), verify HEAD (`aed11cb`), clean worktree, 73.23 GB free disk space
+  - [x] Inspect actual markup and Unicode BiDi behavior for Vision tab Text Size and Line Spacing ranges
+  - [x] Inspect actual `DomRemediator` capabilities and `applyPreset('blind')` implementation
+- [x] 2. Arabic Numeric Range BiDi Ordering Resolution
+  - [x] Wrap numeric ranges in `<bdi class="raawi-numeric-range" dir="ltr">80% – 200%</bdi>` in `apps/widget/src/components/panel.ts`
+  - [x] Add `.raawi-numeric-range` CSS rules in `apps/widget/src/styles/widget-styles.ts` (`direction: ltr; unicode-bidi: isolate; display: inline-block;`)
+  - [x] Verify visual and accessible ascending order (`80% – 200%`) in both Arabic RTL and English LTR without altering 80-200% limits or state logic
+- [x] 3. Assist Remediation & Blind Profile Copy Accuracy
+  - [x] Update English `remediationDesc` to `'Safely add missing image alt descriptions and accessible control labels based on verified scanner map'`
+  - [x] Update Arabic `remediationDesc` to `'إضافة نصوص بديلة للصور وتسميات وصول لعناصر التحكم المفقودة استناداً إلى خريطة الوصول'`
+  - [x] Update English `presetBlindDesc` to `'Standard layout optimized for native screen readers'` (removing unfulfilled audio guidance promise)
+  - [x] Update Arabic `presetBlindDesc` to `'تنسيق قياسي مهيّأ لقارئات الشاشة'` (removing unfulfilled audio guidance promise)
+  - [x] Ensure DOM remediation remains strictly opt-in and disabled by default (`remediationEnabled: false`)
+- [x] 4. Automated Testing & Verification
+  - [x] Create focused regression test suite `apps/widget/test/phase2-1-closeout.test.ts` (9/9 tests passing)
+  - [x] Run full regression test suite (183/183 tests passing across 10 test files)
+  - [x] Run TypeScript check (`tsc --noEmit` exits 0)
+  - [x] Build production bundle (`vite build` 208.35 kB)
+- [x] 5. Real-Browser Screenshot Verification
+  - [x] Capture refreshed local Chromium screenshots with `capture-phase2-redesign.js`
+  - [x] Verify visual `80% – 200%` rendering in `25_phase2_arabic_vision.png`
+  - [x] Verify updated copy in `24_phase2_arabic_assist.png` and `22_phase2_english_assist.png`
+- [x] 6. Review, Commit, Push & Delivery Report
+  - [x] Review git diff for senior standards
+  - [x] Commit and push Phase 2.1 to `feature/semantic-core`
+  - [x] Deliver Phase 2.1 report and stop for coordinator review
+
+## Execution Review (Widget Redesign Phase 2.1 Closeout)
+- **RTL Numeric Range BiDi Ordering:** Resolved Unicode Bidirectional Algorithm (UBA) reordering where weak characters (`%`, `–`) in RTL context inverted `80% – 200%` into `200% – 80%`. Applied `<bdi class="raawi-numeric-range" dir="ltr">80% – 200%</bdi>` markup in `panel.ts` paired with `.raawi-numeric-range { direction: ltr; unicode-bidi: isolate; display: inline-block; }` in `widget-styles.ts`. Real-browser visual capture confirms exact `80% – 200%` ascending display in both Arabic and English interfaces without altering state, steps, or underlying range logic.
+- **Assist Remediation Copy Accuracy:** Inspected `DomRemediator` implementation. Verified that the remediator injects `alt` on unlabeled `HTMLImageElement` and `aria-label` on interactive controls lacking accessible names; it does not replace visible button text in DOM or bind form labels. Updated both English and Arabic translations to refer specifically to accessible control labels (`accessible control labels` / `تسميات وصول لعناصر التحكم`). Remediations remain strictly opt-in and disabled by default (`remediationEnabled: false`).
+- **Blind Profile Copy Accuracy:** Inspected `applyPreset('blind')`. Verified that the preset resets visual preferences to default values for standard screen reader interoperability, but does not activate speech synthesis or audio prompts. Corrected English and Arabic descriptions from claiming audio guidance to `'Standard layout optimized for native screen readers'` / `'تنسيق قياسي مهيّأ لقارئات الشاشة'`.
+- **Verification Evidence:** 183/183 unit and integration tests passing across all 10 test suites, including 9/9 new tests in `phase2-1-closeout.test.ts`. TypeScript clean (exit code 0). Real-browser screenshots refreshed and inspected.
+
