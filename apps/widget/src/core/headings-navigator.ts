@@ -104,10 +104,17 @@ export class HeadingsNavigator {
 
     const el = heading.element;
 
-    // 1. Scroll into view
+    // 1. Scroll into view respecting prefers-reduced-motion
+    const prefersReducedMotion =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const shouldReduceMotion = Boolean(options.reduceMotion || prefersReducedMotion);
+
     try {
       el.scrollIntoView({
-        behavior: options.reduceMotion ? 'auto' : 'smooth',
+        behavior: shouldReduceMotion ? 'auto' : 'smooth',
         block: 'start',
       });
     } catch {

@@ -505,10 +505,10 @@ export class SpeechReader {
     }
   }
 
-  private handleBoundary(e: SpeechSynthesisEvent): void {
-    // Graceful sentence/word boundary detection without throwing
-    if (typeof e.charIndex !== 'number') return;
-    // Highlight tracking can be extended non-destructively
+  private handleBoundary(e: any): void {
+    // Graceful sentence/word boundary detection without throwing on unsupported or malformed events
+    if (!e || typeof e.charIndex !== 'number') return;
+    // Highlight tracking is completely non-destructive to host page content
   }
 
   private clearHighlight(): void {

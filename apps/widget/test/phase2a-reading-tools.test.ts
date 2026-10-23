@@ -136,24 +136,42 @@ describe('Phase 1 + Phase 2A: Integrity Cleanup & Standalone Reading Assistance'
       assert.strictEqual(settings.focusHighlight, false, 'focusHighlight must default to false');
     });
 
-    it('operates accessibility presets cleanly without referencing ghost settings', () => {
+    it('operates accessibility presets cleanly without referencing ghost settings or enabling remediation implicitly', () => {
       const state = new StateManager('en');
 
+      // 1. Default remains disabled
+      assert.strictEqual(DEFAULT_SETTINGS.remediationEnabled, false, 'remediationEnabled must be false by default');
+      assert.strictEqual(state.getSettings().remediationEnabled, false, 'initial state must have remediation disabled');
+
+      // 2. Applying Blind preset does NOT enable remediation implicitly
       state.applyPreset('blind');
       const blindSettings = state.getSettings();
       assert.strictEqual(blindSettings.activePreset, 'blind');
       assert.strictEqual((blindSettings as any).imageCaptions, undefined);
-      assert.strictEqual(blindSettings.remediationEnabled, true, 'blind profile should enable remediation');
+      assert.strictEqual(blindSettings.remediationEnabled, false, 'blind profile must never enable remediation implicitly');
 
+      // 3. Explicitly enabling remediation through its intended control continues to work
+      state.updateSetting('remediationEnabled', true);
+      assert.strictEqual(state.getSettings().remediationEnabled, true, 'explicit toggle must enable remediation');
+
+      // 4. Switching presets does not leave remediation unexpectedly enabled
       state.applyPreset('low-vision');
       const lowVisionSettings = state.getSettings();
       assert.strictEqual(lowVisionSettings.contrastMode, true);
       assert.strictEqual(lowVisionSettings.textSize, 1.3);
+      assert.strictEqual(lowVisionSettings.remediationEnabled, false, 'switching preset must reset remediation to disabled');
 
-      state.applyPreset('none');
+      state.applyPreset('dyslexia');
+      const dyslexiaSettings = state.getSettings();
+      assert.strictEqual(dyslexiaSettings.remediationEnabled, false, 'dyslexia preset must have remediation disabled');
+
+      // 5. Resetting settings restores default disabled state
+      state.updateSetting('remediationEnabled', true);
+      state.resetSettings();
       const defaultSettings = state.getSettings();
       assert.strictEqual(defaultSettings.activePreset, 'none');
       assert.strictEqual(defaultSettings.textSize, 1.0);
+      assert.strictEqual(defaultSettings.remediationEnabled, false, 'resetting settings must disable remediation');
     });
   });
 
@@ -256,12 +274,12 @@ describe('Phase 1 + Phase 2A: Integrity Cleanup & Standalone Reading Assistance'
       const headings = HeadingsNavigator.discoverHeadings(document);
       const target = headings[0];
 
-      let scrolled = false;
-      target.element.scrollIntoView = () => { scrolled = true; };
+      let scrollOpts: any = null;
+      target.element.scrollIntoView = (opts?: any) => { scrollOpts = opts; };
 
       const res = HeadingsNavigator.navigateToHeading(target, { reduceMotion: false });
       assert.strictEqual(res.success, true);
-      assert.strictEqual(scrolled, true);
+      assert.deepStrictEqual(scrollOpts, { behavior: 'smooth', block: 'start' });
 
       assert.strictEqual(target.element.getAttribute('tabindex'), '-1');
       assert.strictEqual(target.element.getAttribute('data-raawi-temp-focus'), 'true');
@@ -270,6 +288,47 @@ describe('Phase 1 + Phase 2A: Integrity Cleanup & Standalone Reading Assistance'
       target.element.dispatchEvent(new window.FocusEvent('blur'));
       assert.strictEqual(target.element.hasAttribute('tabindex'), false);
       assert.strictEqual(target.element.hasAttribute('data-raawi-temp-focus'), false);
+    });
+
+    it('uses non-animated scrolling when reduceMotion is requested explicitly in options', () => {
+      const headings = HeadingsNavigator.discoverHeadings(document);
+      const target = headings[0];
+
+      let scrollOpts: any = null;
+      target.element.scrollIntoView = (opts?: any) => { scrollOpts = opts; };
+
+      const res = HeadingsNavigator.navigateToHeading(target, { reduceMotion: true });
+      assert.strictEqual(res.success, true);
+      assert.deepStrictEqual(scrollOpts, { behavior: 'auto', block: 'start' });
+    });
+
+    it('respects system prefers-reduced-motion media query even when options omit reduceMotion', () => {
+      const headings = HeadingsNavigator.discoverHeadings(document);
+      const target = headings[0];
+
+      let scrollOpts: any = null;
+      target.element.scrollIntoView = (opts?: any) => { scrollOpts = opts; };
+
+      const originalMatchMedia = window.matchMedia;
+      try {
+        window.matchMedia = (query: string) => ({
+          matches: query === '(prefers-reduced-motion: reduce)',
+          media: query,
+          onchange: null,
+          addListener: () => {},
+          removeListener: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+        });
+
+        // Call navigateToHeading without options or with reduceMotion omitted
+        const res = HeadingsNavigator.navigateToHeading(target);
+        assert.strictEqual(res.success, true);
+        assert.deepStrictEqual(scrollOpts, { behavior: 'auto', block: 'start' });
+      } finally {
+        window.matchMedia = originalMatchMedia;
+      }
     });
 
     it('returns empty list and renders friendly empty state on pages with no headings', () => {
@@ -437,6 +496,75 @@ describe('Phase 1 + Phase 2A: Integrity Cleanup & Standalone Reading Assistance'
       assert.strictEqual(cancelled, true);
 
       widget.remove();
+    });
+
+    it('handles malformed or unsupported speech-boundary events gracefully without throwing', () => {
+      const reader = new SpeechReader({ locale: 'ar' });
+
+      // Direct boundary handler invocation with edge-case payloads
+      assert.doesNotThrow(() => {
+        (reader as any).handleBoundary(null);
+        (reader as any).handleBoundary(undefined);
+        (reader as any).handleBoundary({});
+        (reader as any).handleBoundary({ charIndex: 'not-a-number' });
+        (reader as any).handleBoundary({ charIndex: 12 });
+      });
+
+      reader.destroy();
+    });
+
+    it('extracts text without permanently rewriting host DOM content, links, form controls, or active selections', () => {
+      const initialHtml = document.body.innerHTML;
+      const initialLinks = Array.from(document.querySelectorAll('a')).map((a) => a.outerHTML);
+      const initialButtons = Array.from(document.querySelectorAll('button')).map((b) => b.outerHTML);
+
+      // Set user selection mock
+      let selectionCleared = false;
+      window.getSelection = () => ({
+        toString: () => 'نص محدد للاختبار',
+        removeAllRanges: () => { selectionCleared = true; },
+      });
+
+      const res = SpeechReader.extractReadableContent(document);
+      assert.strictEqual(res.source, 'selection');
+      assert.strictEqual(res.text, 'نص محدد للاختبار');
+      assert.strictEqual(selectionCleared, false, 'Reading selection must not clear user selection');
+
+      // Verify page content was untouched
+      const postHtml = document.body.innerHTML;
+      assert.strictEqual(postHtml, initialHtml, 'Reading must not mutate host document HTML');
+
+      const postLinks = Array.from(document.querySelectorAll('a')).map((a) => a.outerHTML);
+      assert.deepStrictEqual(postLinks, initialLinks, 'Links must remain completely identical');
+
+      const postButtons = Array.from(document.querySelectorAll('button')).map((b) => b.outerHTML);
+      assert.deepStrictEqual(postButtons, initialButtons, 'Buttons must remain completely identical');
+    });
+
+    it('cancels speech playback when the panel reset button is clicked', () => {
+      let cancelled = false;
+      (window as any).speechSynthesis = {
+        speak: (u: any) => { u.onstart?.(); },
+        pause: () => {},
+        resume: () => {},
+        cancel: () => { cancelled = true; },
+        getVoices: () => [],
+      };
+
+      const state = new StateManager('en');
+      const i18n = new I18nManager('en');
+      const reader = new SpeechReader({ locale: 'en' });
+      reader.read('Test speech');
+      assert.strictEqual(reader.getState(), 'playing');
+
+      const panel = new PanelComponent(state, i18n, undefined, undefined, reader);
+      const resetBtn = panel.getElement().querySelector('#raawi-reset-btn') as HTMLButtonElement;
+      assert.ok(resetBtn, 'Reset button must exist');
+
+      resetBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+      assert.strictEqual(cancelled, true, 'Reset button must cancel active speech');
+
+      reader.destroy();
     });
   });
 

@@ -82,7 +82,6 @@ export class StateManager {
       this.settings = {
         ...DEFAULT_SETTINGS,
         activePreset: 'blind',
-        remediationEnabled: true,
       };
     } else if (preset === 'low-vision') {
       this.settings = {

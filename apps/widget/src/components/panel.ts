@@ -451,6 +451,7 @@ export class PanelComponent {
     const resetBtn = this.element.querySelector('#raawi-reset-btn');
     resetBtn?.addEventListener('click', (e) => {
       e.preventDefault();
+      this.speechReader?.stop();
       this.state.resetSettings();
       this.render();
     });
@@ -663,9 +664,10 @@ export class PanelComponent {
         const selector = btn.getAttribute('data-landmark-selector');
         if (!selector) return;
 
+        const settings = this.state.getSettings();
         const res = LandmarkNavigator.navigateToLandmark(
           { selector },
-          { reduceMotion: this.state.getSettings().reduceMotion }
+          { reduceMotion: settings.reduceMotion || settings.stopAnimations }
         );
 
         const t = this.i18n.t();
@@ -841,8 +843,9 @@ export class PanelComponent {
           })
         );
 
+        const settings = this.state.getSettings();
         const res = HeadingsNavigator.navigateToHeading(targetHeading, {
-          reduceMotion: this.state.getSettings().reduceMotion,
+          reduceMotion: settings.reduceMotion || settings.stopAnimations,
         });
 
         const t = this.i18n.t();

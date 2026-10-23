@@ -1324,6 +1324,34 @@
   - `Bilingual Localization`: 100% Arabic and English translation parity for all new UI controls and status announcements.
 - **Test Results:** 120/120 automated tests passed (99 legacy regression tests + 21 new Phase 2A tests). TypeScript compilation (`tsc --noEmit`) and Vite build (`vite build`) exit 0.
 
+# Tasks - Phase 2A Safety Review and Targeted Corrections
+
+- [x] 1. Blind Preset and DOM Remediation Safety
+  - [x] Verify DOM remediation is opt-in and disabled by default (`DEFAULT_SETTINGS.remediationEnabled: false`)
+  - [x] Correct `presetBlind` in `apps/widget/src/core/state.ts` so presets never implicitly enable DOM remediation
+  - [x] Verify explicit remediation toggle continues to operate normally
+  - [x] Add regression tests verifying preset application, reset, and switching never leave remediation unexpectedly enabled
+- [x] 2. Reduced-Motion Navigation
+  - [x] Update `HeadingsNavigator.navigateToHeading` to respect `window.matchMedia('(prefers-reduced-motion: reduce)')`
+  - [x] Wire `stopAnimations` and `reduceMotion` settings through to `navigateToHeading` and `navigateToLandmark` in `panel.ts`
+  - [x] Add targeted regression tests for options-based and media-query-based non-animated scrolling
+- [x] 3. Speech Highlighting and Lifecycle Cleanup
+  - [x] Verify text extraction does not alter host DOM content, links, form controls, or user selection
+  - [x] Ensure boundary event handler handles malformed/missing events defensively without throwing
+  - [x] Ensure panel reset button cancels active speech and cleans up
+  - [x] Add targeted regression tests verifying non-destructive reading, boundary event safety, and reset cancellation
+- [x] 4. Full Verification & Delivery
+  - [x] Run full test suite: 125/125 tests passed across all 7 test files
+  - [x] Run type-check (`tsc --noEmit`) and production build (`vite build`)
+  - [x] Commit and push targeted corrections to `feature/semantic-core`
+
+## Execution Review (Phase 2A Safety Review)
+- **Blind Preset Safety:** Corrected `applyPreset('blind')` in `state.ts` to strictly exclude `remediationEnabled: true`. Presets now never silently activate DOM remediation. Explicit control via `#raawi-toggle-remediation` remains fully functional. Switching presets or resetting settings guarantees remediation is disabled.
+- **Reduced Motion:** `HeadingsNavigator.navigateToHeading` now inspects both `options.reduceMotion` and `window.matchMedia('(prefers-reduced-motion: reduce)').matches`, ensuring non-animated scrolling (`behavior: 'auto'`) whenever reduced motion is requested. `panel.ts` passes `reduceMotion || stopAnimations` to both landmark and heading navigation.
+- **Speech Highlighting & Cleanup:** Confirmed `SpeechReader` is completely non-destructive (zero DOM tree replacements, zero link/button modifications, active text selections preserved). Boundary handler defensively handles missing/malformed `charIndex`. Panel Reset button halts speech playback and resets state.
+- **Test Evidence:** 125/125 automated tests passed (99 legacy + 26 Phase 2A suite). Type check and Vite build clean.
+
+
 
 
 
