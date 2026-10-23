@@ -1351,6 +1351,54 @@
 - **Speech Highlighting & Cleanup:** Confirmed `SpeechReader` is completely non-destructive (zero DOM tree replacements, zero link/button modifications, active text selections preserved). Boundary handler defensively handles missing/malformed `charIndex`. Panel Reset button halts speech playback and resets state.
 - **Test Evidence:** 125/125 automated tests passed (99 legacy + 26 Phase 2A suite). Type check and Vite build clean.
 
+# Tasks - Widget Phase 2B: Standalone Visual & Content Tools
+
+- [x] 1. Preflight & Baseline Verification
+  - [x] Verify branch (`feature/semantic-core`), clean working tree, HEAD (`fd46624`), and disk space (73+ GB)
+  - [x] Run baseline widget test suite (125/125 passing)
+- [x] 2. Feature A: Readable Font Selection
+  - [x] Add `readableFont: boolean` to `WidgetSettings` and `DEFAULT_SETTINGS` in `types.ts`
+  - [x] Implement scoped host typography rule in `DisplayManager` (`data-raawi-readable-font="true"`)
+  - [x] Ensure Latin sans-serif font stack with robust Arabic Naskh fallback (`'Cairo', 'Noto Naskh Arabic', 'Tahoma', sans-serif`)
+  - [x] Add toggle control to Vision tab in `panel.ts`
+  - [x] Add bilingual translation keys in `i18n.ts`
+- [x] 3. Feature B: Interactive Control & Link Highlighter
+  - [x] Add `highlightLinks: boolean` to `WidgetSettings` and `DEFAULT_SETTINGS` in `types.ts`
+  - [x] Implement scoped interactive element highlight rules in `DisplayManager` (`data-raawi-highlight-links="true"`)
+  - [x] Distinctly style links (`a[href]`) vs action buttons (`button`, `[role="button"]`) vs form inputs
+  - [x] Exclude widget elements and preserve existing focus visibility
+  - [x] Add toggle control to Vision tab in `panel.ts`
+  - [x] Add bilingual translation keys in `i18n.ts`
+- [x] 4. Feature C: Configurable Reading Guide & Focus Mask
+  - [x] Add `readingGuideThickness: 'thin' | 'medium' | 'thick'` to `WidgetSettings` and `DEFAULT_SETTINGS`
+  - [x] Update `DisplayManager.syncReadingRuler` to apply thickness dynamically (3px, 6px, 12px)
+  - [x] Ensure reading ruler and mask settings remain strictly independent
+  - [x] Add thickness selector buttons and mask height selector buttons to Reading tab in `panel.ts`
+  - [x] Persist settings and guard against corrupted preference states in `state.ts`
+  - [x] Add bilingual translation keys in `i18n.ts`
+- [x] 5. Magnifier Technical Assessment
+  - [x] Produce comparative source-based design analysis for future Phase 2C (layout reflow, keyboard/pointer, cross-browser, touch, screen readers, style conflicts)
+  - [x] Recommend single feasible approach and test plan without modifying magnifier code in Phase 2B
+- [x] 6. Testing & Regression Verification
+  - [x] Author targeted test suite `apps/widget/test/phase2b-visual-tools.test.ts` (17/17 tests passing)
+  - [x] Verify readable font toggle, fallback, and cleanup
+  - [x] Verify link/button highlighting, target distinction, and widget exclusion
+  - [x] Verify reading ruler thickness and mask height independence, defaults, and persistence
+  - [x] Run full regression suite (142/142 tests passing across all 8 test files)
+  - [x] Run typecheck (`tsc --noEmit`) and Vite build (`vite build` -> 125.01 kB)
+- [x] 7. Review, Commit & Delivery
+  - [x] Review diff for minimal impact and senior engineering standards
+  - [x] Commit and push to `feature/semantic-core`
+  - [x] Provide comprehensive delivery report and await coordinator review
+
+## Execution Review (Widget Phase 2B)
+- **Feature A (Readable Font):** Added `readableFont: boolean` (default false). Scoped `data-raawi-readable-font="true"` overrides host body and content typography using a robust system sans-serif stack paired with verified Arabic Naskh fallback (`'Cairo', 'Noto Naskh Arabic', 'Tahoma', Arial, sans-serif`). Zero external CDN requests. Fully reversible upon toggle or widget reset.
+- **Feature B (Interactive Control Highlighter):** Added `highlightLinks: boolean` (default false). Injected scoped rules on `data-raawi-highlight-links="true"` visually differentiating navigation links (`a[href]` solid blue underline), action buttons (`button`, `[role="button"]` dashed purple border), and form inputs (dotted green border). Excludes widget elements and preserves existing focus visibility and click handlers.
+- **Feature C (Configurable Reading Guide & Mask):** Added `readingGuideThickness: 'thin' | 'medium' | 'thick'` (default `'medium'`). Dynamic ruler thickness (thin: 3px, medium: 6px, thick: 12px) with full reduced-motion support (`transition: none` when reduced motion or stop animations is active). Ruler thickness and mask height remain 100% independent. Settings sanitized against corrupted `localStorage` state.
+- **Test Evidence:** 142/142 automated tests passed across all 8 test files (17 new Phase 2B tests + 125 legacy tests). Clean TypeScript check and production Vite build.
+
+
+
 
 
 

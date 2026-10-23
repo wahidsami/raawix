@@ -17,6 +17,8 @@ export class DisplayManager {
     'data-raawi-line-spacing',
     'data-raawi-contrast-mode',
     'data-raawi-focus-highlight',
+    'data-raawi-readable-font',
+    'data-raawi-highlight-links',
     'data-raawi-stop-animations',
     'data-raawi-cursor',
     'data-raawi-hide-images',
@@ -201,7 +203,21 @@ export class DisplayManager {
       this.restoreManagedAttribute('data-raawi-focus-highlight');
     }
 
-    // 5. Stop Animations & Reduced Motion
+    // 5. Readable Font Selection Override
+    if (settings.readableFont) {
+      this.setManagedAttribute('data-raawi-readable-font', 'true');
+    } else {
+      this.restoreManagedAttribute('data-raawi-readable-font');
+    }
+
+    // 6. Interactive Links & Control Highlighter
+    if (settings.highlightLinks) {
+      this.setManagedAttribute('data-raawi-highlight-links', 'true');
+    } else {
+      this.restoreManagedAttribute('data-raawi-highlight-links');
+    }
+
+    // 7. Stop Animations & Reduced Motion
     if (settings.stopAnimations) {
       this.setManagedAttribute('data-raawi-stop-animations', 'true');
       this.pauseHostMedia();
@@ -210,34 +226,37 @@ export class DisplayManager {
       this.resumeHostMedia();
     }
 
-    // 5. High-Visibility Cursor
+    // 8. High-Visibility Cursor
     if (settings.bigCursor !== 'off') {
       this.setManagedAttribute('data-raawi-cursor', settings.bigCursor);
     } else {
       this.restoreManagedAttribute('data-raawi-cursor');
     }
 
-    // 6. Hide Images
+    // 9. Hide Images
     if (settings.hideImages) {
       this.setManagedAttribute('data-raawi-hide-images', 'true');
     } else {
       this.restoreManagedAttribute('data-raawi-hide-images');
     }
 
-    // 7. Reading Ruler Overlay (Shadow DOM contained)
-    this.syncReadingRuler(settings.readingGuide);
+    // 10. Reading Ruler Overlay (Shadow DOM contained)
+    this.syncReadingRuler(settings.readingGuide, settings.readingGuideThickness);
 
-    // 8. Reading Mask Overlay (Shadow DOM contained)
+    // 11. Reading Mask Overlay (Shadow DOM contained)
     this.syncReadingMask(settings.readingMask, settings.readingMaskWindowHeight);
 
-    // 9. Sync mouse/focus tracking if either reading guide or mask is active
+    // 12. Sync mouse/focus tracking if either reading guide or mask is active
     this.syncTrackingListeners(settings.readingGuide || settings.readingMask);
   }
 
   /**
    * Reading Guide Ruler lifecycle
    */
-  private syncReadingRuler(active: boolean): void {
+  private syncReadingRuler(
+    active: boolean,
+    thicknessKey: 'thin' | 'medium' | 'thick' = 'medium'
+  ): void {
     if (active) {
       if (!this.readingRuler) {
         this.readingRuler = document.createElement('div');
@@ -246,8 +265,8 @@ export class DisplayManager {
         this.readingRuler.setAttribute('aria-hidden', 'true');
         this.readingRuler.setAttribute('data-testid', 'raawi-reading-ruler');
         this.shadow.appendChild(this.readingRuler);
-        this.updateRulerPosition(this.currentY);
       }
+      this.updateRulerPosition(this.currentY, thicknessKey);
       this.readingRuler.style.display = 'block';
     } else if (this.readingRuler) {
       this.readingRuler.style.display = 'none';
@@ -328,7 +347,7 @@ export class DisplayManager {
     this.currentY = this.targetY;
 
     if (this.readingRuler && this.readingRuler.style.display !== 'none') {
-      this.updateRulerPosition(this.currentY);
+      this.updateRulerPosition(this.currentY, this.state.getSettings().readingGuideThickness);
     }
 
     if (this.readingMaskTop && this.readingMaskTop.style.display !== 'none') {
@@ -336,10 +355,30 @@ export class DisplayManager {
     }
   }
 
-  private updateRulerPosition(y: number): void {
+  private updateRulerPosition(
+    y: number,
+    thicknessKey: 'thin' | 'medium' | 'thick' = 'medium'
+  ): void {
     if (!this.readingRuler) return;
-    const rulerHeight = 4;
-    const top = Math.max(0, Math.min(y - rulerHeight / 2, window.innerHeight - rulerHeight));
+    const rulerHeights: Record<'thin' | 'medium' | 'thick', number> = {
+      thin: 3,
+      medium: 6,
+      thick: 12,
+    };
+    const rulerHeight = rulerHeights[thicknessKey] || 6;
+    this.readingRuler.style.height = `${rulerHeight}px`;
+
+    const isReducedMotion = Boolean(
+      this.state.getSettings().reduceMotion ||
+      this.state.getSettings().stopAnimations ||
+      (typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+    );
+    this.readingRuler.style.transition = isReducedMotion ? 'none' : 'top 0.04s ease-out';
+
+    const winHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+    const top = Math.max(0, Math.min(y - rulerHeight / 2, winHeight - rulerHeight));
     this.readingRuler.style.top = `${top}px`;
   }
 
@@ -572,6 +611,60 @@ export class DisplayManager {
         outline: 4px solid #ffff00 !important;
         outline-offset: 4px !important;
         box-shadow: 0 0 0 6px #000000, 0 0 0 8px #00ffff !important;
+      }
+
+      /* Standalone Legible Typography Override */
+      html[data-raawi-readable-font="true"] body,
+      html[data-raawi-readable-font="true"] p,
+      html[data-raawi-readable-font="true"] h1,
+      html[data-raawi-readable-font="true"] h2,
+      html[data-raawi-readable-font="true"] h3,
+      html[data-raawi-readable-font="true"] h4,
+      html[data-raawi-readable-font="true"] h5,
+      html[data-raawi-readable-font="true"] h6,
+      html[data-raawi-readable-font="true"] li,
+      html[data-raawi-readable-font="true"] dd,
+      html[data-raawi-readable-font="true"] dt,
+      html[data-raawi-readable-font="true"] blockquote,
+      html[data-raawi-readable-font="true"] figcaption,
+      html[data-raawi-readable-font="true"] span:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-readable-font="true"] a:not(raawi-accessibility-widget *):not(.raawi-theme *) {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Cairo', 'Noto Naskh Arabic', 'Tahoma', Arial, sans-serif !important;
+        letter-spacing: 0.015em;
+      }
+
+      /* Standalone Interactive Controls & Links Highlighter */
+      html[data-raawi-highlight-links="true"] a[href]:not(raawi-accessibility-widget *):not(.raawi-theme *) {
+        outline: 2px solid #2563eb !important;
+        outline-offset: 2px !important;
+        text-decoration: underline !important;
+        text-decoration-thickness: 2px !important;
+      }
+
+      html[data-raawi-highlight-links="true"] button:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-highlight-links="true"] [role="button"]:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-highlight-links="true"] input[type="button"]:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-highlight-links="true"] input[type="submit"]:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-highlight-links="true"] input[type="reset"]:not(raawi-accessibility-widget *):not(.raawi-theme *) {
+        outline: 2px dashed #7c3aed !important;
+        outline-offset: 2px !important;
+      }
+
+      html[data-raawi-highlight-links="true"] input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="hidden"]):not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-highlight-links="true"] select:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-highlight-links="true"] textarea:not(raawi-accessibility-widget *):not(.raawi-theme *) {
+        outline: 2px dotted #059669 !important;
+        outline-offset: 2px !important;
+      }
+
+      html[data-raawi-contrast-mode="true"][data-raawi-highlight-links="true"] a[href]:not(raawi-accessibility-widget *):not(.raawi-theme *) {
+        outline: 2px solid #ffff00 !important;
+        color: #ffff00 !important;
+      }
+
+      html[data-raawi-contrast-mode="true"][data-raawi-highlight-links="true"] button:not(raawi-accessibility-widget *):not(.raawi-theme *),
+      html[data-raawi-contrast-mode="true"][data-raawi-highlight-links="true"] [role="button"]:not(raawi-accessibility-widget *):not(.raawi-theme *) {
+        outline: 2px dashed #00ffff !important;
       }
 
       /* 5. Stop Animations & Reduced Motion */

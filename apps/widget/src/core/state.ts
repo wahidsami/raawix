@@ -134,7 +134,22 @@ export class StateManager {
         const raw = window.localStorage.getItem(STORAGE_KEY);
         if (raw) {
           const parsed = JSON.parse(raw);
-          return { ...DEFAULT_SETTINGS, ...parsed };
+          if (parsed && typeof parsed === 'object') {
+            const settings: WidgetSettings = { ...DEFAULT_SETTINGS, ...parsed };
+            if (!['thin', 'medium', 'thick'].includes(settings.readingGuideThickness)) {
+              settings.readingGuideThickness = 'medium';
+            }
+            if (!['small', 'medium', 'large'].includes(settings.readingMaskWindowHeight)) {
+              settings.readingMaskWindowHeight = 'medium';
+            }
+            if (typeof settings.textSize !== 'number' || isNaN(settings.textSize)) {
+              settings.textSize = 1.0;
+            }
+            if (typeof settings.lineSpacing !== 'number' || isNaN(settings.lineSpacing)) {
+              settings.lineSpacing = 1.0;
+            }
+            return settings;
+          }
         }
       }
     } catch {

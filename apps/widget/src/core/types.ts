@@ -116,10 +116,13 @@ export interface WidgetSettings {
   lineSpacing: number; // 0.8 to 2.0 (1.0 default)
   contrastMode: boolean;
   focusHighlight: boolean; // Standalone high-visibility focus indicator
+  readableFont: boolean; // Standalone legible typography override
+  highlightLinks: boolean; // Standalone links and action controls highlighter
   stopAnimations: boolean;
   reduceMotion: boolean;
   bigCursor: 'off' | 'dark' | 'light';
   readingGuide: boolean;
+  readingGuideThickness: 'thin' | 'medium' | 'thick';
   readingMask: boolean;
   readingMaskWindowHeight: 'small' | 'medium' | 'large';
   hideImages: boolean;
@@ -132,10 +135,13 @@ export const DEFAULT_SETTINGS: WidgetSettings = {
   lineSpacing: 1.0,
   contrastMode: false,
   focusHighlight: false,
+  readableFont: false,
+  highlightLinks: false,
   stopAnimations: false,
   reduceMotion: false,
   bigCursor: 'off',
   readingGuide: false,
+  readingGuideThickness: 'medium',
   readingMask: false,
   readingMaskWindowHeight: 'medium',
   hideImages: false,

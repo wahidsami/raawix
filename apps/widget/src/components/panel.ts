@@ -293,6 +293,28 @@ export class PanelComponent {
           </div>
         </div>
 
+        <!-- Readable Font Override Toggle -->
+        <div class="raawi-control-card">
+          <div class="raawi-control-header">
+            <span class="raawi-control-title">${t.readableFont}</span>
+            <label class="raawi-toggle">
+              <input type="checkbox" id="raawi-toggle-readable-font" data-testid="raawi-tool-readable-font" ${settings.readableFont ? 'checked' : ''} aria-label="${t.toggleReadableFont}">
+              <span class="raawi-toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Highlight Links & Action Controls Toggle -->
+        <div class="raawi-control-card">
+          <div class="raawi-control-header">
+            <span class="raawi-control-title">${t.highlightLinks}</span>
+            <label class="raawi-toggle">
+              <input type="checkbox" id="raawi-toggle-highlight-links" data-testid="raawi-tool-highlight-links" ${settings.highlightLinks ? 'checked' : ''} aria-label="${t.toggleHighlightLinks}">
+              <span class="raawi-toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
         <!-- Stop Animations Toggle -->
         <div class="raawi-control-card">
           <div class="raawi-control-header">
@@ -327,6 +349,14 @@ export class PanelComponent {
               <input type="checkbox" id="raawi-toggle-reading-guide" data-testid="raawi-tool-reading-guide" ${settings.readingGuide ? 'checked' : ''} aria-label="${t.toggleReadingGuide}">
               <span class="raawi-toggle-slider"></span>
             </label>
+          </div>
+          <div id="raawi-guide-thickness-container" style="display: ${settings.readingGuide ? 'flex' : 'none'}; margin-top: 10px; justify-content: space-between; align-items: center;">
+            <span style="font-size: 12px; color: var(--text-secondary);">${t.guideThickness}</span>
+            <div class="raawi-lang-switch">
+              <button type="button" class="raawi-lang-btn ${settings.readingGuideThickness === 'thin' ? 'active' : ''}" data-guide-thickness="thin" data-testid="raawi-guide-thin">${t.thin}</button>
+              <button type="button" class="raawi-lang-btn ${settings.readingGuideThickness === 'medium' ? 'active' : ''}" data-guide-thickness="medium" data-testid="raawi-guide-medium">${t.medium}</button>
+              <button type="button" class="raawi-lang-btn ${settings.readingGuideThickness === 'thick' ? 'active' : ''}" data-guide-thickness="thick" data-testid="raawi-guide-thick">${t.thick}</button>
+            </div>
           </div>
         </div>
 
@@ -587,6 +617,18 @@ export class PanelComponent {
       this.state.updateSetting('focusHighlight', focusHighlightToggle.checked);
     });
 
+    // Readable font toggle
+    const readableFontToggle = this.element.querySelector('#raawi-toggle-readable-font') as HTMLInputElement | null;
+    readableFontToggle?.addEventListener('change', () => {
+      this.state.updateSetting('readableFont', readableFontToggle.checked);
+    });
+
+    // Highlight links toggle
+    const highlightLinksToggle = this.element.querySelector('#raawi-toggle-highlight-links') as HTMLInputElement | null;
+    highlightLinksToggle?.addEventListener('change', () => {
+      this.state.updateSetting('highlightLinks', highlightLinksToggle.checked);
+    });
+
     // Stop animations toggle
     const stopAnimationsToggle = this.element.querySelector('#raawi-toggle-stop-animations') as HTMLInputElement | null;
     stopAnimationsToggle?.addEventListener('change', () => {
@@ -597,6 +639,20 @@ export class PanelComponent {
     const readingGuideToggle = this.element.querySelector('#raawi-toggle-reading-guide') as HTMLInputElement | null;
     readingGuideToggle?.addEventListener('change', () => {
       this.state.updateSetting('readingGuide', readingGuideToggle.checked);
+      this.render();
+    });
+
+    // Reading guide thickness buttons
+    const guideThicknessBtns = this.element.querySelectorAll<HTMLButtonElement>('button[data-guide-thickness]');
+    guideThicknessBtns.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const thickness = btn.getAttribute('data-guide-thickness') as 'thin' | 'medium' | 'thick';
+        if (thickness) {
+          this.state.updateSetting('readingGuideThickness', thickness);
+          this.render();
+        }
+      });
     });
 
     // Reading mask toggle

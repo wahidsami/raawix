@@ -36,6 +36,10 @@ export interface TranslationDictionary {
   toggleHighContrast: string;
   focusHighlight: string;
   toggleFocusHighlight: string;
+  readableFont: string;
+  toggleReadableFont: string;
+  highlightLinks: string;
+  toggleHighlightLinks: string;
   stopAnimations: string;
   toggleStopAnimations: string;
   reduceMotion: string;
@@ -51,6 +55,9 @@ export interface TranslationDictionary {
   toggleReadingMode: string;
   readingGuide: string;
   toggleReadingGuide: string;
+  guideThickness: string;
+  thin: string;
+  thick: string;
   readingMask: string;
   toggleReadingMask: string;
   maskWindowHeight: string;
@@ -169,6 +176,10 @@ export const translations: Record<Locale, TranslationDictionary> = {
     toggleHighContrast: 'تبديل وضع التباين العالي',
     focusHighlight: 'إبراز مؤشر التركيز',
     toggleFocusHighlight: 'تبديل إبراز مؤشر التركيز',
+    readableFont: 'خط سهل القراءة',
+    toggleReadableFont: 'تبديل خط سهل القراءة',
+    highlightLinks: 'إبراز الروابط وعناصر التحكم',
+    toggleHighlightLinks: 'تبديل إبراز الروابط وعناصر التحكم',
     stopAnimations: 'إيقاف الرسوم المتحركة',
     toggleStopAnimations: 'تبديل إيقاف الرسوم المتحركة',
     reduceMotion: 'تقليل الحركة',
@@ -183,6 +194,9 @@ export const translations: Record<Locale, TranslationDictionary> = {
     toggleReadingMode: 'تبديل وضع القراءة',
     readingGuide: 'مسطرة القراءة الأفقية',
     toggleReadingGuide: 'تبديل مسطرة القراءة',
+    guideThickness: 'سماكة مسطرة القراءة',
+    thin: 'رفيع',
+    thick: 'عريض',
     readingMask: 'قناع حجب وتظليل القراءة',
     toggleReadingMask: 'تبديل قناع القراءة',
     maskWindowHeight: 'ارتفاع نافذة القراءة',
@@ -295,6 +309,10 @@ export const translations: Record<Locale, TranslationDictionary> = {
     toggleHighContrast: 'Toggle high contrast mode',
     focusHighlight: 'Focus Highlight',
     toggleFocusHighlight: 'Toggle focus highlight ring',
+    readableFont: 'Readable Font',
+    toggleReadableFont: 'Toggle readable font override',
+    highlightLinks: 'Highlight Links & Controls',
+    toggleHighlightLinks: 'Toggle interactive elements and links highlighting',
     stopAnimations: 'Stop Animations',
     toggleStopAnimations: 'Toggle stop animations',
     reduceMotion: 'Reduce Motion',
@@ -309,6 +327,9 @@ export const translations: Record<Locale, TranslationDictionary> = {
     toggleReadingMode: 'Toggle reading mode',
     readingGuide: 'Reading Guide Ruler',
     toggleReadingGuide: 'Toggle reading guide ruler',
+    guideThickness: 'Guide Line Thickness',
+    thin: 'Thin',
+    thick: 'Thick',
     readingMask: 'Reading Focus Mask',
     toggleReadingMask: 'Toggle reading mask',
     maskWindowHeight: 'Mask Window Height',
